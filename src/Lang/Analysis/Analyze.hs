@@ -1,6 +1,6 @@
-module Lang.Analysis.Infer
-  ( runTypeInference,
-    runTypeInferenceWith,
+module Lang.Analysis.Analyze
+  ( runAnalysis,
+    runAnalysisWith,
   )
 where
 
@@ -14,7 +14,7 @@ import Lang.Type.Semantics
 import Lang.Expr.AST
 import Lang.Expr.Constant
 import Lang.Analysis.Derivation
-import Lang.Analysis.Pre
+import Lang.Analysis.Annotate
 import Control.Monad.Except
 import Solving.CVC5 (SolverHandle)
 import Control.Monad.IO.Class (liftIO)
@@ -167,9 +167,9 @@ inferWithIndices qfh e@(EAssume e1 annotyp) = withScope e $ do
 
 -- | @runTypeInferenceWith env e qfh@ runs the whole type inference pipeline on expression @e@,
 -- using the typing environment @env@ and the handle @qfh@ to communicate with the SMT solver.
-runTypeInferenceWith :: TypingEnvironment -> Expr -> SolverHandle -> IO (Either TypeError (Type, Index))
-runTypeInferenceWith env e qfh = runExceptT $ do
-  e' <- annotateNil env e
+runAnalysisWith :: TypingEnvironment -> Expr -> SolverHandle -> IO (Either TypeError (Type, Index))
+runAnalysisWith env e qfh = runExceptT $ do
+  e' <- runAnnotation env e
   ((typ, i), remaining) <- runTypeDerivation (inferWithIndices qfh e') env
   when (envIsLinear remaining) $ do
     let remainingNames = [id | (id, bs) <- Map.toList (typingContext remaining), any mustBeUsed bs]
@@ -178,5 +178,5 @@ runTypeInferenceWith env e qfh = runExceptT $ do
 
 -- | @runTypeInference e qfh@ runs the whole type inference pipeline on expression @e@,
 -- using the handle @qfh@ to communicate with the SMT solver.
-runTypeInference :: Expr -> SolverHandle -> IO (Either TypeError (Type, Index))
-runTypeInference = runTypeInferenceWith emptyEnv
+runAnalysis :: Expr -> SolverHandle -> IO (Either TypeError (Type, Index))
+runAnalysis = runAnalysisWith emptyEnv

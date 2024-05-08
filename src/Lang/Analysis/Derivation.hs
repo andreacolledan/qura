@@ -42,7 +42,8 @@ import Index.AST
 import Lang.Type.AST
 import Lang.Type.Unify
 import Lang.Expr.AST
-import PrettyPrinter
+import Lang.Analysis.Environment
+import Lang.Analysis.TypeError
 import Control.Monad.Except
 import Control.Monad.Identity
 import Lang.Type.Semantics (checkSubtype)
@@ -54,154 +55,12 @@ import Lang.Expr.Pattern
 ---
 --- This module contains base definitions to work with type derivations in
 --- a linear setting. It defines the type of type derivation computations,
---- their environment, the basic operations used to manipulate it and
+--- the basic type derivations that interact with the environment and
 --- some useful combinators to build more complex derivations.
 ------------------------------------------------------------------------------------------
 
---- BINDINGS ------------------------------------------------------------------
 
--- | The datatype of bindings (carries the type of a variable and whether it has been used yet)
-data BindingInfo = BindingInfo {getType :: Type, isUsed :: Bool} deriving (Eq, Show)
-
--- 
-instance Wide BindingInfo where
-  wireCount binding = if isUsed binding then Number 0 else wireCount (getType binding)
-
-instance Pretty BindingInfo where
-  pretty = pretty . getType
-
--- | @canBeUsed b@ returns 'True' if the binding @b@ is of a parameter type
--- or if it is a linear type and the corresponding variable has not been used yet.
-canBeUsed :: BindingInfo -> Bool
-canBeUsed (BindingInfo typ used) = not used || not (isLinear typ)
-
--- | @mustBeUsed b@ returns 'True' if the binding @b@ is of a linear type
--- and the corresponding variable has not been used yet.
-mustBeUsed :: BindingInfo -> Bool
-mustBeUsed (BindingInfo typ used) = not used && isLinear typ
-
---- TYPING CONTEXTS -----------------------------------------------------------
-
--- | The datatype of typing contexts (Corresponds to Γ or Φ in the paper)
-type TypingContext = Map.HashMap VariableId [BindingInfo]
-
--- | The empty typing context
-emptyctx :: Map.HashMap a b
-emptyctx = Map.empty
-
---- TYPING ENVIRONMENTS --------------------------------------------------------
-
--- | The datatype of typing environments.
--- Represents the state of any linear type derivation
-data TypingEnvironment = TypingEnvironment
-  { typingContext :: TypingContext, -- attributes types to variable names (linear/nonlinear)
-    indexContext :: IndexContext, -- keeps track of the existing index variables in the environment
-    scopes :: [Expr], -- a list of the expressions enclosing the current one
-    liftedExpression :: Bool, -- whether the current expression is in a nonlinear context
-    freshCounter :: Int -- a counter for generating fresh index variables
-  }
-
-instance Wide TypingEnvironment where
-  wireCount TypingEnvironment {typingContext = gamma} = wireCount gamma
-
--- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
--- The index variables in @theta@ are considered to be in scope.
-makeEnvForall :: [IndexVariableId] -> [(VariableId, Type)] -> TypingEnvironment
-makeEnvForall theta gamma =
-  let gamma' = Map.fromList [(id, [BindingInfo typ False]) | (id, typ) <- gamma]
-   in TypingEnvironment gamma' (Set.fromList theta) [] True 0
-
--- | @makeEnv gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
--- No index variables are considered to be in scope.
-makeEnv :: [(VariableId, Type)] -> TypingEnvironment
-makeEnv = makeEnvForall []
-
--- | The empty typing environment. No variables are in scope.
-emptyEnv :: TypingEnvironment
-emptyEnv = makeEnv [] 
-
--- | @envIsLinear env@ returns 'True' if the environment @env@ contains any linear variables or labels.
-envIsLinear :: TypingEnvironment -> Bool
-envIsLinear TypingEnvironment {typingContext = gamma} =
-  let remainingVars = [id | (id, bs) <- Map.toList gamma, any mustBeUsed bs] -- remaining linear variables
-   in not (null remainingVars)
-
---- TYPING ERRORS ---------------------------------------------------------------
-
--- The datatype of errors that can occur during a derivation
-data TypeError
-  = UnboundVariable VariableId [Expr]
-  | UnboundIndexVariable IndexVariableId [Expr]
-  | UnexpectedType Expr Type Type [Expr]
-  | UnexpectedIndex Index Index [Expr]
-  | UnexpectedWidthAnnotation Expr Index Index [Expr]
-  | ExpectedBundleType Expr Type [Expr]
-  | CannotSynthesizeType Expr [Expr]
-  | -- Pattern errors
-    PatternMismatch Pattern Type [Expr]
-  | ConsEmptyList Pattern Type [Expr]
-  | -- Linearity errors
-    UnusedLinearVariable VariableId [Expr]
-  | OverusedLinearVariable VariableId [Expr]
-  | LiftedLinearVariable VariableId [Expr]
-  | -- Box errors
-    UnboxableType Expr Type [Expr]
-  | -- Fold errors
-    UnfoldableStepfunction Expr Type [Expr]
-  | UnfoldableAccumulator Expr Type [Expr]
-  | UnfoldableArg Expr Type [Expr]
-  | -- Other
-    ShadowedIndexVariable IndexVariableId [Expr]
-  | UnexpectedEmptyList Expr Type [Expr]
-  deriving (Eq)
-
-instance Show TypeError where
-  show (UnboundVariable id surr) = "* Unbound variable '" ++ id ++ "'" ++ printSurroundings surr
-  show (UnusedLinearVariable id surr) = "* Unused linear variable '" ++ id ++ "'" ++ printSurroundings surr
-  show (LiftedLinearVariable id surr) = "* Linear variable '" ++ id ++ "' cannot be consumed in a lifted expression" ++ printSurroundings surr
-  show (UnexpectedType exp typ1 typ2 surr) =
-    "* Expected expression '" ++ trnc 80 (pretty exp) ++ "'\n   to have type\n    '" ++ pretty typ1 ++ "',\n   got\n    '" ++ pretty typ2 ++ "'\n   instead" ++ printSurroundings surr
-  show (UnexpectedWidthAnnotation m i j surr) =
-    "* Expected expression '" ++ pretty m ++ "' to have width annotation '" ++ pretty i ++ "', got '" ++ pretty j ++ "' instead" ++ printSurroundings surr
-  show (UnexpectedIndex i1 i2 surr) = "* Expected index '" ++ pretty i1 ++ "', got '" ++ pretty i2 ++ "' instead" ++ printSurroundings surr
-  show (UnboxableType v typ surr) = "* Cannot box value '" ++ pretty v ++ "' of type '" ++ pretty typ ++ "'" ++ printSurroundings surr
-  show (UnfoldableStepfunction v typ surr) = "* Expression '" ++ pretty v ++ "' of type '" ++ pretty typ ++ "' is not a valid step function" ++ printSurroundings surr
-  show (UnfoldableAccumulator v typ surr) = "* Expression '" ++ pretty v ++ "' of type '" ++ pretty typ ++ "' is not a valid accumulator" ++ printSurroundings surr
-  show (UnfoldableArg v typ surr) = "* Expression '" ++ pretty v ++ "' of type '" ++ pretty typ ++ "' is not a valid fold argument" ++ printSurroundings surr
-  show (UnboundIndexVariable id surr) = "* Unbound index variable '" ++ id ++ "'" ++ printSurroundings surr
-  show (ShadowedIndexVariable id surr) = "* Shadowed index variable '" ++ id ++ "'" ++ printSurroundings surr
-  show (OverusedLinearVariable id surr) = "* Linear variable '" ++ id ++ "' is used more than once" ++ printSurroundings surr
-  show (UnexpectedEmptyList e typ surr) = "* Cannot conclude that expression '" ++ pretty e ++ "' of type '" ++ pretty typ ++ "' is a non-empty list" ++ printSurroundings surr
-  show (ExpectedBundleType e typ surr) = "* Expected expression '" ++ pretty e ++ "' to have bundle type, got '" ++ pretty typ ++ "' instead" ++ printSurroundings surr
-  show (CannotSynthesizeType e surr) = "* Cannot synthesize type for expression '" ++ pretty e ++ "'. Consider annotating it with a type" ++ printSurroundings surr
-
--- | @printSurroundings es@ returns a string describing the expressions in @es@, if any
-printSurroundings :: [Expr] -> String
-printSurroundings [] = ""
-printSurroundings (e : es) = "\n* While typing " ++ pretty e ++ go es 3
-  where
-    go :: [Expr] -> Int -> String
-    go [] _ = ""
-    go _ 0 = "\n..."
-    go (e : es) n = "\n  In " ++ trnc 80 (pretty e) ++ go es (n - 1)
-
--- | @printConstructor t@ returns a string describing the top-level constructor of type @t@
-printConstructor :: Type -> String
-printConstructor TUnit = "unit type"
-printConstructor (TWire {}) = "wire type"
-printConstructor (TTensor {}) = "tensor type"
-printConstructor (TCirc {}) = "circuit type"
-printConstructor (TArrow {}) = "arrow type"
-printConstructor (TBang {}) = "bang type"
-printConstructor (TList {}) = "list type"
-printConstructor (TVar {}) = "type variable"
-printConstructor (TIForall {}) = "forall type"
-
--- | @trnc n s@ returns the first @n@ characters of @s@, followed by "..." if @s@ is longer than @n@
-trnc :: Int -> String -> String
-trnc n s = if length s > n then take n s ++ "..." else s
-
---- TYPE DERIVATIONS ---------------------------------------------------------------
+--- BASIC DERIVATIONS ---------------------------------------------------------------
 
 type DerivationResult = ExceptT TypeError IO
 

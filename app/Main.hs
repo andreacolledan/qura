@@ -3,7 +3,7 @@ module Main (main) where
 import Control.Monad (when)
 import Index.Semantics
 import Lang.Type.Semantics (simplifyType)
-import Lang.Analysis.Infer
+import Lang.Analysis.Analyze
 import Lang.Expr.Parse
 import Options.Applicative
 import PrettyPrinter
@@ -58,7 +58,7 @@ main = do
         putStrLn $ "Parsed successfully as \n\t" ++ pretty ast
         putStrLn "Inferring type..."
       withSolver deb $ \qfh -> do
-        outcome <- runTypeInference ast qfh
+        outcome <- runAnalysis ast qfh
         case outcome of
           Left err -> do
             hSetSGR stderr [SetColor Foreground Vivid Red]

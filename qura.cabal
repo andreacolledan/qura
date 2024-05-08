@@ -28,9 +28,11 @@ library
       Index.AST
       Index.Parse
       Index.Semantics
+      Lang.Analysis.Analyze
+      Lang.Analysis.Annotate
       Lang.Analysis.Derivation
-      Lang.Analysis.Infer
-      Lang.Analysis.Pre
+      Lang.Analysis.Environment
+      Lang.Analysis.TypeError
       Lang.Expr.AST
       Lang.Expr.Constant
       Lang.Expr.Parse
