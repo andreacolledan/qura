@@ -91,7 +91,7 @@ test-suite qura-test
       Index.ASTSpec
       Index.ParseSpec
       Index.SemanticsSpec
-      Lang.Analysis.InferSpec
+      Lang.Analysis.AnalyzeSpec
       Lang.Expr.ParseSpec
       Paths_qura
   hs-source-dirs:

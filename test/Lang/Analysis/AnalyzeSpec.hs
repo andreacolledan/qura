@@ -1,4 +1,4 @@
-module Lang.Analysis.InferSpec (spec) where
+module Lang.Analysis.AnalyzeSpec (spec) where
 
 import Data.Either
 import Index.AST
@@ -6,7 +6,7 @@ import Index.Semantics
 import Lang.Type.AST
 import Lang.Type.Semantics
 import Lang.Expr.AST
-import Lang.Analysis.Infer
+import Lang.Analysis.Analyze
 import Test.Hspec
 import Lang.Expr.Constant
 import Lang.Analysis.Derivation
@@ -19,7 +19,7 @@ import Lang.Expr.Pattern
 -- a pair of the inferred type and index ('Right'). The type and index are simplified aggressively for readability.
 runInferenceForTesting :: TypingEnvironment -> Expr -> SolverHandle -> IO (Either TypeError (Type, Index))
 runInferenceForTesting env expr qfh = do
-  outcome <- runTypeInferenceWith env expr qfh
+  outcome <- runAnalysisWith env expr qfh
   case outcome of
     Left err -> return $ Left err
     Right (t, i) -> do
