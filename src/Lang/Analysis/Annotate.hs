@@ -47,7 +47,7 @@ annotate e@(ENil _) = withScope e $ do
   return (ENil (Just typ), TList irr typ, mempty)
 -- ABSTRACTION
 annotate e@(EAbs p annotyp e1) = withScope e $ do
-  (ids, annotyps) <- makePatternBindings Nothing p annotyp
+  (ids, annotyps) <- makePatternBindings p annotyp UnsizedLists
   (e1', typ1, sub1) <- withBoundVariables ids annotyps $ annotate e1
   return (EAbs p (tsub sub1 annotyp) e1', tsub sub1 (TArrow annotyp typ1 irr irr), sub1)
 -- LIFT
@@ -64,7 +64,7 @@ annotate e@(ECons e1 e2) = withScope e $ do
 -- LET-IN
 annotate e@(ELet p e1 e2) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
-  (ids, typs) <- makePatternBindings Nothing p typ1
+  (ids, typs) <- makePatternBindings p typ1 UnsizedLists
   (e2', typ2, sub2) <- withBoundVariables ids typs $ annotate e2
   let sub = sub2 <> sub1
   return (tsub sub (ELet p e1' e2'), tsub sub typ2, sub)

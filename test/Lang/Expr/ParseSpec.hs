@@ -77,6 +77,3 @@ spec = do
       parse parseProgram "" "(f x @i) y" `shouldBe` Right (EApp (EIApp (EApp (EVar "f") (EVar "x")) (IndexVariable "i")) (EVar "y"))
     it "cons has precedence over index application" $ do
       parse parseProgram "" "x:y:xs @i" `shouldBe` Right (EIApp (ECons (EVar "x") (ECons (EVar "y") (EVar "xs"))) (IndexVariable "i"))
-  -- describe "top level declarations" $ do
-  --   it "parses 'f :: Qubit -o[1,0] Qubit \nf q = q \n***\nf' correctly" $ do
-  --     parse parseProgram "" "f :: Qubit -o[1,0] Qubit \nf q = q \n***\nf" `shouldBe` Right (ELet (PVar "f") (EAnno (EAbs (PVar "q") (TWire Qubit) (EVar "q")) (TArrow (TWire Qubit) (TWire Qubit) (Number 1) (Number 0))) (EVar "f"))

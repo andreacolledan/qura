@@ -29,7 +29,9 @@ module Lang.Analysis.Derivation
     unlessEq,
     unlessLeq,
     unlessZero,
-    makePatternBindings
+    makePatternBindings,
+    runSimplifyType,
+    SizeDiscipline (..),
   )
 where
 
@@ -46,7 +48,7 @@ import Lang.Analysis.Environment
 import Lang.Analysis.TypeError
 import Control.Monad.Except
 import Control.Monad.Identity
-import Lang.Type.Semantics (checkSubtype)
+import Lang.Type.Semantics (checkSubtype, simplifyType)
 import Index.Semantics
 import Solving.CVC5 (SolverHandle)
 import Lang.Expr.Pattern
@@ -135,25 +137,23 @@ unify e t1 t2 = case mgtu t1 t2 of
     return sub
   Nothing -> throwLocalError $ UnexpectedType e t2 t1
 
-makePatternBindings :: Maybe SolverHandle -> Pattern -> Type -> TypeDerivation ([VariableId], [Type])
-makePatternBindings mqfh pat typ = unzip <$> go mqfh pat typ
-  where
-    go :: Maybe SolverHandle -> Pattern -> Type -> TypeDerivation [(VariableId, Type)]
-    go _ (PVar id) typ = return [(id, typ)]
-    go mqfh (PTuple ps) (TTensor ts) = concat <$> zipWithM (go mqfh) ps ts
-    go (Just qfh) p@(PCons p1 p2) typ@(TList i typ1) = do
-      -- used during inference with indices, check that list is not empty
-      unlessLeq qfh (Number 1) i $ throwLocalError $ ConsEmptyList p typ
-      bindings1 <- go mqfh p1 typ1
-      bindings2 <- go mqfh p2 (TList (Minus i (Number 1)) typ1)
-      return $ bindings1 ++ bindings2
-    go Nothing (PCons p1 p2) (TList i typ1) = do
-      -- used during base inference without indices, ignore list length
-      bindings1 <- go mqfh p1 typ1
-      bindings2 <- go mqfh p2 (TList i typ1)
-      return $ bindings1 ++ bindings2
+data SizeDiscipline = SizedLists | UnsizedLists deriving (Eq, Show)
 
-    go _ p t = throwLocalError $ PatternMismatch p t
+makePatternBindings :: Pattern -> Type -> SizeDiscipline -> TypeDerivation ([VariableId], [Type])
+makePatternBindings pat typ sl = do
+  sh <- gets solverHandle
+  unzip <$> go sh sl pat typ
+  where
+    go :: SolverHandle -> SizeDiscipline -> Pattern -> Type -> TypeDerivation [(VariableId, Type)]
+    go _ _ (PVar id) typ = return [(id, typ)]
+    go sh sl (PTuple ps) (TTensor ts) = concat <$> zipWithM (go sh sl) ps ts
+    go sh sl p@(PCons p1 p2) typ@(TList i typ1) = do
+      -- used during inference with indices, check that list is not empty
+      when (sl == SizedLists) $ unlessLeq (Number 1) i $ throwLocalError $ ConsEmptyList p typ
+      bindings1 <- go sh sl p1 typ1
+      bindings2 <- go sh sl p2 (TList (Minus i (Number 1)) typ1)
+      return $ bindings1 ++ bindings2
+    go _ _ p t = throwLocalError $ PatternMismatch p t
 
 
 
@@ -251,23 +251,31 @@ withScope e der = do
   put env {scopes = tail es}
   return outcome
 
-unlessSubtype :: SolverHandle -> Type -> Type -> TypeDerivation () -> TypeDerivation ()
-unlessSubtype qfh t1 t2 der = do
-  c <- liftIO $ checkSubtype qfh t1 t2
+unlessSubtype :: Type -> Type -> TypeDerivation () -> TypeDerivation ()
+unlessSubtype t1 t2 der = do
+  sh <- gets solverHandle
+  c <- liftIO $ checkSubtype sh t1 t2
   unless c der
 
-unlessLeq :: SolverHandle -> Index -> Index -> TypeDerivation () -> TypeDerivation ()
-unlessLeq qfh i j der = do
-  c <- liftIO $ checkLeq qfh i j
+unlessLeq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
+unlessLeq i j der = do
+  sh <- gets solverHandle
+  c <- liftIO $ checkLeq sh i j
   unless c der
 
-unlessEq :: SolverHandle -> Index -> Index -> TypeDerivation () -> TypeDerivation ()
-unlessEq qfh i j der = do
-  c <- liftIO $ checkEq qfh i j
+unlessEq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
+unlessEq i j der = do
+  sh <- gets solverHandle
+  c <- liftIO $ checkEq sh i j
   unless c der
 
-unlessZero :: SolverHandle -> Index -> TypeDerivation () -> TypeDerivation ()
-unlessZero qfh i = unlessEq qfh i (Number 0)
+unlessZero :: Index -> TypeDerivation () -> TypeDerivation ()
+unlessZero i = unlessEq i (Number 0)
+
+runSimplifyType :: Type -> TypeDerivation Type
+runSimplifyType t = do
+  sh <- gets solverHandle
+  liftIO $ simplifyType sh t
 
 
 --- OTHER STUFF ----------------------------------------------------------------

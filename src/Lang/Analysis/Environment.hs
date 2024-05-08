@@ -5,6 +5,7 @@ import qualified Data.HashMap.Lazy as Map
 import Lang.Expr.AST
 import Index.AST
 import qualified Data.HashSet as Set
+import Solving.CVC5
 
 
 --- TYPE ENVIRONMENT MODULE ------------------------------------------------------------
@@ -51,11 +52,12 @@ emptyctx = Map.empty
 -- | The datatype of typing environments.
 -- Represents the state of any linear type derivation
 data TypingEnvironment = TypingEnvironment
-  { typingContext :: TypingContext, -- attributes types to variable names (linear/nonlinear)
-    indexContext :: IndexContext, -- keeps track of the existing index variables in the environment
-    scopes :: [Expr], -- a list of the expressions enclosing the current one
-    liftedExpression :: Bool, -- whether the current expression is in a nonlinear context
-    freshCounter :: Int -- a counter for generating fresh index variables
+  { typingContext :: TypingContext,     -- attributes types to variable names (linear/nonlinear)
+    indexContext :: IndexContext,       -- keeps track of the existing index variables in the environment
+    scopes :: [Expr],                   -- a list of the expressions enclosing the current one
+    liftedExpression :: Bool,           -- whether the current expression is in a nonlinear context
+    freshCounter :: Int,                -- a counter for generating fresh index variables
+    solverHandle :: SolverHandle        -- the handle to the SMT solver
   }
 
 instance Wide TypingEnvironment where
@@ -63,18 +65,18 @@ instance Wide TypingEnvironment where
 
 -- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- The index variables in @theta@ are considered to be in scope.
-makeEnvForall :: [IndexVariableId] -> [(VariableId, Type)] -> TypingEnvironment
-makeEnvForall theta gamma =
+makeEnvForall :: [IndexVariableId] -> [(VariableId, Type)] -> SolverHandle -> TypingEnvironment
+makeEnvForall theta gamma sh =
   let gamma' = Map.fromList [(id, [BindingInfo typ False]) | (id, typ) <- gamma]
-   in TypingEnvironment gamma' (Set.fromList theta) [] True 0
+   in TypingEnvironment gamma' (Set.fromList theta) [] True 0 sh
 
 -- | @makeEnv gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- No index variables are considered to be in scope.
-makeEnv :: [(VariableId, Type)] -> TypingEnvironment
+makeEnv :: [(VariableId, Type)] -> SolverHandle -> TypingEnvironment
 makeEnv = makeEnvForall []
 
 -- | The empty typing environment. No variables are in scope.
-emptyEnv :: TypingEnvironment
+emptyEnv ::  SolverHandle -> TypingEnvironment
 emptyEnv = makeEnv [] 
 
 -- | @envIsLinear env@ returns 'True' if the environment @env@ contains any linear variables or labels.
