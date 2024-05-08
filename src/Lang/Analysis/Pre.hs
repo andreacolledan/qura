@@ -3,17 +3,12 @@ module Lang.Analysis.Pre
   )
 where
 
-import Bundle.AST (BundleType (..))
-import Bundle.Infer
-import Circuit
-import Data.Either.Extra
 import Index.AST
 import Lang.Type.AST
 import Lang.Type.Unify
 import Lang.Expr.AST
 import Lang.Expr.Constant
 import Lang.Analysis.Derivation
-import Control.Monad.Error.Class
 import Data.Foldable
 import Control.Monad.Extra
 
@@ -36,10 +31,6 @@ irr = IndexVariable "_"
 inferBaseType :: Expr -> TypeDerivation (Expr, Type, TypeSubstitution)
 -- UNIT
 inferBaseType EUnit = withScope EUnit $ return (EUnit, TUnit, mempty)
--- LABEL
-inferBaseType e@(ELabel id) = withScope e $ do
-  btype <- labelContextLookup id
-  return (ELabel id, TWire btype, mempty)
 -- VARIABLE
 inferBaseType e@(EVar id) = withScope e $ do
   typ <- typingContextLookup id
@@ -77,16 +68,6 @@ inferBaseType e@(ELet p e1 e2) = withScope e $ do
   (e2', typ2, sub2) <- withBoundVariables ids typs $ inferBaseType e2
   let sub = sub2 <> sub1
   return (tsub sub (ELet p e1' e2'), tsub sub typ2, sub)
--- DESTRUCTURING LET-IN
--- inferBaseType e@(EDest ids e1 e2) = withScope e $ do
---   (e1', typ1, sub1) <- inferBaseType e1
---   typs <- replicateM (length ids) $ TVar <$> makeFreshVariable "a"
---   sub2 <- unify e1 typ1 (TTensor typs)
---   let sub = sub2 <> sub1
---   -- traceM $ "PRE ids:" ++ show ids ++ " typ1:" ++ pretty (tsub sub typ1) -- DEBUG
---   (e2', typ2, sub3) <- withBoundVariables ids (tsub sub <$> typs) $ inferBaseType e2
---   let sub = sub3 <> sub2 <> sub1
---   return (tsub sub (EDest ids e1' e2'), tsub sub typ2, sub)
 -- ANNOTATION
 inferBaseType e@(EAnno e1 annotyp) = withScope e $ do
   (e1', typ1, sub1) <- inferBaseType e1
@@ -112,14 +93,12 @@ inferBaseType e@(EApp e1 e2) = withScope e $ do
 inferBaseType e@(EApply e1 e2) = withScope e $ do
   (e1', typ1, sub1) <- inferBaseType e1
   (e2', typ2, sub2) <- inferBaseType e2
-  btc <- BTVar <$> makeFreshVariable "ba"
+  btc <- TVar <$> makeFreshVariable "a"
   let sub = sub2 <> sub1
-  case toBundleType typ2 of
-    Just bt2 -> do
-      sub3 <- unify e1 (tsub sub typ1) (TCirc irr bt2 btc)
-      let sub = sub3 <> sub2 <> sub1
-      return (tsub sub (EApply e1' e2'), tsub sub (fromBundleType btc), sub)
-    _ -> throwLocalError $ ExpectedBundleType e2 typ2
+  unless (isBundleType typ2) $ throwLocalError $ ExpectedBundleType e2 typ2
+  sub3 <- unify e1 (tsub sub typ1) (TCirc irr typ2 btc)
+  let sub = sub3 <> sub2 <> sub1
+  return (tsub sub (EApply e1' e2'), tsub sub btc, sub)
 -- BOX
 inferBaseType e@(EBox _ e1) = withScope e $ do
   (e1', typ1, sub1) <- inferBaseType e1
@@ -127,21 +106,8 @@ inferBaseType e@(EBox _ e1) = withScope e $ do
   typ1'' <- TVar <$> makeFreshVariable "a"
   sub2 <- unify e1 typ1 (TBang (TArrow typ1' typ1'' irr irr))
   let sub = sub2 <> sub1
-  case (toBundleType (tsub sub typ1'), toBundleType (tsub sub typ1'')) of
-    (Just btc', Just btc'') -> return (tsub sub (EBox (Just btc') e1'), tsub sub (TCirc irr btc' btc''), sub)
-    _ -> throwLocalError $ UnboxableType e1 (tsub sub typ1')
--- LET-CONS
--- inferBaseType e@(ELetCons x y e1 e2) = withScope e $ do
---   (e1', typ1, sub1) <- inferBaseType e1
---   typ1' <- TVar <$> makeFreshVariable "a"
---   sub2 <- unify e1 typ1 (TList irr typ1')
---   let sub = sub2 <> sub1
---   -- traceM $ "PRE ids:" ++ show [x,y] ++ " typ1:" ++ pretty (tsub sub typ1) --DEBUG
---   (e2', typ2, sub3) <-
---     withBoundVariables [x,y] [tsub sub typ1',tsub sub (TList irr typ1')] $
---         inferBaseType (tsub sub2 e2)
---   let sub = sub3 <> sub2 <> sub1
---   return (tsub sub (ELetCons x y e1' e2'), tsub sub typ2, sub)
+  unless (isBundleType (tsub sub typ1') && isBundleType (tsub sub typ1'')) $ throwLocalError $ UnboxableType e1 (tsub sub typ1)
+  return (tsub sub (EBox (Just (tsub sub typ1')) e1'), tsub sub (TCirc irr (tsub sub typ1') (tsub sub typ1'')), sub)
 -- FOLD
 inferBaseType e@(EFold e1 e2 e3) = withScope e $ do
   (e1', typ1, sub1) <- inferBaseType e1
@@ -157,16 +123,6 @@ inferBaseType e@(EFold e1 e2 e3) = withScope e $ do
   argsub <- unify e3 (tsub sub typ3) (tsub sub $ TList irr elemtyp)
   let sub = argsub <> accsub <> stepsub <> sub3 <> sub2 <> sub1
   return (tsub sub (EFold e1' e2' e3'), tsub sub acctyp, sub)
--- BOXED CIRCUIT
-inferBaseType e@(ECirc b1 c b2) = withScope e $ do
-  (inbt, inrem, outbt, outrem) <- liftEither $ mapLeft WireTypingError $ do
-    (inlabels, outlabels) <- inferCircuitSignature c
-    (inbt, inrem) <- runBundleTypeInferenceWithRemaining inlabels b1
-    (outbt, outrem) <- runBundleTypeInferenceWithRemaining outlabels b2
-    return (inbt, inrem, outbt, outrem)
-  unless (null inrem) $ throwLocalError $ MismatchedInputInterface c inrem b1
-  unless (null outrem) $ throwLocalError $ MismatchedOutputInterface c outrem b2
-  return (ECirc b1 c b2, TCirc (Number (width c)) inbt outbt, mempty)
 -- INDEX ABSTRACTION
 inferBaseType e@(EIAbs id e1) = withScope e $ do
   (e1', typ1, sub1) <- inferBaseType e1

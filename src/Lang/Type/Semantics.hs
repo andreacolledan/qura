@@ -37,10 +37,10 @@ checkSubtype qfh (TArrow t1 t2 i j) (TArrow t1' t2' i' j') = do
   c3 <- checkLeq qfh i i'
   c4 <- checkEq qfh j j'
   return $ c1 && c2 && c3 && c4
-checkSubtype qfh (TCirc i btype1 btype2) (TCirc i' btype1' btype2') = do
-  c1 <- checkSubtype qfh (fromBundleType btype1') (fromBundleType btype1)
-  c2 <- checkSubtype qfh (fromBundleType btype2) (fromBundleType btype2')
-  c3 <- checkLeq qfh i i'
+checkSubtype qfh (TCirc i t1 t2) (TCirc i' t1' t2') = do
+  c1 <- checkLeq qfh i i'
+  c2 <- checkSubtype qfh t1' t1
+  c3 <- checkSubtype qfh t2 t2'
   return $ c1 && c2 && c3
 checkSubtype qfh (TList i t) (TList i' t') = do
   c1 <- checkEq qfh i i'

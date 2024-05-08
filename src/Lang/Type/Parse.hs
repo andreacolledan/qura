@@ -5,8 +5,6 @@ module Lang.Type.Parse
   )
 where
 
-import Bundle.AST (WireType (..))
-import Bundle.Parse
 import Index.Parse
 import Lang.Type.AST
 import Text.Parsec
@@ -69,9 +67,9 @@ circ = do
   m_reservedOp "Circ"
   i <- m_brackets parseIndex
   (btype1, btype2) <- m_parens $ do
-    btype1 <- parseBundleType
+    btype1 <- parseType
     _ <- m_comma
-    btype2 <- parseBundleType
+    btype2 <- parseType
     return (btype1, btype2)
   return $ TCirc i btype1 btype2
 

@@ -4,9 +4,6 @@ module Lang.Analysis.Infer
   )
 where
 
-import Bundle.AST hiding (compose)
-import Bundle.Infer
-import Circuit (inferCircuitSignature, width)
 import Control.Monad
 import Control.Monad.Error.Class
 import Data.Either.Extra (mapLeft)
@@ -38,10 +35,6 @@ import Control.Monad.IO.Class (liftIO)
 inferWithIndices :: SolverHandle -> Expr -> TypeDerivation (Type, Index)
 -- UNIT
 inferWithIndices _ EUnit = withScope EUnit $ return (TUnit, Number 0)
--- LABEL
-inferWithIndices _ e@(ELabel id) = withScope e $ do
-  btype <- labelContextLookup id
-  return (TWire btype, Number 1)
 -- VARIABLE
 inferWithIndices _ e@(EVar id) = withScope e $ do
   typ <- typingContextLookup id
@@ -104,16 +97,6 @@ inferWithIndices qfh e@(EFold e1 e2 e3) = withScope e $ do
   -- max(i1 + wires in e2 and e3, i2 + wires in e3, i3 + wires in the result of e2, k1):
   let k2 = Max (Plus i1 (Plus wc1 wc2)) (Max (Plus i2 wc2) (Max (Plus i3 (wireCount (isub (Number 0) id acctyp))) k1))
   return (isub arglen id acctyp, k2)
--- BOXED CIRCUIT
-inferWithIndices _ e@(ECirc b1 c b2) = withScope e $ do
-  (inbt, inrem, outbt, outrem) <-  liftEither $ mapLeft WireTypingError $ do
-    (inlabels, outlabels) <- inferCircuitSignature c
-    (inbt, inrem) <- runBundleTypeInferenceWithRemaining inlabels b1
-    (outbt, outrem) <- runBundleTypeInferenceWithRemaining outlabels b2
-    return (inbt, inrem, outbt, outrem)
-  unless (null inrem) $ throwLocalError $ MismatchedInputInterface c inrem b1
-  unless (null outrem) $ throwLocalError $ MismatchedOutputInterface c outrem b2
-  return (TCirc (Number (width c)) inbt outbt, Number 0)
 -- APPLICATION (FUNCTIONS)
 inferWithIndices qfh e@(EApp e1 e2) = withScope e $ do
   (TArrow annotyp typ3 j1 j2, i1) <- inferWithIndices qfh e1
@@ -126,12 +109,10 @@ inferWithIndices qfh e@(EApp e1 e2) = withScope e $ do
   return (typ3, k)
 -- APPLY (CIRCUITS)
 inferWithIndices qfh e@(EApply e1 e2) = withScope e $ do
-  (TCirc j inbt outbt, i1) <- inferWithIndices qfh e1
+  (TCirc j intyp outtyp, i1) <- inferWithIndices qfh e1
   ((typ2, i2), wc) <- withWireCount $ inferWithIndices qfh e2
-  let intyp = fromBundleType inbt
-  let outtyp = fromBundleType outbt
   unlessSubtype qfh typ2 intyp $ do
-    expected <- liftIO $ simplifyType qfh (fromBundleType inbt)
+    expected <- liftIO $ simplifyType qfh intyp
     actual <- liftIO $ simplifyType qfh typ2
     throwLocalError $ UnexpectedType e2 expected actual
   -- max(i1 + wires in e2, i2, j):
@@ -139,13 +120,11 @@ inferWithIndices qfh e@(EApply e1 e2) = withScope e $ do
   return (outtyp, k)
 -- BOX
 inferWithIndices qfh e@(EBox anno e1) = withScope e $ case anno of
-  Just bt -> do
+  Just annotyp -> do
     (typ1@(TBang (TArrow typ2 typ3 j1 _)), i) <- inferWithIndices qfh e1
-    let annotyp = fromBundleType bt
     unlessSubtype qfh annotyp typ2 $ throwLocalError $ UnboxableType e1 typ1
-    case toBundleType typ3 of
-      Just outbt -> return (TCirc j1 bt outbt, i)
-      _ -> throwLocalError $ UnboxableType e1 typ1
+    unless (isBundleType typ3) $ throwLocalError $ UnboxableType e1 typ1
+    return (TCirc j1 annotyp typ3, i)
   Nothing -> error "Internal error: box without type annotation"
 -- LET-IN
 inferWithIndices qfh e@(ELet p e1 e2) = withScope e $ do
@@ -155,14 +134,6 @@ inferWithIndices qfh e@(ELet p e1 e2) = withScope e $ do
   -- max(i1 + wires in e2, i2):
   let k = Max (Plus i1 wc) i2
   return (typ2, k)
--- DESTRUCTURING LET-IN
--- inferWithIndices qfh e@(EDest ids e1 e2) = withScope e $ do
---   (TTensor typs, i1) <- inferWithIndices qfh e1
---   -- traceM $ "INF ids:" ++ show ids ++ " typ1:" ++ pretty (TTensor typs) -- DEBUG
---   unless (length ids == length typs) $ error $ "Internal error: preprocessing stage should have ensured the same number of variables and types: '" ++ intercalate ", " ids ++ "' vs '" ++ intercalate ", " (pretty <$> typs) ++ "'"
---   ((typ, i2), wc) <- withWireCount $ withBoundVariables ids typs $ inferWithIndices qfh e2
---   let k = Max (Plus i1 wc) i2
---   return (typ, k)
 -- ANNOTATION
 inferWithIndices qfh e@(EAnno e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp
@@ -186,13 +157,6 @@ inferWithIndices qfh e@(EIApp e1 g) = withScope e $ do
   return (isub g id typ2, Max i (isub g id j1))
 -- CONSTANTS
 inferWithIndices _ e@(EConst c) = withScope e $ return (typeOf c, Number 0)
--- LET-CONS
--- inferWithIndices qfh e@(ELetCons x y e1 e2) = withScope e $ do
---   (typ1@(TList j typ2), i1) <- inferWithIndices qfh e1
---   unlessLeq qfh (Number 1) j $ throwLocalError $ UnexpectedEmptyList e1 typ1
---   ((typ3, i2), wc) <- withWireCount $ withBoundVariables [x,y] [typ2, TList (Minus j (Number 1)) typ2] $ inferWithIndices qfh e2
---   let k = Max (Plus i1 wc) i2
---   return (typ3, k)
 -- ASSUMPTION (unsafe)
 inferWithIndices qfh e@(EAssume e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp
@@ -208,7 +172,7 @@ runTypeInferenceWith env e qfh = runExceptT $ do
   e' <- annotateNil env e
   ((typ, i), remaining) <- runTypeDerivation (inferWithIndices qfh e') env
   when (envIsLinear remaining) $ do
-    let remainingNames = [id | (id, bs) <- Map.toList (typingContext remaining), any mustBeUsed bs] ++ Map.keys (labelContext remaining)
+    let remainingNames = [id | (id, bs) <- Map.toList (typingContext remaining), any mustBeUsed bs]
     throwError $ UnusedLinearVariable (head remainingNames) [e]
   return (typ, i)
 

@@ -1,6 +1,5 @@
 module Lang.Expr.ParseSpec (spec) where
 
-import Bundle.AST (WireType (..), BundleType (..))
 import Index.AST
 import Lang.Type.AST
 import Lang.Expr.AST

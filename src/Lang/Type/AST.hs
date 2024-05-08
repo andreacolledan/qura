@@ -5,12 +5,12 @@ module Lang.Type.AST
   ( Type (..),
     TVarId,
     isLinear,
-    toBundleType,
-    fromBundleType,
+    isBundleType,
+    WireType(..),
+    Wide(..)
   )
 where
 
-import Bundle.AST (BundleType (..), Wide (..), WireType)
 import qualified Data.HashSet as Set
 import Index.AST
 import PrettyPrinter
@@ -26,13 +26,18 @@ import Data.List (intercalate)
 
 type TVarId = String
 
+data WireType = Bit | Qubit deriving (Show, Eq)
+instance Pretty WireType where
+  pretty Bit = "Bit"
+  pretty Qubit = "Qubit"
+
 -- Fig. 8
 -- | The datatype of PQR types
 data Type
   = TUnit                                     -- Unit type        : ()
   | TWire WireType                            -- Wire type        : Bit | Qubit
   | TTensor [Type]                            -- Tensor type      : (t1, t2, ...)
-  | TCirc Index BundleType BundleType         -- Circuit type     : Circ[i](bt1, vt2)
+  | TCirc Index Type Type                     -- Circuit type     : Circ[i](t1, t2)
   | TArrow Type Type Index Index              -- Function type    : t1 -o[i,j] t2
   | TBang Type                                -- Bang type        : !t
   | TList Index Type                          -- List type        : TList[i] t
@@ -114,25 +119,26 @@ isLinear (TList _ typ) = isLinear typ
 isLinear (TVar _) = False -- Variables are only used in the pre-processing stage, so we are permissive here
 isLinear (TIForall _ typ _ _) = isLinear typ
 
--- | Turns a suitable PQR 'Type' into an identical 'BundleType'.
--- @toBundleType t@ returns @'Just' bt@ if PQR 'Type' @t@ is also a bundle type, and 'Nothing' otherwise
-toBundleType :: Type -> Maybe BundleType
-toBundleType TUnit = Just BTUnit
-toBundleType (TWire wtype) = Just $ BTWire wtype
-toBundleType (TTensor ts) = do
-  bts <- mapM toBundleType ts
-  return $ BTTensor bts
-toBundleType (TVar id) = Just $ BTVar id
-toBundleType (TList i typ) = do
-  btype <- toBundleType typ
-  return $ BTList i btype
-toBundleType _ = Nothing
+isBundleType :: Type -> Bool
+isBundleType TUnit = True
+isBundleType (TWire _) = True
+isBundleType (TTensor ts) = all isBundleType ts
+isBundleType (TList _ typ) = isBundleType typ
+-- isBundleType (TVar _) = True -- TODO check
+isBundleType _ = False
 
--- | Turns a 'BundleType' into an identical PQR 'Type'. 
--- @fromBundleType bt@ returns the PQR 'Type' corresponding to bundle type @bt@
-fromBundleType :: BundleType -> Type
-fromBundleType BTUnit = TUnit
-fromBundleType (BTWire wtype) = TWire wtype
-fromBundleType (BTTensor bs) = TTensor (map fromBundleType bs)
-fromBundleType (BTList i b) = TList i (fromBundleType b)
-fromBundleType (BTVar id) = TVar id
+--- WIRE COUNTING ---------------------------------------------------------------------------------
+
+-- The class of datatypes that can contain wires and are thus amenable to wire counting
+-- Def. 2 (Wire Count)
+class Wide a where
+  wireCount :: a -> Index -- #(•) in the paper
+
+instance Wide WireType where
+  wireCount Bit = Number 1
+  wireCount Qubit = Number 1
+
+-- Any traversable structure of elements with wire counts can be wire counted
+-- Its wire count is the sum of the wire counts of its elements
+instance (Traversable t, Wide a) => Wide (t a) where
+  wireCount x = let wirecounts = wireCount <$> x in foldr Plus (Number 0) wirecounts

@@ -70,4 +70,4 @@ let oracleOne = box $ lift \reg :: List[4] Qubit.
 in
 
 -- Run Grover on oracleOne
-force grover @ 3 @ 5 oracleOne
+(force grover @ 3 @ 5) oracleOne

@@ -4,14 +4,12 @@ module Lang.Expr.AST (
   VariableId
 ) where
 
-import Bundle.AST
 import Index.AST
 import Lang.Type.AST
-import Circuit ( Circuit )
 import PrettyPrinter (Pretty(..))
 import Lang.Expr.Constant
 import Lang.Expr.Pattern
-import Lang.Type.Unify (HasType (..), TypeSubstitution, toBundleTypeSubstitution)
+import Lang.Type.Unify (HasType (..), TypeSubstitution)
 import qualified Data.HashSet as Set
 import Data.List (intercalate)
 
@@ -24,7 +22,6 @@ import Data.List (intercalate)
 -- | The datatype of PQR expressions
 data Expr =
   EUnit                                       -- Unit value               : ()
-  | ELabel LabelId                            -- Label (internal)         :
   | EVar VariableId                           -- Variable                 : x, y, z, ...          
   | ETuple [Expr]                             -- Pair                     : (e1, e2)
   | EAbs Pattern Type Expr                    -- Abstraction              : \p :: t . e
@@ -32,27 +29,22 @@ data Expr =
   | ENil (Maybe Type)                         -- Nil                      : []
   | ECons Expr Expr                           -- Cons                     : e : es
   | EFold Expr Expr Expr                      -- Fold                     : fold (e1, e2, e3)
-  | ECirc Bundle Circuit Bundle               -- Boxed Circuit (internal) :  
   | EApp Expr Expr                            -- Application              : e1 e2
   | EApply Expr Expr                          -- Apply                    : apply(e1, e2)
-  | EBox (Maybe BundleType) Expr              -- Box                      : box :: bt e
+  | EBox (Maybe Type) Expr                    -- Box                      : box :: bt e
   | EForce Expr                               -- Force                    : force e
   | ELet Pattern Expr Expr                    -- Let                      : let p = e1 in e2
-  -- | EDest [VariableId] Expr Expr              -- Dest                     : let (x, y, ...) = e1 in e2
   | EAnno Expr Type                           -- Type annotation          : e :: t
   | EIAbs IndexVariableId Expr                -- Index Abstraction        : @i . e
   | EIApp Expr Index                          -- Index Application        : e @ i
   | EConst Constant                           -- Constant                 : QInit0, Hadamard, ...
-  -- | ELetCons VariableId VariableId Expr Expr  -- Let Cons                 : let x:xs = e1 in e2
-  | EAssume Expr Type                         -- Type assumption          : assume e :: t
+  | EAssume Expr Type                         -- Type assumption          : e !:: t
   deriving (Eq, Show)
 
 instance Pretty Expr where
   pretty EUnit = "()"
-  pretty (ELabel id) = id
   pretty (EVar id) = id
   pretty (ETuple es) = "(" ++ intercalate ", " (map pretty es) ++ ")"
-  pretty (ECirc {}) = "[Boxed Circuit]"
   pretty (EAbs p t e) = "(\\" ++ pretty p ++ " :: " ++ pretty t ++ " . " ++ pretty e ++ ")" 
   pretty (EApp e1 e2) = "(" ++ pretty e1 ++ " " ++ pretty e2 ++ ")"
   pretty (ELift e) = "(lift " ++ pretty e ++ ")"
@@ -74,10 +66,8 @@ instance Pretty Expr where
 instance HasType Expr where
   tfv :: Expr -> Set.HashSet TVarId
   tfv EUnit = Set.empty
-  tfv (ELabel _) = Set.empty
   tfv (EVar _) = Set.empty
   tfv (ETuple es) = foldr (Set.union . tfv) Set.empty es
-  tfv (ECirc {}) = Set.empty
   tfv (EAbs _ t e) = tfv t `Set.union` tfv e
   tfv (EApp e1 e2) = tfv e1 `Set.union` tfv e2
   tfv (ELift e) = tfv e
@@ -97,26 +87,22 @@ instance HasType Expr where
   tfv (EAssume e t) = tfv e `Set.union` tfv t
   tsub :: TypeSubstitution -> Expr -> Expr
   tsub _ EUnit = EUnit
-  tsub _ (ELabel id) = ELabel id
   tsub _ (EVar id) = EVar id
   tsub sub (ETuple es) = ETuple (map (tsub sub) es)
-  tsub _ e@(ECirc {}) = e -- bundle types do not contain type variables
   tsub sub (EAbs id t e) = EAbs id (tsub sub t) (tsub sub e)
   tsub sub (EApp e1 e2) = EApp (tsub sub e1) (tsub sub e2)
   tsub sub (ELift e) = ELift (tsub sub e)
   tsub sub (EForce e) = EForce (tsub sub e)
-  tsub sub (ENil anno) = ENil (tsub sub <$> anno)
+  tsub sub (ENil mt) = ENil (tsub sub <$> mt)
   tsub sub (ECons e1 e2) = ECons (tsub sub e1) (tsub sub e2)
   tsub sub (EFold e1 e2 e3) = EFold (tsub sub e1) (tsub sub e2) (tsub sub e3)
   tsub sub (EAnno e t) = EAnno (tsub sub e) (tsub sub t)
   tsub sub (EApply e1 e2) = EApply (tsub sub e1) (tsub sub e2)
-  tsub sub (EBox bt e) = let sub' = toBundleTypeSubstitution sub in EBox (btsub sub' <$> bt) (tsub sub e)
+  tsub sub (EBox mt e) = EBox (tsub sub <$> mt) (tsub sub e)
   tsub sub (ELet id e1 e2) = ELet id (tsub sub e1) (tsub sub e2)
-  -- tsub sub (EDest ids e1 e2) = EDest ids (tsub sub e1) (tsub sub e2)
   tsub sub (EIAbs id e) = EIAbs id (tsub sub e)
   tsub sub (EIApp e i) = EIApp (tsub sub e) i
   tsub _ e@(EConst _) = e
-  -- tsub sub (ELetCons id1 id2 e1 e2) = ELetCons id1 id2 (tsub sub e1) (tsub sub e2)
   tsub sub (EAssume e t) = EAssume (tsub sub e) (tsub sub t)
   
 

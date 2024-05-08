@@ -16,7 +16,6 @@ module Lang.Analysis.Derivation
     execTypeDerivation,
     throwLocalError,
     typingContextLookup,
-    labelContextLookup,
     substituteInEnvironment,
     checkWellFormedness,
     makeFreshVariable,
@@ -34,9 +33,6 @@ module Lang.Analysis.Derivation
   )
 where
 
-import Bundle.AST ( Wide(..), Bundle, WireType, LabelId )
-import Bundle.Infer
-import Circuit
 import Control.Monad ( unless, when, zipWithM, zipWithM_ )
 import Control.Monad.Error.Class
 import Control.Monad.State
@@ -99,7 +95,6 @@ emptyctx = Map.empty
 -- Represents the state of any linear type derivation
 data TypingEnvironment = TypingEnvironment
   { typingContext :: TypingContext, -- attributes types to variable names (linear/nonlinear)
-    labelContext :: LabelContext, -- attributes wire types to label names (linear)
     indexContext :: IndexContext, -- keeps track of the existing index variables in the environment
     scopes :: [Expr], -- a list of the expressions enclosing the current one
     liftedExpression :: Bool, -- whether the current expression is in a nonlinear context
@@ -107,36 +102,35 @@ data TypingEnvironment = TypingEnvironment
   }
 
 instance Wide TypingEnvironment where
-  wireCount TypingEnvironment {typingContext = gamma, labelContext = q} = wireCount gamma `Plus` wireCount q
+  wireCount TypingEnvironment {typingContext = gamma} = wireCount gamma
 
 -- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- The index variables in @theta@ are considered to be in scope.
-makeEnvForall :: [IndexVariableId] -> [(VariableId, Type)] -> [(LabelId, WireType)] -> TypingEnvironment
-makeEnvForall theta gamma q =
+makeEnvForall :: [IndexVariableId] -> [(VariableId, Type)] -> TypingEnvironment
+makeEnvForall theta gamma =
   let gamma' = Map.fromList [(id, [BindingInfo typ False]) | (id, typ) <- gamma]
-   in TypingEnvironment gamma' (Map.fromList q) (Set.fromList theta) [] True 0
+   in TypingEnvironment gamma' (Set.fromList theta) [] True 0
 
 -- | @makeEnv gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- No index variables are considered to be in scope.
-makeEnv :: [(VariableId, Type)] -> [(LabelId, WireType)] -> TypingEnvironment
+makeEnv :: [(VariableId, Type)] -> TypingEnvironment
 makeEnv = makeEnvForall []
 
 -- | The empty typing environment. No variables are in scope.
 emptyEnv :: TypingEnvironment
-emptyEnv = makeEnv [] []
+emptyEnv = makeEnv [] 
 
 -- | @envIsLinear env@ returns 'True' if the environment @env@ contains any linear variables or labels.
 envIsLinear :: TypingEnvironment -> Bool
-envIsLinear TypingEnvironment {typingContext = gamma, labelContext = q} =
+envIsLinear TypingEnvironment {typingContext = gamma} =
   let remainingVars = [id | (id, bs) <- Map.toList gamma, any mustBeUsed bs] -- remaining linear variables
-   in not (null remainingVars) || not (Map.null q)
+   in not (null remainingVars)
 
 --- TYPING ERRORS ---------------------------------------------------------------
 
 -- The datatype of errors that can occur during a derivation
 data TypeError
-  = WireTypingError WireTypingError
-  | UnboundVariable VariableId [Expr]
+  = UnboundVariable VariableId [Expr]
   | UnboundIndexVariable IndexVariableId [Expr]
   | UnexpectedType Expr Type Type [Expr]
   | UnexpectedIndex Index Index [Expr]
@@ -150,9 +144,6 @@ data TypeError
     UnusedLinearVariable VariableId [Expr]
   | OverusedLinearVariable VariableId [Expr]
   | LiftedLinearVariable VariableId [Expr]
-  | -- Boxed circuit errors
-    MismatchedInputInterface Circuit LabelContext Bundle [Expr]
-  | MismatchedOutputInterface Circuit LabelContext Bundle [Expr]
   | -- Box errors
     UnboxableType Expr Type [Expr]
   | -- Fold errors
@@ -165,14 +156,11 @@ data TypeError
   deriving (Eq)
 
 instance Show TypeError where
-  show (WireTypingError err) = show err
   show (UnboundVariable id surr) = "* Unbound variable '" ++ id ++ "'" ++ printSurroundings surr
   show (UnusedLinearVariable id surr) = "* Unused linear variable '" ++ id ++ "'" ++ printSurroundings surr
   show (LiftedLinearVariable id surr) = "* Linear variable '" ++ id ++ "' cannot be consumed in a lifted expression" ++ printSurroundings surr
   show (UnexpectedType exp typ1 typ2 surr) =
     "* Expected expression '" ++ trnc 80 (pretty exp) ++ "'\n   to have type\n    '" ++ pretty typ1 ++ "',\n   got\n    '" ++ pretty typ2 ++ "'\n   instead" ++ printSurroundings surr
-  show (MismatchedInputInterface c q b surr) = "* Bundle '" ++ pretty b ++ "' is not a valid input interface for circuit '" ++ pretty c ++ "', whose input labels are '" ++ pretty q ++ "'" ++ printSurroundings surr
-  show (MismatchedOutputInterface c q b surr) = "* Bundle '" ++ pretty b ++ "' is not a valid output interface for circuit '" ++ pretty c ++ "', whose output labels are '" ++ pretty q ++ "'" ++ printSurroundings surr
   show (UnexpectedWidthAnnotation m i j surr) =
     "* Expected expression '" ++ pretty m ++ "' to have width annotation '" ++ pretty i ++ "', got '" ++ pretty j ++ "' instead" ++ printSurroundings surr
   show (UnexpectedIndex i1 i2 surr) = "* Expected index '" ++ pretty i1 ++ "', got '" ++ pretty i2 ++ "' instead" ++ printSurroundings surr
@@ -252,15 +240,6 @@ typingContextLookup id = do
           return $ getType b
         else throwLocalError $ OverusedLinearVariable id
     [] -> error "Internal error: empty binding list"
-
--- | @labelContextLookup id@ looks up label @id@ in the label context and removes it.
--- It throws 'UnboundLabel' if the label is absent.
-labelContextLookup :: LabelId -> TypeDerivation WireType
-labelContextLookup id = do
-  env@TypingEnvironment {labelContext = q} <- get
-  outcome <- maybe (throwError $ WireTypingError $ UnboundLabel id) return (Map.lookup id q)
-  put $ env {labelContext = Map.delete id q}
-  return outcome
 
 -- | @substituteInEnvironment sub@ applies the substitution @sub@ to the typing environment
 substituteInEnvironment :: TypeSubstitution -> TypeDerivation ()
@@ -348,13 +327,12 @@ withBoundVariables ids typs der = do
 -- how many wires have been consumed during @der@.
 withWireCount :: TypeDerivation a -> TypeDerivation (a, Index)
 withWireCount der = do
-  TypingEnvironment {typingContext = gamma, labelContext = q} <- get
+  TypingEnvironment {typingContext = gamma} <- get
   outcome <- der
-  TypingEnvironment {typingContext = gamma', labelContext = q'} <- get
+  TypingEnvironment {typingContext = gamma'} <- get
   -- count how many linear resources have disappeared from the contexts
   let gammaDiff = diffcount gamma gamma'
-  let qDiff = wireCount $ Map.difference q q'
-  let resourceCount = gammaDiff `Plus` qDiff
+  let resourceCount = gammaDiff
   return (outcome, resourceCount)
   where
     diffcount :: TypingContext -> TypingContext -> Index
@@ -374,13 +352,12 @@ withWireCount der = do
 -- existing typing context is consumed. This is useful to ensure that a computation is not consuming linear resources.
 withNonLinearContext :: TypeDerivation a -> TypeDerivation a
 withNonLinearContext der = do
-  TypingEnvironment {typingContext = gamma, labelContext = q} <- get
+  TypingEnvironment {typingContext = gamma} <- get
   outcome <- der
-  TypingEnvironment {typingContext = gamma', labelContext = q'} <- get
+  TypingEnvironment {typingContext = gamma'} <- get
   let gammaconsumed = linearconsumed gamma gamma'
-  let qconsumed = Map.difference q q'
-  unless (Map.null gammaconsumed && Map.null qconsumed) $ do
-    let remainingNames = Map.keys gammaconsumed ++ Map.keys qconsumed
+  unless (Map.null gammaconsumed) $ do
+    let remainingNames = Map.keys gammaconsumed
     throwLocalError $ LiftedLinearVariable (head remainingNames)
   return outcome
   where

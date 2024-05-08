@@ -25,10 +25,6 @@ source-repository head
 
 library
   exposed-modules:
-      Bundle.AST
-      Bundle.Infer
-      Bundle.Parse
-      Circuit
       Index.AST
       Index.Parse
       Index.Semantics
@@ -90,9 +86,6 @@ test-suite qura-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Bundle.InferSpec
-      Bundle.ParseSpec
-      CircuitSpec
       Index.ASTSpec
       Index.ParseSpec
       Index.SemanticsSpec

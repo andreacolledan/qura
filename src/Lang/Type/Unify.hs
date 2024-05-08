@@ -2,14 +2,12 @@
 module Lang.Type.Unify (
   TypeSubstitution(..),
   HasType(..),
-  mgtu,
-  toBundleTypeSubstitution
+  mgtu
 ) where
 
 import Lang.Type.AST
 import qualified Data.HashSet as Set
 import qualified Data.HashMap.Strict as Map
-import qualified Bundle.AST as B
 import Control.Monad (zipWithM)
 import Data.Foldable
 import Control.Monad.Extra (when)
@@ -63,16 +61,6 @@ instance HasType Type where
   tsub (TypeSubstitution map) typ@(TVar id) = Map.findWithDefault typ id map
   tsub sub (TIForall id typ i j) = TIForall id (tsub sub typ) i j
 
--- | @fromBundleTypeSubstitution bts@ converts a 'BundleTypeSubstitution' @bts@ to an identical
--- PQR 'TypeSubstitution'.
-fromBundleTypeSubstitution :: B.BundleTypeSubstitution -> TypeSubstitution
-fromBundleTypeSubstitution bts = TypeSubstitution $ Map.map fromBundleType bts
-
--- | @toBundleTypeSubstitution ts@ converts a PQR 'TypeSubstitution' @ts@ to a
--- 'BundleTypeSubstitution' which only substitutes the variables whose image under @ts@ is a 'BundleType'.
-toBundleTypeSubstitution :: TypeSubstitution -> B.BundleTypeSubstitution
-toBundleTypeSubstitution (TypeSubstitution ts) = Map.mapMaybe toBundleType ts
-
 
 --- UNIFICATION ---------------------------------------------------------------------------------
 
@@ -97,9 +85,9 @@ mgtu (TTensor ts) (TTensor ts')
     subs <- zipWithM mgtu ts ts'
     return $ fold subs
   | otherwise = Nothing
-mgtu (TCirc _ inBtype outBtype) (TCirc _ inBtype' outBtype') = do
-  sub1 <- mgtu (fromBundleType inBtype) (fromBundleType inBtype')
-  sub2 <- mgtu (fromBundleType outBtype) (fromBundleType outBtype')
+mgtu (TCirc _ t1 t2) (TCirc _ t1' t2') = do
+  sub1 <- mgtu t1 t1'
+  sub2 <- mgtu t2 t2'
   return $ compose sub2 sub1
 mgtu (TArrow typ1 typ2 _ _) (TArrow typ1' typ2' _ _) = do
   sub1 <- mgtu typ1 typ1'

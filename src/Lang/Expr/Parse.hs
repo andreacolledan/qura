@@ -8,7 +8,6 @@ module Lang.Expr.Parse
   )
 where
 
-import Bundle.Parse
 import Data.Char
 import Index.Parse
 import Lang.Type.Parse
