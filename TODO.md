@@ -66,9 +66,9 @@
 - [ ] Unified syntax
   - [x] AST
   - [x] Type inference
-  - [ ] Testing
+  - [ ] Testing (WIP)
 
-- [ ] Pattern matching
+- [x] Pattern matching
 
 - [x] Better error messages
 - [x] Better handling of shadowing
@@ -79,7 +79,8 @@
 - [x] Parsing wire bundles
 - [x] Parsing indices
 - [x] Parsing PQR
-- [ ] Better parser (e.g. solve postfix operators always requiring parentheses)
+- [ ] Switch to `megaparsec`
+- [ ] Better parser (e.g. solve postfix operators always requiring parentheses) (WIP)
 - [ ] Top-level definitions
 
 ### Performance
@@ -91,5 +92,6 @@
 
 - [x] List functions
 - [x] QFT
+- [x] Grover
 - [x] Arithmetic (adder)
 
