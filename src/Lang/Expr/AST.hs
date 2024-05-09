@@ -5,9 +5,9 @@ module Lang.Expr.AST (
 ) where
 
 import Index.AST
+import Lang.Library.Constant
 import Lang.Type.AST
 import PrettyPrinter (Pretty(..))
-import Lang.Expr.Constant
 import Lang.Expr.Pattern
 import Lang.Type.Unify (HasType (..), TypeSubstitution)
 import qualified Data.HashSet as Set

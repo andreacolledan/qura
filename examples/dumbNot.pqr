@@ -2,17 +2,17 @@
 -- by initializing an ancillary qubit a to 1 and
 -- applying a cnot with target q and control a
 let dumbNot = lift \q :: Qubit .
-  let a = apply(QInit1,()) in
-  let (a,q) = apply(CNot,(a,q)) in
-  let _ = apply(QDiscard,a) in
+  let a = force qinit1 () in
+  let (a,q) = force cnot a q in
+  let _ = force qdiscard a in
   q
 in
 
 -- iter @n f q applies f to q n times in sequence
 let iter = lift @n. \f :: !(Qubit -o[2,0] Qubit). \q :: Qubit.
   let iterStep = lift @i. \(q,_) :: (Qubit,()). (force f q)
-  in fold(iterStep, q, MakeUnitList @n)
+  in fold(iterStep, q, range @n)
 in 
 
-let q = apply(QInit0,()) in
+let q = force qinit0 () in
 (force iter @3) dumbNot q -- iterate dumbNot 3 times on q

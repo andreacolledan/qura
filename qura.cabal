@@ -34,9 +34,10 @@ library
       Lang.Analysis.Environment
       Lang.Analysis.TypeError
       Lang.Expr.AST
-      Lang.Expr.Constant
       Lang.Expr.Parse
       Lang.Expr.Pattern
+      Lang.Library.Constant
+      Lang.Library.Prelude
       Lang.Type.AST
       Lang.Type.Parse
       Lang.Type.Semantics

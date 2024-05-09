@@ -7,7 +7,7 @@ import Index.AST
 import Lang.Type.AST
 import Lang.Type.Unify
 import Lang.Expr.AST
-import Lang.Expr.Constant
+import Lang.Library.Constant
 import Lang.Analysis.Derivation
 import Data.Foldable
 import Control.Monad.Extra
@@ -143,7 +143,7 @@ annotate e@(EAssume e1 annotyp) = withScope e $ do
 
 --- TOP-LEVEL EXPORTED FUNCTIONS -------------------------------------------------------
 
--- | @ annotateNil env e @ annotates all the empty lists in expression @e@ with the correct parameter type under environment @env@.
+-- | @ runAnnotation env e @ annotates all the empty lists in expression @e@ with the correct parameter type under environment @env@.
 -- If successful, returns the annotated expression. Otherwise, returns the error.
 runAnnotation :: TypingEnvironment -> Expr -> DerivationResult Expr
 runAnnotation env e = extractFirst <$> evalTypeDerivation (annotate e) env

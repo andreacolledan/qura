@@ -11,11 +11,13 @@ import Solving.CVC5
 import System.Console.ANSI
 import System.IO.Extra
 import Text.Parsec (parse)
+import Lang.Library.Prelude
 
 data Arguments = CommandLineArguments
   { filepath :: String,
     verbose :: Bool,
-    debug :: Maybe String
+    debug :: Maybe String,
+    noprelude :: Bool
   }
 
 interface :: ParserInfo Arguments
@@ -45,10 +47,14 @@ interface =
               <> metavar "DEBUG"
               <> help "Print SMT queries to file DEBUG"
           ))
+        <*> switch
+          ( long "noprelude"
+              <> help "Do not include the prelude"
+          )
 
 main :: IO ()
 main = do
-  CommandLineArguments {filepath = file, verbose = verb, debug = deb} <- execParser interface
+  CommandLineArguments {filepath = file, verbose = verb, debug = deb, noprelude = nopre} <- execParser interface
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
   contents <- readFile file
   case parse parseProgram "" contents of
@@ -58,7 +64,8 @@ main = do
         putStrLn $ "Parsed successfully as \n\t" ++ pretty ast
         putStrLn "Inferring type..."
       withSolver deb $ \qfh -> do
-        outcome <- runAnalysis ast qfh
+        let actualAst = if nopre then ast else library ast
+        outcome <- runAnalysis actualAst qfh
         case outcome of
           Left err -> do
             hSetSGR stderr [SetColor Foreground Vivid Red]

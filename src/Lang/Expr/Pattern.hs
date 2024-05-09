@@ -1,9 +1,6 @@
 module Lang.Expr.Pattern where
 import PrettyPrinter
 import Data.List (intercalate)
-import Lang.Type.AST
-import Index.AST
-import Control.Monad (zipWithM)
 
 type VariableId = String
 

@@ -12,7 +12,7 @@ import Data.Char
 import Index.Parse
 import Lang.Type.Parse
 import Lang.Expr.AST
-import Lang.Expr.Constant
+import Lang.Library.Constant
 import Text.Parsec
 import Text.Parsec.Expr
 import Text.Parsec.Language
@@ -336,7 +336,7 @@ delimitedExpr =
     <|> m_parens parseExpr
     <|> apply
     <|> fold
-    <|> constant
+    -- <|> constant
     <|> variable
 
 -- parse a PQR expression

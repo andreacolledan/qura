@@ -6,7 +6,6 @@ import Lang.Expr.AST
 import Lang.Expr.Parse
 import Test.Hspec
 import Text.Parsec
-import Lang.Expr.Constant
 import Lang.Expr.Pattern
 
 spec :: Spec
@@ -18,8 +17,6 @@ spec = do
       parse parseProgram "" "[]" `shouldBe` Right (ENil Nothing)
     it "parses a lowercase identifier as a variable" $ do
       parse parseProgram "" "x" `shouldBe` Right (EVar "x")
-    it "parses an uppercase identifier as a constant" $ do
-      parse parseProgram "" "Hadamard" `shouldBe` Right (EConst Hadamard)
     it "parses '\\x :: () . (x,x)' as an abstraction" $ do
       parse parseProgram "" "\\x :: () . (x,x)" `shouldBe` Right (EAbs (PVar "x") TUnit (ETuple [EVar "x", EVar "x"]))
     it "parses 'let x = () in x' as a let binding" $ do
@@ -64,7 +61,7 @@ spec = do
     it "application has precedence over cons'ing" $ do
       parse parseProgram "" "f x:y:[]" `shouldBe` Right (ECons (EApp (EVar "f") (EVar "x")) (ECons (EVar "y") (ENil Nothing)))
     it "annotation has precedence over abstraction" $ do
-      parse parseProgram "" "\\x :: () . apply(QInit0,x) :: () -o[1,0] Qubit" `shouldBe` Right (EAbs (PVar "x") TUnit (EAnno (EApply (EConst QInit0) (EVar "x")) (TArrow TUnit (TWire Qubit) (Number 1) (Number 0))))
+      parse parseProgram "" "\\x :: () . apply(c,x) :: () -o[1,0] Qubit" `shouldBe` Right (EAbs (PVar "x") TUnit (EAnno (EApply (EVar "c") (EVar "x")) (TArrow TUnit (TWire Qubit) (Number 1) (Number 0))))
     it "annotation has precedence over let" $ do
       parse parseProgram "" "let x = () in x :: ()" `shouldBe` Right (ELet (PVar "x") EUnit (EAnno (EVar "x") TUnit))
     it "application has precedence over annotation" $ do

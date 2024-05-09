@@ -1,4 +1,4 @@
-module Lang.Expr.Constant (
+module Lang.Library.Constant (
   Constant(..),
   typeOf
 ) where

@@ -1,41 +1,41 @@
-let qInit0N = lift @i.
-  let qinitStep = lift @j. \(qs,u) :: (List[j] Qubit, ()). let q = apply(QInit0, u) in q:qs
-  in fold(qinitStep, [], MakeUnitList @ i)
-in
+-- let qInit0N = lift @i.
+--   let qinitStep = lift @j. \(qs,u) :: (List[j] Qubit, ()). let q = apply(QInit0, u) in q:qs
+--   in fold(qinitStep, [], MakeUnitList @ i)
+-- in
 
--- the function that applies the hadamard gate to a list of qubits
-let makeNHadamard = lift @i . \x :: List[i] Qubit .
-  let hadamardStep = lift @j . \(qs,q) :: (List[j] Qubit, Qubit).
-    let q = apply(Hadamard,q) in
-    q:qs
-  in fold(hadamardStep, [], x)
-in
+-- -- the function that applies the hadamard gate to a list of qubits
+-- let makeNHadamard = lift @i . \x :: List[i] Qubit .
+--   let hadamardStep = lift @j . \(qs,q) :: (List[j] Qubit, Qubit).
+--     let q = apply(Hadamard,q) in
+--     q:qs
+--   in fold(hadamardStep, [], x)
+-- in
 
--- the function that applies the X gate to a list of qubits
-let makeNX = lift @i . \x :: List[i] Qubit .
-  let xStep = lift @j . \(qs,q) :: (List[j] Qubit, Qubit).
-    let q = apply(PauliX,q) in
-    q:qs
-  in fold(xStep, [], x)
-in
+-- -- the function that applies the X gate to a list of qubits
+-- let makeNX = lift @i . \x :: List[i] Qubit .
+--   let xStep = lift @j . \(qs,q) :: (List[j] Qubit, Qubit).
+--     let q = apply(PauliX,q) in
+--     q:qs
+--   in fold(xStep, [], x)
+-- in
 
 -- the function that applies a measurement to a list of qubits
 let makeNMeasure = lift @i . \x :: List[i] Qubit .
   let measureStep = lift @j . \(qs,q) :: (List[j] Bit, Qubit).
-    let q = apply(Meas,q) in
+    let q = force meas q in
     q:qs
   in fold(measureStep, [], x)
 in
 
 -- the diffusion operator
 let diffusion = lift @i. \reg:: List[i+1] Qubit.
-  let reg = (force makeNHadamard @ i+1) reg in
-  let reg = (force makeNX @ i+1) reg in
+  let reg = (force mHadamard @ i+1) reg in
+  let reg = (force mX @ i+1) reg in
   let (x:xs) = reg in
-  let (xs,x) = apply(MakeNCZ @ i, (xs,x)) in
+  let (xs,x) = (force mcZ @ i) xs x in
   let reg = x:xs in
-  let reg = (force makeNX @ i+1) reg in
-  (force makeNHadamard @ i+1) reg
+  let reg = (force mX @ i+1) reg in
+  (force mHadamard @ i+1) reg
 in
 
 -- Performs a single grover iteration on a i-qubit input, using a j-wide oracle
@@ -47,10 +47,10 @@ in
 
 -- Runs Grover's algorithm on an oracle of input size i and width at most j
 let grover = lift @i. @j. \oracle :: Circ[j](List[i+1] Qubit, List[i+1] Qubit).
-  let inputs = force qInit0N @ i+1 in
-  let prepared = (force makeNHadamard @ i+1) inputs in
+  let inputs = force mQinit0 @ i+1 in
+  let prepared = (force mHadamard @ i+1) inputs in
   let iteration = lift @k. \(qs, _) :: (List[i+1] Qubit, ()) . (((force groverIteration) @ i) @ j) oracle qs in
-  let out = fold(iteration, prepared, MakeUnitList @ 3) in
+  let out = fold(iteration, prepared, range @ 3) in
   -- 3 is a placeholder, should be floor(pi/4 * sqrt(2^(i+1))), but our arithmetic is not yet this rich
   (force makeNMeasure @ i+1) out
 in 
@@ -58,13 +58,13 @@ in
 -- The oracle f : {0,1}^4 -> {0,1} such that f(x) = 1 iff x = 1111
 let oracleOne = box $ lift \reg :: List[4] Qubit.
   -- Initialize an ancilla for kickback
-  let ancilla = apply(QInit1, ()) in
-  let ancilla = apply(Hadamard, ancilla) in
+  let ancilla = force qinit1 () in
+  let ancilla = force hadamard ancilla in
   -- Ancilla is flipped iff input is 1111
-  let (reg, ancilla) = apply(MakeNToffoli @ 4, (reg, ancilla)) in
+  let (reg, ancilla) = (force mcnot @ 4) reg ancilla in
   -- Uncompute and discard ancilla
-  let ancilla = apply(Hadamard, ancilla) in
-  let _ = apply(QDiscard, ancilla) in
+  let ancilla = force hadamard ancilla in
+  let _ = force qdiscard ancilla in
   -- Return the input
   reg
 in

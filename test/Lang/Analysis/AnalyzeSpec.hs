@@ -8,7 +8,7 @@ import Lang.Type.Semantics
 import Lang.Expr.AST
 import Lang.Analysis.Analyze
 import Test.Hspec
-import Lang.Expr.Constant
+import Lang.Library.Constant
 import Lang.Analysis.Derivation
     ( emptyEnv, makeEnv, makeEnvForall, TypeError, TypingEnvironment )
 import Solving.CVC5 (withSolver, SolverHandle)
