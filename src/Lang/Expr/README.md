@@ -18,18 +18,25 @@ let q = apply(Hadamard, q) in
 apply(QDiscard, q)
 ```
 where `QInit0`, `Hadamard` and `QDiscard` are primitive circuit operations in Proto-Quipper-R. You can find a list of all primitive circuit operations can be found at the end of this page.
+For convenience, QuRA's standard library comes with a number of functions that wrap the application of common quantum operations in a nicer interface. For example, the previous piece of code can be rewritten as follows:
+```
+let q = force qinit0 () in
+let q = force hadamard q in
+force discard q
+```
+where `force` is used to unwrap a duplicable term. More on this in the following section.
 
 ### Linear Functions
 Functions in Proto-Quipper-R are defined through lambdas. The argument of the lambda must be annotated with its type. For example, `swap` is a linear function that swaps two qubit references:
 
 ```
 let swap = \(x,y) :: (Qubit, Qubit) . (y,x)
-in swap (apply(QInit1,()), apply(QInit0,()))
+in swap (force qinit1 (), force qinit0 ())
 ```
-The type of `swap` is `(Qubit, Qubit) -o[2,0] (Qubit, Qubit)`, meaning that it is a linear function that takes a pair of qubits as input, builds a circuit of width `2` (since those qubits have an intrinsic width) and returns a pair of qubits. The `0` index tells us that this function does not capture wires from the surrounding scope. Precisely because functions may in principle contain wires or other linear resources, they are treated by default as linear resources themselves, that is, they must be applied exactly once. This is undesirable in many cases, so a function that contains no linear resources can be made duplicable through the `lift` constructs, which "suspends" nonlinear expressions. A lifted expression can then be recovered via the `force` construct. Because `swap` from the previous example does not contain linear resources, we can make it duplicable as follows:
+The type of `swap` is `(Qubit, Qubit) -o[2,0] (Qubit, Qubit)`, meaning that it is a linear function that takes a pair of qubits as input, builds a circuit of width `2` (since those qubits have an intrinsic width) and returns a pair of qubits. The `0` index tells us that this function does not capture wires from the surrounding scope. Precisely because functions may in principle contain wires or other linear resources, they are treated by default as linear resources themselves, that is, they must be applied exactly once. This is undesirable in many cases, so a function that contains no linear resources from outside its scope can be made duplicable through the `lift` construct. A lifted expression can then be recovered via the `force` construct. Because `swap` from the previous example does not contain linear resources, we can make it duplicable as follows:
 ```
 let swap = lift \(x,y) :: (Qubit, Qubit) . (y,x)
-in (force swap) $ (force swap) (apply(QInit1,()), apply(QInit0,()))
+in force swap $ force swap (force qinit1 (), force qinit0 ())
 ```
 Now `swap` has type `!((Qubit, Qubit) -o[2,0] (Qubit, Qubit))` meaning that it is a *duplicable* function with the same characteristics as before.
 
@@ -41,9 +48,13 @@ The other kind of functions available in Proto-Quipper-R are dependent functions
 let twice = @i . \(c, q) :: (Circ[i+1](Qubit,Qubit), Qubit) .
   let q = apply(c,q)
   in apply(c,q)
-in twice @1 (Hadamard, (apply(QInit0,())))
+in twice @1 (Hadamard, (force qinit0 ()))
 ```
-The `twice` function has type `i ->[0, 0] (Circ [(i + 1)] (Qubit, Qubit), Qubit) -o[i+1, 0] Qubit`. This is slightly different notation from other dependently typed languages: because natural indices are the only terms that types are allowed to depend on, we need not specify the type of `i`. At the present moment, indices are 
+The `twice` function has type `i ->[0, 0] (Circ [(i + 1)] (Qubit, Qubit), Qubit) -o[i+1, 0] Qubit`. This is slightly different notation from other dependently typed languages: because natural indices are the only terms that types are allowed to depend on, we need not specify the type of `i`. At the present moment, the language of indices has the following grammar:
+```
+I,J ::= n | i | I + J | I - J | I * J | max(I,J) | max[i<I] J,
+```
+where `n` is a natural number, `i` is an index variable, `I - J` is *natural* subtraction (such that `I - J` is 0 whenever `I` < `J`) and `max[i<I] J` is the maximum for `i` going from 0 (included) to `I` (excluded) of `J` (where `i` may appear in `J`).
 
 ### Custom Circuit Operations
 TODO box
