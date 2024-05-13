@@ -1,4 +1,4 @@
-![QuRA-Logo](header.png)
+![QuRA-Logo](Header.png)
 
 QuRA is a static analysis tool for the verification of the resource consumption of circuit-building quantum programs. QuRA takes as input a program written in a variant of Quipper called Proto-Quipper-R and outputs two things: a type for the program and an upper bound to the width of the circuit it builds.
 A more detailed description of QuRA's input language can be found [here](src/Lang/Unified/README.md). At the heart of QuRA lies a linear dependent type-and-effect system which is described in greater detail in [this work](https://doi.org/10.48550/arXiv.2310.19096).
