@@ -6,7 +6,7 @@ module Solving.CVC5
 where
 
 import Control.Monad
-import Control.Monad.State (MonadState (..), State, evalState)
+import Control.Monad.State (MonadState (..), State, evalState, runState)
 import qualified Data.HashSet as Set
 import Index.AST
 import PrettyPrinter
@@ -21,16 +21,6 @@ import Control.Exception
 --- SMT queries from the same program are all written to the same file, which is then
 --- passed to the solver. The solver's response is then read from the same file.
 -----------------------------------------------------------------------------------------
-
--- | @embedIndex i@ returns a string representing index expression @i@ in SMTLIB format.
-embedIndex :: Index -> String
-embedIndex (IndexVariable id) = id
-embedIndex (Number n) = show n
-embedIndex (Plus i j) = "(+ " ++ embedIndex i ++ " " ++ embedIndex j ++ ")"
-embedIndex (Max i j) = "(max " ++ embedIndex i ++ " " ++ embedIndex j ++ ")"
-embedIndex (Mult i j) = "(* " ++ embedIndex i ++ " " ++ embedIndex j ++ ")"
-embedIndex (Minus i j) = "(minus " ++ embedIndex i ++ " " ++ embedIndex j ++ ")"
-embedIndex (Maximum {}) = error "Internal: maximum expression should have been desugared"
 
 -- | @embedConstraint rel@ returns a string representing the relation @rel@ in SMTLIB format.
 --
@@ -47,38 +37,35 @@ embedConstraint Leq = "<="
 -- It returns a pair @(d, c')@ where @d@ is a string containing the applicable SMTLIB declarations and constraints
 -- that must precede the main query in the smtlib file and @c'@ is @c@ where each occurrence of a bounded maximum
 -- is replaced by the corresponding newly introduced variable.
-desugarMaxima :: Constraint -> (String, Constraint)
-desugarMaxima (Constraint rel i j) = flip evalState 0 $ do
-  (di, i') <- goDesugarMaxima i
-  (dj, j') <- goDesugarMaxima j
-  return (di ++ dj, Constraint rel i' j')
-
-goDesugarMaxima :: Index -> State Int (String, Index)
-goDesugarMaxima (IndexVariable id) = return ("", IndexVariable id)
-goDesugarMaxima (Number n) = return ("", Number n)
-goDesugarMaxima (Plus i j) = do
-  (di, i') <- goDesugarMaxima i
-  (dj, j') <- goDesugarMaxima j
-  return (di ++ dj, Plus i' j')
-goDesugarMaxima (Max i j) = do
-  (di, i') <- goDesugarMaxima i
-  (dj, j') <- goDesugarMaxima j
-  return (di ++ dj, Max i' j')
-goDesugarMaxima (Mult i j) = do
-  (di, i') <- goDesugarMaxima i
-  (dj, j') <- goDesugarMaxima j
-  return (di ++ dj, Mult i' j')
-goDesugarMaxima (Minus i j) = do
-  (di, i') <- goDesugarMaxima i
-  (dj, j') <- goDesugarMaxima j
-  return (di ++ dj, Minus i' j')
-goDesugarMaxima (Maximum id i j) = do
+desugarMaxima :: Index -> State Int (String, String)
+desugarMaxima (IndexVariable id) = return ("", id)
+desugarMaxima (Number n) = return ("", show n)
+desugarMaxima (Plus i j) = do
+  (di, i') <- desugarMaxima i
+  (dj, j') <- desugarMaxima j
+  return (di ++ dj, "(+ " ++ i' ++ " " ++ j' ++ ")")
+desugarMaxima (Max i j) = do
+  (di, i') <- desugarMaxima i
+  (dj, j') <- desugarMaxima j
+  return (di ++ dj, "(max " ++ i' ++ " " ++ j' ++ ")")
+desugarMaxima (Mult i j) = do
+  (di, i') <- desugarMaxima i
+  (dj, j') <- desugarMaxima j
+  return (di ++ dj, "(* " ++ i' ++ " " ++ j' ++ ")")
+desugarMaxima (Minus i j) = do
+  (di, i') <- desugarMaxima i
+  (dj, j') <- desugarMaxima j
+  return (di ++ dj, "(natminus " ++ i' ++ " " ++ j' ++ ")")
+desugarMaxima (Maximum id i j) = do
   count <- get
   put $ count + 1
   let maxName = "_max" ++ show count
   let argMaxName = "_argmax" ++ show count
-  (di, i') <- goDesugarMaxima i
-  (dj, j') <- goDesugarMaxima (isub (IndexVariable argMaxName) id j)
+  (di, i') <- desugarMaxima i
+  s <- get
+  (dj, j') <- desugarMaxima (isub (IndexVariable argMaxName) id j)
+  put s
+  (_, j'') <- desugarMaxima (isub (IndexVariable "_w") id j)
   -- the following declarations must occur before the constraints of the sub-terms
   let d0 =
         "; the following variables stand for the max value and argmax of " ++ pretty (Maximum id i j) ++ "\n"
@@ -89,13 +76,13 @@ goDesugarMaxima (Maximum id i j) = do
   -- the following declrations must occur after the constraints of the sub-terms
   let d =
         "; the following block ensures that " ++ maxName ++ " = " ++ pretty (Maximum id i j) ++ "\n"
-          ++ "(assert (=> (<= " ++ embedIndex i' ++ " 0) (= " ++ maxName ++ " 0)))\n"
-          ++ "(assert (=> (> " ++ embedIndex i' ++ " 0) (= " ++ maxName ++ " " ++ embedIndex j' ++ ")))\n"
-          ++ "(assert (< " ++ argMaxName ++ " " ++ embedIndex i' ++ "))\n"
+          ++ "(assert (=> (<= " ++ i' ++ " 0) (= " ++ maxName ++ " 0)))\n"
+          ++ "(assert (=> (> " ++ i' ++ " 0) (= " ++ maxName ++ " " ++ j' ++ ")))\n"
+          ++ "(assert (< " ++ argMaxName ++ " " ++ i' ++ "))\n"
           ++ "(assert (forall ((_w Int)) (=> "
-            ++ "(and (<= 0 _w) (< _w " ++ embedIndex i' ++ "))"
-            ++ "(<= " ++ embedIndex (isub (IndexVariable "_w") argMaxName j') ++ " " ++ embedIndex j' ++ "))))\n"
-  return (d0 ++ di ++ dj ++ d, IndexVariable maxName)
+            ++ "(and (<= 0 _w) (< _w " ++ i' ++ "))"
+            ++ "(<= " ++ j'' ++ " " ++ j' ++ "))))\n"
+  return (d0 ++ di ++ dj ++ d, maxName)
 
 -- | @querySMTWithContext qfh c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables.
 -- It returns @True@ if the constraint holds, @False@ otherwise or if an error occurs in the interaction with the solver.
@@ -108,11 +95,12 @@ querySMTWithContext (sin, sout) c@(Constraint rel i j) = do
     -- for each free index variable in c, initialize an unknown natural variable:
     hPutStrLn sin $ "(declare-const " ++ id ++ " Int)"
     hPutStrLn sin $ "(assert (<= 0 " ++ id ++ "))"
-  let (constraints, Constraint _ i' j') = desugarMaxima c
-  hPutStr sin constraints -- dump the constraints that desugar bounded maxima
+  let (ci, i') = evalState (desugarMaxima i) 0
+  let (cj, j') = evalState (desugarMaxima j) 0
+  hPutStr sin (ci ++ cj) -- dump the constraints that desugar bounded maxima
   -- try to find a counterexample to c:
   hPutStrLn sin "; assert the negation of the constraint to check if it is valid"
-  hPutStrLn sin $ "(assert (not (" ++ embedConstraint rel ++ " " ++ embedIndex i' ++ " " ++ embedIndex j' ++ ")))"
+  hPutStrLn sin $ "(assert (not (" ++ embedConstraint rel ++ " " ++ i' ++ " " ++ j' ++ ")))"
   hPutStrLn sin "(check-sat)"
   hFlush sin
   resp <- hGetLine sout
@@ -154,7 +142,7 @@ withSolver deb action = do
   _ <- forkIO (hGetContents sErr >>= \s -> void (evaluate (length s))) -- drain stderr
   hPutStrLn sIn "(set-logic HO_ALL)" -- TODO this might be made less powerful, check
   hPutStrLn sIn "(define-fun max ((x Int) (y Int)) Int (ite (< x y) y x)) ; max(x,y)" -- define the max function
-  hPutStrLn sIn "(define-fun minus ((x Int) (y Int)) Int (ite (< x y) 0 (- x y))) ; minus(x,y)" -- define the minus function
+  hPutStrLn sIn "(define-fun natminus ((x Int) (y Int)) Int (ite (< x y) 0 (- x y))) ; minus(x,y)" -- define the minus function
   outcome <- action (sIn, sOut)
   cleanupProcess p
   return outcome
