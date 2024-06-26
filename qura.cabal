@@ -25,9 +25,14 @@ source-repository head
 
 library
   exposed-modules:
+      Circuit
       Index.AST
       Index.Parse
       Index.Semantics
+      Index.Semantics.Depth
+      Index.Semantics.GateCount
+      Index.Semantics.Resource
+      Index.Semantics.Width
       Lang.Analysis.Analyze
       Lang.Analysis.Annotate
       Lang.Analysis.Derivation
