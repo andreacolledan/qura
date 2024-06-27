@@ -14,6 +14,7 @@ import System.Process as Proc
 import System.IO
 import Control.Concurrent
 import Control.Exception
+import Index.Semantics.Resource
 
 --- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
 ---
@@ -33,39 +34,39 @@ embedConstraint :: IRel -> String
 embedConstraint Eq = "="
 embedConstraint Leq = "<="
 
--- | @desugarMaxima c@ desugars all bounded maxima in the constraint @c@ into fresh, appropriately constrained variables.
--- It returns a pair @(d, c')@ where @d@ is a string containing the applicable SMTLIB declarations and constraints
--- that must precede the main query in the smtlib file and @c'@ is @c@ where each occurrence of a bounded maximum
--- is replaced by the corresponding newly introduced variable.
-desugarMaxima :: Index -> State Int (String, String)
-desugarMaxima (IndexVariable id) = return ("", id)
-desugarMaxima (Number n) = return ("", show n)
-desugarMaxima (Plus i j) = do
-  (di, i') <- desugarMaxima i
-  (dj, j') <- desugarMaxima j
+-- | @embedIndex grs lrs grs lrs i@ desugars all bounded operations in index @i@ into fresh, appropriately constrained variables.
+-- It returns a pair @(d, i')@ where @d@ is a string containing the applicable SMTLIB declarations and constraints
+-- that must precede the main query in the smtlib file and @i'@ is an appropriate encoding of i as an SMTLIB term, where
+-- every occurrence of a bounded operation is replaced by the corresponding newly introduced variable.
+embedIndex :: GlobalResourceSemantics -> LocalResourceSemantics -> Index -> State Int (String, String)
+embedIndex _ _ (IndexVariable id) = return ("", id)
+embedIndex _ _ (Number n) = return ("", show n)
+embedIndex grs lrs (Plus i j) = do
+  (di, i') <- embedIndex grs lrs i
+  (dj, j') <- embedIndex grs lrs j
   return (di ++ dj, "(+ " ++ i' ++ " " ++ j' ++ ")")
-desugarMaxima (Max i j) = do
-  (di, i') <- desugarMaxima i
-  (dj, j') <- desugarMaxima j
+embedIndex grs lrs (Max i j) = do
+  (di, i') <- embedIndex grs lrs i
+  (dj, j') <- embedIndex grs lrs j
   return (di ++ dj, "(max " ++ i' ++ " " ++ j' ++ ")")
-desugarMaxima (Mult i j) = do
-  (di, i') <- desugarMaxima i
-  (dj, j') <- desugarMaxima j
+embedIndex grs lrs (Mult i j) = do
+  (di, i') <- embedIndex grs lrs i
+  (dj, j') <- embedIndex grs lrs j
   return (di ++ dj, "(* " ++ i' ++ " " ++ j' ++ ")")
-desugarMaxima (Minus i j) = do
-  (di, i') <- desugarMaxima i
-  (dj, j') <- desugarMaxima j
+embedIndex grs lrs (Minus i j) = do
+  (di, i') <- embedIndex grs lrs i
+  (dj, j') <- embedIndex grs lrs j
   return (di ++ dj, "(natminus " ++ i' ++ " " ++ j' ++ ")")
-desugarMaxima (Maximum id i j) = do
+embedIndex grs lrs (Maximum id i j) = do
   count <- get
   put $ count + 1
   let maxName = "_max" ++ show count
   let argMaxName = "_argmax" ++ show count
-  (di, i') <- desugarMaxima i
+  (di, i') <- embedIndex grs lrs i
   s <- get
-  (dj, j') <- desugarMaxima (isub (IndexVariable argMaxName) id j)
+  (dj, j') <- embedIndex grs lrs (isub (IndexVariable argMaxName) id j)
   put s
-  (_, j'') <- desugarMaxima (isub (IndexVariable "_w") id j)
+  (_, j'') <- embedIndex grs lrs (isub (IndexVariable "_w") id j)
   -- the following declarations must occur before the constraints of the sub-terms
   let d0 =
         "; the following variables stand for the max value and argmax of " ++ pretty (Maximum id i j) ++ "\n"
@@ -83,20 +84,36 @@ desugarMaxima (Maximum id i j) = do
             ++ "(and (<= 0 _w) (< _w " ++ i' ++ "))"
             ++ "(<= " ++ j'' ++ " " ++ j' ++ "))))\n"
   return (d0 ++ di ++ dj ++ d, maxName)
+embedIndex grs lrs (OpOutput op n is) = do
+  (ds, is) <- mapAndUnzipM (embedIndex grs lrs) is
+  return (concat ds, embedOutput lrs op n is)
+embedIndex grs _ Identity = return ("", show $ interpretIdentity grs)
+embedIndex grs _ (Wire wt) = return ("", show $ interpretWire grs wt)
+embedIndex grs lrs (Sequence i j) = do
+  (di, i') <- embedIndex grs lrs i
+  (dj, j') <- embedIndex grs lrs j
+  return (di ++ dj, smtEmbedSequence grs i' j')
+embedIndex grs lrs (Parallel i j) = do
+  (di, i') <- embedIndex grs lrs i
+  (dj, j') <- embedIndex grs lrs j
+  return (di ++ dj, smtEmbedParallel grs i' j')
+embedIndex grs lrs (BoundedSequence id i j) = smtEmbedBoundedSequence grs id i j (embedIndex grs lrs)
+embedIndex grs lrs (BoundedParallel id i j) = smtEmbedBoundedParallel grs id i j (embedIndex grs lrs)
+
 
 -- | @querySMTWithContext qfh c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables.
 -- It returns @True@ if the constraint holds, @False@ otherwise or if an error occurs in the interaction with the solver.
 -- The handle @qfh@ is used to communicate with the SMT solver.
-querySMTWithContext :: SolverHandle -> Constraint -> IO Bool
-querySMTWithContext (sin, sout) c@(Constraint rel i j) = do
+querySMTWithContext :: SolverHandle -> GlobalResourceSemantics -> LocalResourceSemantics -> Constraint -> IO Bool
+querySMTWithContext (sin, sout) grs lrs c@(Constraint rel i j) = do
   hPutStrLn sin $ "\n; PROVE " ++ pretty c
   hPutStrLn sin "(push 1)"
   forM_ (ifv i `Set.union` ifv j) $ \id -> do
     -- for each free index variable in c, initialize an unknown natural variable:
     hPutStrLn sin $ "(declare-const " ++ id ++ " Int)"
     hPutStrLn sin $ "(assert (<= 0 " ++ id ++ "))"
-  let (ci, i') = evalState (desugarMaxima i) 0
-  let (cj, j') = evalState (desugarMaxima j) 0
+  let ((ci, i'), n) = runState (embedIndex grs lrs i) 0
+  let (cj, j') = evalState (embedIndex grs lrs j) n
   hPutStr sin (ci ++ cj) -- dump the constraints that desugar bounded maxima
   -- try to find a counterexample to c:
   hPutStrLn sin "; assert the negation of the constraint to check if it is valid"

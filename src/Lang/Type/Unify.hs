@@ -47,8 +47,8 @@ instance HasType Type where
   tfv (TTensor ts) = foldr (Set.union . tfv) Set.empty ts
   tfv (TCirc {}) = Set.empty
   tfv (TArrow t1 t2 _ _) = tfv t1 `Set.union` tfv t2
-  tfv (TBang t) = tfv t
-  tfv (TList _ t) = tfv t
+  tfv (TBang _ t) = tfv t
+  tfv (TList _ _ t) = tfv t
   tfv (TVar id) = Set.singleton id
   tfv (TIForall _ t _ _) = tfv t
   tsub _ TUnit = TUnit
@@ -56,8 +56,8 @@ instance HasType Type where
   tsub sub (TTensor ts) = TTensor (map (tsub sub) ts)
   tsub _ typ@(TCirc {}) = typ
   tsub sub (TArrow typ1 typ2 i j) = TArrow (tsub sub typ1) (tsub sub typ2) i j
-  tsub sub (TBang typ) = TBang (tsub sub typ)
-  tsub sub (TList i typ) = TList i (tsub sub typ)
+  tsub sub (TBang i typ) = TBang i (tsub sub typ)
+  tsub sub (TList id i typ) = TList id i (tsub sub typ)
   tsub (TypeSubstitution map) typ@(TVar id) = Map.findWithDefault typ id map
   tsub sub (TIForall id typ i j) = TIForall id (tsub sub typ) i j
 
@@ -93,7 +93,7 @@ mgtu (TArrow typ1 typ2 _ _) (TArrow typ1' typ2' _ _) = do
   sub1 <- mgtu typ1 typ1'
   sub2 <- mgtu (tsub sub1 typ2) (tsub sub1 typ2')
   return $ compose sub2 sub1
-mgtu (TBang typ) (TBang typ') = mgtu typ typ'
-mgtu (TList _ typ) (TList _ typ') = mgtu typ typ'
+mgtu (TBang _ typ) (TBang _ typ') = mgtu typ typ'
+mgtu (TList _ _ typ) (TList _ _ typ') = mgtu typ typ'
 mgtu (TIForall _ typ _ _) (TIForall _ typ' _ _) = mgtu typ typ'
 mgtu _ _ = Nothing

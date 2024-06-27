@@ -23,6 +23,7 @@ import Lang.Expr.Pattern
 import PrettyPrinter
 import Data.List (intercalate)
 import Lang.Type.AST
+import Circuit
 
 --- UNIFIED LANGUAGE PARSER ---------------------------------------------------------------------------------
 ---
@@ -95,19 +96,19 @@ constant :: Parser Expr
 constant = try $ do
   name <- m_identifier
   case name of
-    "QInit0" -> return $ EConst QInit0
-    "QInit1" -> return $ EConst QInit1
-    "QDiscard" -> return $ EConst QDiscard
-    "Meas" -> return $ EConst Meas
-    "CInit0" -> return $ EConst CInit0
-    "CInit1" -> return $ EConst CInit1
-    "CDiscard" -> return $ EConst CDiscard
-    "Hadamard" -> return $ EConst Hadamard
-    "PauliX" -> return $ EConst PauliX
-    "PauliY" -> return $ EConst PauliY
-    "PauliZ" -> return $ EConst PauliZ
-    "CNot" -> return $ EConst CNot
-    "Toffoli" -> return $ EConst Toffoli
+    "QInit0" -> return $ EConst (Boxed QInit0)
+    "QInit1" -> return $ EConst (Boxed QInit1)
+    "QDiscard" -> return $ EConst (Boxed QDiscard)
+    "Meas" -> return $ EConst (Boxed Meas)
+    "CInit0" -> return $ EConst (Boxed CInit0)
+    "CInit1" -> return $ EConst (Boxed CInit1)
+    "CDiscard" -> return $ EConst (Boxed CDiscard)
+    "Hadamard" -> return $ EConst (Boxed Hadamard)
+    "PauliX" -> return $ EConst (Boxed PauliX)
+    "PauliY" -> return $ EConst (Boxed PauliY)
+    "PauliZ" -> return $ EConst (Boxed PauliZ)
+    "CNot" -> return $ EConst (Boxed CNot)
+    "Toffoli" -> return $ EConst (Boxed Toffoli)
     "MakeCRGate" -> return $ EConst MakeCRGate
     "MakeNToffoli" -> return $ EConst MakeNToffoli
     "MakeNCZ" -> return $ EConst MakeNCZ
@@ -159,7 +160,7 @@ list :: Parser Expr
 list =
   do
     elems <- m_brackets $ m_commaSep parseExpr
-    return $ foldr ECons (ENil Nothing) elems
+    return $ foldl ECons (ENil Nothing) elems
     <?> "list literal"
 
 -- parse "fold(e1, e2, e3)" as (EFold e1 e2 e3)
@@ -318,7 +319,7 @@ pconsOp = m_reservedOp ":" >> return PCons <?> "cons operator"
 parsePattern :: Parser Pattern
 parsePattern = let
   operatorTable =
-    [ [Infix pconsOp AssocRight]
+    [ [Infix pconsOp AssocLeft]
     ]
   simplePattern =
     pvariable
@@ -344,7 +345,7 @@ parseExpr :: Parser Expr
 parseExpr =
   let operatorTable =
         [ [Infix appOp AssocLeft],
-          [Infix consOp AssocRight],
+          [Infix consOp AssocLeft],
           [Postfix manyIappOp],
           [Postfix manyAnnOp],
           [Postfix manyAssumeOp],

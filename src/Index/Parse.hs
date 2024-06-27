@@ -108,8 +108,6 @@ manyMaximumOp = foldr1 (.) <$> many1 maximumOp
         m_symbol "]"
         return $ Maximum ivar i
   
-    
-
 delimitedIndex :: Parser Index
 delimitedIndex =
   m_parens parseIndex

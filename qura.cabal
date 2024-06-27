@@ -65,6 +65,7 @@ library
     , optparse-applicative
     , parsec
     , process
+    , transformers
     , unordered-containers
   default-language: Haskell2010
 
@@ -87,6 +88,7 @@ executable qura
     , parsec
     , process
     , qura
+    , transformers
     , unordered-containers
   default-language: Haskell2010
 
@@ -115,5 +117,6 @@ test-suite qura-test
     , parsec
     , process
     , qura
+    , transformers
     , unordered-containers
   default-language: Haskell2010

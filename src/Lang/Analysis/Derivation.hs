@@ -29,8 +29,10 @@ module Lang.Analysis.Derivation
     unlessEq,
     unlessLeq,
     unlessZero,
+    unlessIdentity,
     makePatternBindings,
     runSimplifyType,
+    runTypeof,
     SizeDiscipline (..),
   )
 where
@@ -52,6 +54,7 @@ import Lang.Type.Semantics (checkSubtype, simplifyType)
 import Index.Semantics
 import Solving.CVC5 (SolverHandle)
 import Lang.Expr.Pattern
+import Lang.Library.Constant
 
 --- TYPE DERIVATIONS MODULE --------------------------------------------------------------
 ---
@@ -147,11 +150,11 @@ makePatternBindings pat typ sl = do
     go :: SolverHandle -> SizeDiscipline -> Pattern -> Type -> TypeDerivation [(VariableId, Type)]
     go _ _ (PVar id) typ = return [(id, typ)]
     go sh sl (PTuple ps) (TTensor ts) = concat <$> zipWithM (go sh sl) ps ts
-    go sh sl p@(PCons p1 p2) typ@(TList i typ1) = do
+    go sh sl p@(PCons p1 p2) typ@(TList id i typ1) = do
       -- used during inference with indices, check that list is not empty
-      when (sl == SizedLists) $ unlessLeq (Number 1) i $ throwLocalError $ ConsEmptyList p typ
+      when (sl == SizedLists) $ unlessLeq (Just (Number 1)) (Just i) $ throwLocalError $ ConsEmptyList p typ
       bindings1 <- go sh sl p1 typ1
-      bindings2 <- go sh sl p2 (TList (Minus i (Number 1)) typ1)
+      bindings2 <- go sh sl p2 (TList id (Minus i (Number 1)) typ1)
       return $ bindings1 ++ bindings2
     go _ _ p t = throwLocalError $ PatternMismatch p t
 
@@ -184,7 +187,7 @@ withBoundVariables ids typs der = do
 
 -- | @withWireCount der@ is derivation @der@ in which the result of the computation is paired with an index describing
 -- how many wires have been consumed during @der@.
-withWireCount :: TypeDerivation a -> TypeDerivation (a, Index)
+withWireCount :: TypeDerivation a -> TypeDerivation (a, Maybe Index)
 withWireCount der = do
   TypingEnvironment {typingContext = gamma} <- get
   outcome <- der
@@ -194,7 +197,7 @@ withWireCount der = do
   let resourceCount = gammaDiff
   return (outcome, resourceCount)
   where
-    diffcount :: TypingContext -> TypingContext -> Index
+    diffcount :: TypingContext -> TypingContext -> Maybe Index
     diffcount gamma1 gamma2 =
       wireCount $
         Map.elems $
@@ -254,28 +257,44 @@ withScope e der = do
 unlessSubtype :: Type -> Type -> TypeDerivation () -> TypeDerivation ()
 unlessSubtype t1 t2 der = do
   sh <- gets solverHandle
-  c <- liftIO $ checkSubtype sh t1 t2
+  grs <- gets grs
+  lrs <- gets lrs
+  c <- liftIO $ checkSubtype sh grs lrs t1 t2
   unless c der
 
-unlessLeq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
+unlessLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessLeq i j der = do
   sh <- gets solverHandle
-  c <- liftIO $ checkLeq sh i j
+  grs <- gets grs
+  lrs <- gets lrs
+  c <- liftIO $ maybeCheckLeq sh grs lrs i j
   unless c der
 
-unlessEq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
+unlessEq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessEq i j der = do
   sh <- gets solverHandle
-  c <- liftIO $ checkEq sh i j
+  grs <- gets grs
+  lrs <- gets lrs
+  c <- liftIO $ maybeCheckEq sh grs lrs i j
   unless c der
 
-unlessZero :: Index -> TypeDerivation () -> TypeDerivation ()
-unlessZero i = unlessEq i (Number 0)
+unlessZero :: Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessZero i = unlessEq i (Just (Number 0))
+
+unlessIdentity :: Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessIdentity i = unlessEq i (Just Index.AST.Identity)
 
 runSimplifyType :: Type -> TypeDerivation Type
 runSimplifyType t = do
   sh <- gets solverHandle
-  liftIO $ simplifyType sh t
+  grs <- gets grs
+  lrs <- gets lrs
+  liftIO $ simplifyType sh grs lrs t
+
+runTypeof :: Constant -> TypeDerivation Type
+runTypeof c = do
+  grs <- gets grs
+  return $ typeOf grs c
 
 
 --- OTHER STUFF ----------------------------------------------------------------

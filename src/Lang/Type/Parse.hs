@@ -35,7 +35,8 @@ typeTokenParser@TokenParser
     reservedOp = m_reservedOp,
     brackets = m_brackets,
     comma = m_comma,
-    commaSep1 = m_commaSep1
+    commaSep1 = m_commaSep1,
+    symbol = m_symbol
   } = makeTokenParser typeLang
 
 -- Parses "t1 -o[i,j] t2" as (Arrow t1 t2 i j)
@@ -47,7 +48,7 @@ arrowOperator = do
     _ <- m_comma
     j <- parseIndex
     return (i, j)
-  return $ \t1 t2 -> TArrow t1 t2 i j
+  return $ \t1 t2 -> TArrow t1 t2 (Just i) (Just j)
 
 -- Parses "id ->[i,j] t" as (IForall id t i j)
 forallOperator :: Parser (Type -> Type)
@@ -59,7 +60,7 @@ forallOperator = do
     _ <- m_comma
     j <- parseIndex
     return (i, j)
-  return $ \t -> TIForall id t i j
+  return $ \t -> TIForall id t (Just i) (Just j)
 
 -- Parses "Circ[i](btype1, btype2)" as (Circ i btype1 btype2)
 circ :: Parser Type
@@ -71,7 +72,7 @@ circ = do
     _ <- m_comma
     btype2 <- parseType
     return (btype1, btype2)
-  return $ TCirc i btype1 btype2
+  return $ TCirc (Just i) btype1 btype2
 
 -- Parses "Bit" as (TWire Bit)
 bit :: Parser Type
@@ -98,12 +99,19 @@ tensor = do
 listOperator :: Parser (Type -> Type)
 listOperator = do
   m_reservedOp "List"
-  i <- m_brackets parseIndex
-  return $ TList i
+  (id,i) <- m_brackets $ do
+    id <- m_identifier
+    m_reservedOp "<"
+    i <- parseIndex
+    return (id,i)
+  return $ TList id i
 
 -- Parses "!" as a prefix operator TBang
 bangOperator :: Parser (Type -> Type)
-bangOperator = m_reservedOp "!" >> return TBang
+bangOperator = do
+  m_reservedOp "!"
+  i <- m_brackets parseIndex
+  return $ TBang (Just i)
 
 delimitedType :: Parser Type
 delimitedType =

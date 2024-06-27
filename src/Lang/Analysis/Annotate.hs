@@ -20,9 +20,10 @@ import Control.Monad.Extra
 --- type errors and annotating some AST nodes with relevant type information (e.g. Nil, Box)
 -------------------------------------------------------------------------------------------------------------
 
--- At this stage, placeholder for all indices, which are irrelevant
+-- | @irr@ is a placeholder index variable used for the length of lists.
 irr :: Index
-irr = IndexVariable "_"
+irr = IndexVariable "irr"
+
 
 -- | @ annotate e @ infers the type of expression @e@, without indices, annotating intermediate expressions as necessary.
 -- The result is a triple @(e', t, s)@, where @e'@ is the annotated expression, @t@ is its type, and @s@ is the compound
@@ -44,23 +45,23 @@ annotate e@(ETuple es) = withScope e $ do
 -- NIL
 annotate e@(ENil _) = withScope e $ do
   typ <- TVar <$> makeFreshVariable "a"
-  return (ENil (Just typ), TList irr typ, mempty)
+  return (ENil (Just typ), TList "_" irr typ, mempty)
 -- ABSTRACTION
 annotate e@(EAbs p annotyp e1) = withScope e $ do
   (ids, annotyps) <- makePatternBindings p annotyp UnsizedLists
   (e1', typ1, sub1) <- withBoundVariables ids annotyps $ annotate e1
-  return (EAbs p (tsub sub1 annotyp) e1', tsub sub1 (TArrow annotyp typ1 irr irr), sub1)
+  return (EAbs p (tsub sub1 annotyp) e1', tsub sub1 (TArrow annotyp typ1 Nothing Nothing), sub1)
 -- LIFT
 annotate e@(ELift e1) = withScope e $ do
   (e1', typ1, sub1) <- withNonLinearContext $ annotate e1
-  return (ELift e1', TBang typ1, sub1)
+  return (ELift e1', TBang Nothing typ1, sub1)
 -- CONS
 annotate e@(ECons e1 e2) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
   (e2', typ2, sub2) <- annotate e2
-  sub3 <- unify e2 typ2 (TList irr (tsub sub2 typ1))
+  sub3 <- unify e1 (tsub sub2 typ1) (TList "_" irr typ2)
   let sub = sub3 <> sub2 <> sub1
-  return (tsub sub (ECons e1' e2'), TList irr (tsub sub typ1), sub)
+  return (tsub sub (ECons e1' e2'), TList "_" irr typ2, sub)
 -- LET-IN
 annotate e@(ELet p e1 e2) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
@@ -78,7 +79,7 @@ annotate e@(EAnno e1 annotyp) = withScope e $ do
 annotate e@(EForce e1) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
   typ1' <- TVar <$> makeFreshVariable "a"
-  sub2 <- unify e1 typ1 (TBang typ1')
+  sub2 <- unify e1 typ1 (TBang Nothing typ1')
   let sub = sub2 <> sub1
   return (tsub sub (EForce e1'), tsub sub typ1', sub)
 -- APPLICATION (FUNCTIONS)
@@ -86,7 +87,7 @@ annotate e@(EApp e1 e2) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
   (e2', typ2, sub2) <- annotate e2
   typ1c <- TVar <$> makeFreshVariable "a"
-  sub3 <- unify e1 (tsub sub2 typ1) (TArrow typ2 typ1c irr irr)
+  sub3 <- unify e1 (tsub sub2 typ1) (TArrow typ2 typ1c Nothing Nothing)
   let sub = sub3 <> sub2 <> sub1
   return (tsub sub (EApp e1' e2'), tsub sub typ1c, sub)
 -- APPLY (CIRCUITS)
@@ -96,7 +97,7 @@ annotate e@(EApply e1 e2) = withScope e $ do
   btc <- TVar <$> makeFreshVariable "a"
   let sub = sub2 <> sub1
   unless (isBundleType typ2) $ throwLocalError $ ExpectedBundleType e2 typ2
-  sub3 <- unify e1 (tsub sub typ1) (TCirc irr typ2 btc)
+  sub3 <- unify e1 (tsub sub typ1) (TCirc Nothing typ2 btc)
   let sub = sub3 <> sub2 <> sub1
   return (tsub sub (EApply e1' e2'), tsub sub btc, sub)
 -- BOX
@@ -104,10 +105,10 @@ annotate e@(EBox _ e1) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
   typ1' <- TVar <$> makeFreshVariable "a"
   typ1'' <- TVar <$> makeFreshVariable "a"
-  sub2 <- unify e1 typ1 (TBang (TArrow typ1' typ1'' irr irr))
+  sub2 <- unify e1 typ1 (TBang Nothing (TArrow typ1' typ1'' Nothing Nothing))
   let sub = sub2 <> sub1
   unless (isBundleType (tsub sub typ1') && isBundleType (tsub sub typ1'')) $ throwLocalError $ UnboxableType e1 (tsub sub typ1)
-  return (tsub sub (EBox (Just (tsub sub typ1')) e1'), tsub sub (TCirc irr (tsub sub typ1') (tsub sub typ1'')), sub)
+  return (tsub sub (EBox (Just (tsub sub typ1')) e1'), tsub sub (TCirc Nothing (tsub sub typ1') (tsub sub typ1'')), sub)
 -- FOLD
 annotate e@(EFold e1 e2 e3) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
@@ -116,26 +117,28 @@ annotate e@(EFold e1 e2 e3) = withScope e $ do
   elemtyp <- TVar <$> makeFreshVariable "a"
   acctyp <- TVar <$> makeFreshVariable "a"
   let sub = sub3 <> sub2 <> sub1
-  stepsub <- unify e1 (tsub sub typ1) (TBang (TIForall "_" (TArrow (TTensor [acctyp, elemtyp]) acctyp irr irr) irr irr))
+  stepsub <- unify e1 (tsub sub typ1) (TBang Nothing (TIForall "_" (TArrow (TTensor [acctyp, elemtyp]) acctyp Nothing Nothing) Nothing Nothing))
   let sub = stepsub <> sub3 <> sub2 <> sub1
   accsub <- unify e2 (tsub sub typ2) (tsub sub acctyp)
   let sub = accsub <> stepsub <> sub3 <> sub2 <> sub1
-  argsub <- unify e3 (tsub sub typ3) (tsub sub $ TList irr elemtyp)
+  argsub <- unify e3 (tsub sub typ3) (tsub sub $ TList "_" irr elemtyp)
   let sub = argsub <> accsub <> stepsub <> sub3 <> sub2 <> sub1
   return (tsub sub (EFold e1' e2' e3'), tsub sub acctyp, sub)
 -- INDEX ABSTRACTION
 annotate e@(EIAbs id e1) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
-  return (EIAbs id e1', TIForall id typ1 irr irr, sub1)
+  return (EIAbs id e1', TIForall id typ1 Nothing Nothing, sub1)
 -- INDEX APPLICATION
 annotate e@(EIApp e1 g) = withScope e $ do
   (e1', typ1, sub1) <- annotate e1
   typ1' <- TVar <$> makeFreshVariable "a"
-  sub2 <- unify e1 typ1 (TIForall "i" typ1' irr irr)
+  sub2 <- unify e1 typ1 (TIForall "_" typ1' Nothing Nothing)
   let sub = sub2 <> sub1
   return (tsub sub (EIApp e1' g), tsub sub typ1', sub)
 -- CONSTANTS
-annotate e@(EConst c) = withScope e $ return (EConst c, typeOf c, mempty)
+annotate e@(EConst c) = withScope e $ do
+  t <- runTypeof c
+  return (EConst c, t, mempty)
 -- ASSUME
 annotate e@(EAssume e1 annotyp) = withScope e $ do
   (e1', _, sub1) <- annotate e1
