@@ -170,6 +170,13 @@ runTypeof c = do
   grs <- gets grs
   return $ typeOf grs c
 
+ifGlobalResources :: a -> TypeDerivation (Maybe a)
+ifGlobalResources x = do
+  grs <- gets grs
+  case grs of
+    Nothing -> return Nothing
+    Just _ -> return $ Just x
+
 --- DERIVATION COMBINATORS ------------------------------------------------------
 
 withBoundVariables :: [VariableId] -> [Type] -> TypeDerivation a -> TypeDerivation a
@@ -271,13 +278,6 @@ unlessSubtype t1 t2 der = do
   lrs <- gets lrs
   c <- liftIO $ checkSubtype sh grs lrs t1 t2
   unless c der
-
-ifGlobalResources :: TypeDerivation a -> TypeDerivation (Maybe a)
-ifGlobalResources der = do
-  grs <- gets grs
-  case grs of
-    Nothing -> return Nothing
-    Just _ -> Just <$> der
 
 -- Arithmetic index checking
 

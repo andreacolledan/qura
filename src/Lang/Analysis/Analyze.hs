@@ -32,20 +32,20 @@ import Data.Maybe
 analyze :: Expr -> TypeDerivation (Type, Maybe Index)
 -- UNIT
 analyze EUnit = withScope EUnit $ do
-  i <- ifGlobalResources $ return Identity
+  i <- ifGlobalResources Identity
   return (TUnit, i)
 -- VARIABLE
 analyze e@(EVar id) = withScope e $ do
   typ <- typingContextLookup id
-  i <- ifGlobalResources $ return $ wireCount typ
+  i <- ifGlobalResources $ wireCount typ
   return (typ, join i) -- i might be Nothing bcause a) typ is an arrow type annotated with Nothing or b) we are not synthesizing indices. TODO refactor this
 -- TUPLE
 analyze e@(ETuple es) = withScope e $ do
   when (length es < 2) $ error "Internal error: tuple with less than 2 elements escaped parser."
   (infrs, wcs) <- mapAndUnzipM (withWireCount . analyze) es
   let (typs, is) = unzip infrs
-  let k = foldAnno Sequence Identity [Parallel <$> i <*> (Parallel <$> subsequentwc step wcs <*> previouswc step typs) | (i, step) <- zip is [0 ..]] --todo check
-  return (TTensor typs, k)
+  k <- ifGlobalResources $ foldAnno Sequence Identity [Parallel <$> i <*> (Parallel <$> subsequentwc step wcs <*> previouswc step typs) | (i, step) <- zip is [0 ..]] --todo check
+  return (TTensor typs, join k)
     where
       subsequentwc :: Int -> [Maybe Index] -> Maybe Index
       subsequentwc step wcs = foldAnno Parallel Identity $ drop (step+1) wcs
@@ -60,18 +60,21 @@ analyze e@(ENil anno) = withScope e $ case anno of
   Just (TVar _) -> throwLocalError $ CannotSynthesizeType e
   Just typ -> do
     checkWellFormedness typ
-    return (TList "i" (Number 0) typ, Just Identity)
+    k <- ifGlobalResources Identity
+    return (TList "i" (Number 0) typ, k)
   Nothing -> error "Internal error: nil without type annotation"
 -- ABSTRACTION
 analyze e@(EAbs p annotyp e1) = withScope e $ do
   checkWellFormedness annotyp
   (ids, annotyps) <- makePatternBindings p annotyp SizedLists
   ((typ, i), wc) <- withWireCount $ withBoundVariables ids annotyps $ analyze e1
-  return (TArrow annotyp typ i wc, wc)
+  k <- ifGlobalResources wc
+  return (TArrow annotyp typ i (join k), join k)
 -- LIFT
 analyze e@(ELift e1) = withScope e $ do
   (typ, i) <- withNonLinearContext $ analyze e1
-  return (TBang i typ, Just (Number 0))
+  k <- ifGlobalResources Identity
+  return (TBang i typ, k)
 -- CONS
 analyze e@(ECons e1 e2) = withScope e $ do --TODO check
   (TList id j typ1, i1) <- analyze e1
@@ -81,9 +84,8 @@ analyze e@(ECons e1 e2) = withScope e $ do --TODO check
     actual <- runSimplifyType typ1'
     throwLocalError $ UnexpectedType e2 expected actual
   -- i1 || wires in e2 >> i2 || #(typ1) >> sum[id < j+1] #(typ1)):
-  let k = Sequence <$> (Parallel <$> i1 <*> wc) <*> (Sequence <$> (Parallel <$> i2 <*> wireCount (TList id j typ1)) <*> (BoundedParallel id (Plus j (Number 1)) <$> wireCount typ1))
-  return (TList id (Plus j (Number 1)) typ1, k)
----------------- TODO vvv
+  k <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> wc) <*> (Sequence <$> (Parallel <$> i2 <*> wireCount (TList id j typ1)) <*> (BoundedParallel id (Plus j (Number 1)) <$> wireCount typ1))
+  return (TList id (Plus j (Number 1)) typ1, join k)
 -- FOLD
 analyze e@(EFold e1 e2 e3) = withScope e $ do
   -- naming conventions are not satisfied here because the rule is HARD to parse
@@ -105,11 +107,11 @@ analyze e@(EFold e1 e2 e3) = withScope e $ do
   let flippedelemtyp' = isub (arglen `Minus` (IndexVariable id `Plus` Number 1)) id' elemtyp'
   unlessSubtype flippedelemtyp' elemtyp $ throwLocalError $ UnfoldableArg e3 argtyp
   -- width upper bound of ONLY fold execution: max(#(acctyp{0/id},>>[id<arglen] stepwidth || ||[id'<arglen-(id+1)] #(elemtyp)))
-  let k1 = Max <$> wireCount baseacctyp <*> (BoundedSequence id arglen <$> (Parallel <$> stepwidth {-todo has to be changed afterwards to include bang and such-} <*> (BoundedParallel id' (Minus arglen (Plus (IndexVariable id) (Number 1))) <$> wireCount elemtyp))) --todo check
+  k1 <- ifGlobalResources $ Max <$> wireCount baseacctyp <*> (BoundedSequence id arglen <$> (Parallel <$> stepwidth {-todo has to be changed afterwards to include bang and such-} <*> (BoundedParallel id' (Minus arglen (Plus (IndexVariable id) (Number 1))) <$> wireCount elemtyp))) --todo check
   -- the total upper bound takes into consideration the evaluation of e1, e2, e3 and the fold execution
   -- (i1 || wires in e2 and e3) >> (i2 || wires in e3) >> (i3 || wires in the result of e2) >> k1:
-  let k2 = Sequence <$> (Parallel <$> i1 <*> (Parallel <$> wc1 <*> wc2)) <*> (Sequence <$> (Parallel <$> i2 <*> wc2) <*> (Sequence <$> (Parallel <$> i3 <*> wireCount (isub (Number 0) id acctyp)) <*> k1))
-  return (isub arglen id acctyp, k2) --todo check
+  k2 <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> (Parallel <$> wc1 <*> wc2)) <*> (Sequence <$> (Parallel <$> i2 <*> wc2) <*> (Sequence <$> (Parallel <$> i3 <*> wireCount (isub (Number 0) id acctyp)) <*> join k1))
+  return (isub arglen id acctyp, join k2) --todo check
 -- APPLICATION (FUNCTIONS)
 analyze e@(EApp e1 e2) = withScope e $ do
   (TArrow annotyp typ3 j1 j2, i1) <- analyze e1
@@ -118,8 +120,8 @@ analyze e@(EApp e1 e2) = withScope e $ do
     actual <- runSimplifyType typ2
     throwLocalError $ UnexpectedType e2 annotyp actual
   -- (i1 || wires in e2) >> (i2 || j2) >> j1:
-  let k = Sequence <$> (Parallel <$> i1 <*> wc) <*> (Sequence <$> (Parallel <$> i2 <*> j2) <*> j1)
-  return (typ3, k)
+  k <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> wc) <*> (Sequence <$> (Parallel <$> i2 <*> j2) <*> j1)
+  return (typ3, join k)
 -- APPLY (CIRCUITS) --todo local metrics
 analyze e@(EApply e1 e2) = withScope e $ do
   (TCirc j intyp outtyp, i1) <- analyze e1
@@ -129,8 +131,8 @@ analyze e@(EApply e1 e2) = withScope e $ do
     actual <- runSimplifyType typ2
     throwLocalError $ UnexpectedType e2 expected actual
   -- (i1 || wires in e2) >> i2 >> j:
-  let k = Sequence <$> (Parallel <$> i1 <*> wc) <*> (Sequence <$> i2 <*> j)
-  return (outtyp, k)
+  k <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> wc) <*> (Sequence <$> i2 <*> j)
+  return (outtyp, join k)
 -- BOX --todo local metrics
 analyze e@(EBox anno e1) = withScope e $ case anno of
   Just annotyp -> do
@@ -146,8 +148,8 @@ analyze e@(ELet p e1 e2) = withScope e $ do
   (ids, typs) <- makePatternBindings p typ1 SizedLists
   ((typ2, i2), wc) <- withWireCount $ withBoundVariables ids typs $ analyze e2
   -- (i1 || wires in e2) >> i2):
-  let k = Sequence <$> (Parallel <$> i1 <*> wc) <*> i2
-  return (typ2, k)
+  k <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> wc) <*> i2
+  return (typ2, join k)
 -- ANNOTATION
 analyze e@(EAnno e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp
@@ -160,23 +162,25 @@ analyze e@(EAnno e1 annotyp) = withScope e $ do
 analyze e@(EForce e1) = withScope e $ do
   (TBang j typ', i) <- analyze e1
   -- j >> i:
-  let k = Sequence <$> i <*> j
-  return (typ', k)
+  k <- ifGlobalResources $ Sequence <$> i <*> j
+  return (typ', join k)
 -- INDEX ABSTRACTION
 analyze e@(EIAbs id e1) = withScope e $ do
   ((typ, i), wc) <- withWireCount $ withBoundIndexVariable id $ analyze e1
-  return (TIForall id typ i wc, wc)
+  k <- ifGlobalResources wc
+  return (TIForall id typ i (join k), join k)
 -- INDEX APPLICATION
 analyze e@(EIApp e1 g) = withScope e $ do
   (TIForall id typ2 j1 _, i) <- analyze e1
   checkWellFormedness g
   -- i >> isub g id j1:
-  let k = Sequence <$> i <*> isub g id j1
-  return (isub g id typ2, k)
+  k <- ifGlobalResources $ Sequence <$> i <*> isub g id j1
+  return (isub g id typ2, join k)
 -- CONSTANTS
 analyze e@(EConst c) = withScope e $ do
   t <- runTypeof c
-  return (t, Just $ Number 0)
+  k <- ifGlobalResources Identity
+  return (t, k)
 -- ASSUMPTION (unsafe)
 analyze e@(EAssume e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp
