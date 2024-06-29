@@ -7,7 +7,6 @@ import Index.AST
 import Lang.Type.AST
 import Lang.Type.Unify
 import Lang.Expr.AST
-import Lang.Library.Constant
 import Lang.Analysis.Derivation
 import Data.Foldable
 import Control.Monad.Extra

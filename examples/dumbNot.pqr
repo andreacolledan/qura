@@ -9,10 +9,14 @@ let dumbNot = lift \q :: Qubit .
 in
 
 -- iter @n f q applies f to q n times in sequence
-let iter = lift @n. \f :: ![0](Qubit -o[2,0] Qubit). \q :: Qubit.
+let iter = lift @n. @m. \f :: ![0](Qubit -o[m,0] Qubit). \q :: Qubit.
   let iterStep = lift @i. \(q,_) :: (Qubit,()). (force f q)
   in fold(iterStep, q, range @n)
 in 
 
+let doubleNegation = lift \q :: Qubit.
+  force dumbNot (force dumbNot q)
+in
+
 let q = force qinit0 () in
-(force iter @3) dumbNot q -- iterate dumbNot 3 times on q
+force doubleNegation q

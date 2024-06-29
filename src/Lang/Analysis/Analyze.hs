@@ -31,11 +31,14 @@ import Data.Maybe
 -- Otherwise, it throws a 'TypeError'.
 analyze :: Expr -> TypeDerivation (Type, Maybe Index)
 -- UNIT
-analyze EUnit = withScope EUnit $ return (TUnit, Just Identity)
+analyze EUnit = withScope EUnit $ do
+  i <- ifGlobalResources $ return Identity
+  return (TUnit, i)
 -- VARIABLE
 analyze e@(EVar id) = withScope e $ do
   typ <- typingContextLookup id
-  return (typ, wireCount typ)
+  i <- ifGlobalResources $ return $ wireCount typ
+  return (typ, join i) -- i might be Nothing bcause a) typ is an arrow type annotated with Nothing or b) we are not synthesizing indices. TODO refactor this
 -- TUPLE
 analyze e@(ETuple es) = withScope e $ do
   when (length es < 2) $ error "Internal error: tuple with less than 2 elements escaped parser."
@@ -132,7 +135,7 @@ analyze e@(EApply e1 e2) = withScope e $ do
 analyze e@(EBox anno e1) = withScope e $ case anno of
   Just annotyp -> do
     (typ1@(TBang o0 (TArrow typ2 typ3 j1 _)), i) <- analyze e1
-    unlessZero o0 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o0) --todo this is a simplification
+    unlessIdentity o0 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o0) --todo this is a simplification
     unlessSubtype annotyp typ2 $ throwLocalError $ UnboxableType e1 typ1
     unless (isBundleType typ3) $ throwLocalError $ UnboxableType e1 typ1
     return (TCirc j1 annotyp typ3, i)
@@ -195,5 +198,5 @@ runAnalysisWith env e = runExceptT $ do
 
 -- | @runAnalysis e sh@ runs the whole type inference pipeline on expression @e@,
 -- using the handle @sh@ to communicate with the SMT solver.
-runAnalysis :: Expr -> SolverHandle -> GlobalResourceSemantics -> LocalResourceSemantics -> IO (Either TypeError (Type, Maybe Index))
+runAnalysis :: Expr -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> IO (Either TypeError (Type, Maybe Index))
 runAnalysis e sh grs lrs = runAnalysisWith (emptyEnv sh grs lrs) e

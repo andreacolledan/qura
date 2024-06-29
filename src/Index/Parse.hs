@@ -6,17 +6,25 @@
 module Index.Parse
   ( parseIndex,
     delimitedIndex,
+    ParserConfig (..),
+    Parser,
   )
 where
 
 import Index.AST
-import Text.Parsec (alphaNum, lower, oneOf, try, (<|>))
+import Text.Parsec (alphaNum, lower, oneOf, try, (<|>), Parsec)
 import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Prim ((<?>))
-import Text.Parsec.String
 import Text.Parsec.Token
 import Text.Parsec.Combinator
+
+data ParserConfig = ParserConfig {
+  parsegra :: Bool,
+  parselra :: Bool
+}
+
+type Parser = Parsec String ParserConfig
 
 --- INDEX PARSING MODULE ------------------------------------------------------------
 ---
@@ -39,7 +47,7 @@ TokenParser
           opStart = oneOf "+-*<",
           opLetter = oneOf "+-*<",
           reservedOpNames = ["+", "-", "*", "<"],
-          reservedNames = ["max"]
+          reservedNames = ["max","sum"]
         }
 
 -- Parses "n" as (Number n)
@@ -106,7 +114,22 @@ manyMaximumOp = foldr1 (.) <$> many1 maximumOp
         m_reservedOp "<"
         i <- parseIndex
         m_symbol "]"
-        return $ Maximum ivar i
+        return $ BoundedMax ivar i
+
+manySumOp :: Parser (Index -> Index)
+manySumOp = foldr1 (.) <$> many1 sumOp
+  where
+    sumOp :: Parser (Index -> Index)
+    sumOp =
+      do
+        try $ do
+          m_reserved "sum"
+          m_symbol "["
+        ivar <- m_identifier
+        m_reservedOp "<"
+        i <- parseIndex
+        m_symbol "]"
+        return $ BoundedSum ivar i
   
 delimitedIndex :: Parser Index
 delimitedIndex =
@@ -123,6 +146,6 @@ parseIndex =
       indexOperators =
         [ [Infix multOp AssocLeft],
           [Infix plusOp AssocLeft, Infix minusOp AssocLeft],
-          [Prefix manyMaximumOp]
+          [Prefix manyMaximumOp, Prefix manySumOp]
         ]
    in buildExpressionParser indexOperators delimitedIndex <?> "index expression"

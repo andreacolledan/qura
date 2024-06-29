@@ -16,8 +16,15 @@ import Lang.Library.Constant
 import Text.Parsec
 import Text.Parsec.Expr
 import Text.Parsec.Language
-import Text.Parsec.String
 import Text.Parsec.Token
+    ( GenLanguageDef(reservedOpNames, commentLine, commentStart,
+                     commentEnd, identStart, identLetter, reservedNames, opStart,
+                     opLetter),
+      GenTokenParser(TokenParser, braces, parens, identifier, reserved,
+                     comma, commaSep, commaSep1, brackets, reservedOp, operator,
+                     whiteSpace, symbol),
+      TokenParser,
+      makeTokenParser )
 import Control.Monad
 import Lang.Expr.Pattern
 import PrettyPrinter

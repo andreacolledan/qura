@@ -28,11 +28,11 @@ module Lang.Analysis.Derivation
     unlessSubtype,
     unlessEq,
     unlessLeq,
-    unlessZero,
     unlessIdentity,
     makePatternBindings,
     runSimplifyType,
     runTypeof,
+    ifGlobalResources,
     SizeDiscipline (..),
   )
 where
@@ -152,13 +152,23 @@ makePatternBindings pat typ sl = do
     go sh sl (PTuple ps) (TTensor ts) = concat <$> zipWithM (go sh sl) ps ts
     go sh sl p@(PCons p1 p2) typ@(TList id i typ1) = do
       -- used during inference with indices, check that list is not empty
-      when (sl == SizedLists) $ unlessLeq (Just (Number 1)) (Just i) $ throwLocalError $ ConsEmptyList p typ
+      when (sl == SizedLists) $ unlessLeq (Number 1) i $ throwLocalError $ ConsEmptyList p typ
       bindings1 <- go sh sl p1 typ1
       bindings2 <- go sh sl p2 (TList id (Minus i (Number 1)) typ1)
       return $ bindings1 ++ bindings2
     go _ _ p t = throwLocalError $ PatternMismatch p t
 
+runSimplifyType :: Type -> TypeDerivation Type
+runSimplifyType t = do
+  sh <- gets solverHandle
+  grs <- gets grs
+  lrs <- gets lrs
+  liftIO $ simplifyType sh grs lrs t
 
+runTypeof :: Constant -> TypeDerivation Type
+runTypeof c = do
+  grs <- gets grs
+  return $ typeOf grs c
 
 --- DERIVATION COMBINATORS ------------------------------------------------------
 
@@ -193,13 +203,13 @@ withWireCount der = do
   outcome <- der
   TypingEnvironment {typingContext = gamma'} <- get
   -- count how many linear resources have disappeared from the contexts
-  let gammaDiff = diffcount gamma gamma'
+  let gammaDiff = diffcount  gamma gamma'
   let resourceCount = gammaDiff
   return (outcome, resourceCount)
   where
     diffcount :: TypingContext -> TypingContext -> Maybe Index
-    diffcount gamma1 gamma2 =
-      wireCount $
+    diffcount  gamma1 gamma2 =
+      wireCount  $
         Map.elems $
           Map.differenceWith
             ( \bs1 bs2 -> case (bs1, bs2) of
@@ -262,40 +272,61 @@ unlessSubtype t1 t2 der = do
   c <- liftIO $ checkSubtype sh grs lrs t1 t2
   unless c der
 
-unlessLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
+ifGlobalResources :: TypeDerivation a -> TypeDerivation (Maybe a)
+ifGlobalResources der = do
+  grs <- gets grs
+  case grs of
+    Nothing -> return Nothing
+    Just _ -> Just <$> der
+
+-- Arithmetic index checking
+
+unlessLeq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
 unlessLeq i j der = do
   sh <- gets solverHandle
-  grs <- gets grs
-  lrs <- gets lrs
-  c <- liftIO $ maybeCheckLeq sh grs lrs i j
+  c <- liftIO $ checkLeq sh i j
   unless c der
 
-unlessEq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessEq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
 unlessEq i j der = do
   sh <- gets solverHandle
-  grs <- gets grs
-  lrs <- gets lrs
-  c <- liftIO $ maybeCheckEq sh grs lrs i j
+  c <- liftIO $ checkEq sh i j
   unless c der
 
-unlessZero :: Maybe Index -> TypeDerivation () -> TypeDerivation ()
-unlessZero i = unlessEq i (Just (Number 0))
+-- Global resource index checking
+
+unlessGRLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessGRLeq i j der = do
+  qfh <- gets solverHandle
+  grs <- gets grs
+  c <- liftIO $ checkGRLeq qfh grs i j
+  unless c der
+
+unlessGREq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessGREq i j der = do
+  qfh <- gets solverHandle
+  grs <- gets grs
+  c <- liftIO $ checkGREq qfh grs i j
+  unless c der
+
+-- Local resource index checking
+
+unlessLRLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessLRLeq i j der = do
+  qfh <- gets solverHandle
+  lrs <- gets lrs
+  c <- liftIO $ checkLRLeq qfh lrs i j
+  unless c der
+
+unlessLREq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
+unlessLREq i j der = do
+  qfh <- gets solverHandle
+  lrs <- gets lrs
+  c <- liftIO $ checkLREq qfh lrs i j
+  unless c der
 
 unlessIdentity :: Maybe Index -> TypeDerivation () -> TypeDerivation ()
-unlessIdentity i = unlessEq i (Just Index.AST.Identity)
-
-runSimplifyType :: Type -> TypeDerivation Type
-runSimplifyType t = do
-  sh <- gets solverHandle
-  grs <- gets grs
-  lrs <- gets lrs
-  liftIO $ simplifyType sh grs lrs t
-
-runTypeof :: Constant -> TypeDerivation Type
-runTypeof c = do
-  grs <- gets grs
-  return $ typeOf grs c
-
+unlessIdentity i = unlessGREq i (Just Index.AST.Identity)
 
 --- OTHER STUFF ----------------------------------------------------------------
 

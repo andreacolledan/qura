@@ -4,7 +4,7 @@ module Index.Semantics.Width (widthResourceSemantics) where
 import Index.Semantics.Resource
 import Index.AST
 import Control.Monad.State
-import PrettyPrinter
+import Solving.CVC5
 import Circuit
 
 widthResourceSemantics :: GlobalResourceSemantics
@@ -15,80 +15,30 @@ widthResourceSemantics =
     desugarWire = const (Number 1),
     desugarSequence = Max,
     desugarParallel = Plus,
-    desugarBoundedSequence = Maximum,
-    desugarBoundedParallel = \id i j -> Mult i (Maximum id i j),
-    desugarIndependentBoundedSequence = \_ j -> j,
-    desugarIndependentBoundedParallel = Mult,
-    interpretIdentity = 0,
-    interpretWire = const 1,
-    interpretSequence = max,
-    interpretParallel = (+),
-    smtEmbedIdentity = "0",
-    smtEmbedWire = const "1",
-    smtEmbedSequence = \i j -> "(max " ++ i ++ " " ++ j ++ ")",
-    smtEmbedParallel = \i j -> "(+ " ++ i ++ " " ++ j ++ ")",
-    smtEmbedBoundedSequence = desugarMaximum,
-    smtEmbedBoundedParallel = desugarSum,
+    desugarBoundedSequence = BoundedMax,
+    desugarBoundedParallel = BoundedSum,
+    --interpretIdentity = 0,
+    --interpretWire = const 1,
+    --interpretSequence = max,
+    --interpretParallel = (+),
+    --smtEmbedIdentity = "0",
+    --smtEmbedWire = const "1",
+    --smtEmbedSequence = \i j -> "(max " ++ i ++ " " ++ j ++ ")",
+    --smtEmbedParallel = \i j -> "(+ " ++ i ++ " " ++ j ++ ")",
+    --smtEmbedBoundedSequence = smtBoundedMax,
+    --smtEmbedBoundedParallel = smtBoundedSum, -- overapproximates
     opGroundTruth = opWidths
   }
 
-desugarMaximum :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String)
-desugarMaximum id i j embed = do
-  count <- get
-  put $ count + 1
-  let maxName = "_max" ++ show count
-  let argMaxName = "_argmax" ++ show count
-  (di, i') <- embed i
-  s <- get
-  (dj, j') <- embed (isub (IndexVariable argMaxName) id j)
-  put s
-  (_, j'') <- embed (isub (IndexVariable "_w") id j)
-  -- the following declarations must occur before the constraints of the sub-terms
-  let d0 =
-        "; the following variables stand for the max value and argmax of " ++ pretty (Maximum id i j) ++ "\n"
-          ++ "(declare-const " ++ maxName ++ " Int)\n"
-          ++ "(assert (<= 0 " ++ maxName ++ "))\n"
-          ++ "(declare-const " ++ argMaxName ++ " Int)\n"
-          ++ "(assert (<= 0 " ++ argMaxName ++ "))\n"
-  -- the following declrations must occur after the constraints of the sub-terms
-  let d =
-        "; the following block ensures that " ++ maxName ++ " = " ++ pretty (Maximum id i j) ++ "\n"
-          ++ "(assert (=> (<= " ++ i' ++ " 0) (= " ++ maxName ++ " 0)))\n"
-          ++ "(assert (=> (> " ++ i' ++ " 0) (= " ++ maxName ++ " " ++ j' ++ ")))\n"
-          ++ "(assert (< " ++ argMaxName ++ " " ++ i' ++ "))\n"
-          ++ "(assert (forall ((_w Int)) (=> "
-            ++ "(and (<= 0 _w) (< _w " ++ i' ++ "))"
-            ++ "(<= " ++ j'' ++ " " ++ j' ++ "))))\n"
-  return (d0 ++ di ++ dj ++ d, maxName)
+smtBoundedMax :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String)
+smtBoundedMax id i j embed = do
+  (pre, _, maxName) <- smtBoundedMaxGeneric id i j embed
+  return (pre, maxName)
 
-desugarSum :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String)
-desugarSum id i j embed = do
-  count <- get
-  put $ count + 1
-  let maxName = "_max" ++ show count
-  let argMaxName = "_argmax" ++ show count
-  (di, i') <- embed i
-  s <- get
-  (dj, j') <- embed (isub (IndexVariable argMaxName) id j)
-  put s
-  (_, j'') <- embed (isub (IndexVariable "_w") id j)
-  -- the following declarations must occur before the constraints of the sub-terms
-  let d0 =
-        "; the following variables stand for the max value and argmax of " ++ pretty (Maximum id i j) ++ "\n"
-          ++ "(declare-const " ++ maxName ++ " Int)\n"
-          ++ "(assert (<= 0 " ++ maxName ++ "))\n"
-          ++ "(declare-const " ++ argMaxName ++ " Int)\n"
-          ++ "(assert (<= 0 " ++ argMaxName ++ "))\n"
-  -- the following declrations must occur after the constraints of the sub-terms
-  let d =
-        "; the following block ensures that " ++ maxName ++ " = " ++ pretty (Maximum id i j) ++ "\n"
-          ++ "(assert (=> (<= " ++ i' ++ " 0) (= " ++ maxName ++ " 0)))\n"
-          ++ "(assert (=> (> " ++ i' ++ " 0) (= " ++ maxName ++ " " ++ j' ++ ")))\n"
-          ++ "(assert (< " ++ argMaxName ++ " " ++ i' ++ "))\n"
-          ++ "(assert (forall ((_w Int)) (=> "
-            ++ "(and (<= 0 _w) (< _w " ++ i' ++ "))"
-            ++ "(<= " ++ j'' ++ " " ++ j' ++ "))))\n"
-  return (d0 ++ di ++ dj ++ d, "(* " ++ i' ++ " " ++ maxName ++ ")")
+smtBoundedSum :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String)
+smtBoundedSum id i j embed = do
+  (pre, upper, maxName) <- smtBoundedMaxGeneric id i j embed
+  return (pre, "(* " ++ upper ++ " " ++ maxName ++ ")")
 
 opWidths :: QuantumOperation -> Int
 opWidths QInit0 = 1

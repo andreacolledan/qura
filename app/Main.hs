@@ -10,15 +10,32 @@ import PrettyPrinter
 import Solving.CVC5
 import System.Console.ANSI
 import System.IO.Extra
-import Text.Parsec (parse)
+import Text.Parsec (runParser)
 import Lang.Library.Prelude
 import Index.Semantics.Width (widthResourceSemantics)
+import Index.Semantics.GateCount (gateCountResourceSemantics)
+import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
+import Data.Maybe (fromMaybe, isJust, fromJust)
+import qualified Index.Parse as IP
+
+globalResourceArgParser :: ReadM GlobalResourceSemantics
+globalResourceArgParser = do
+  s <- str 
+  case s of
+    "width" -> return widthResourceSemantics
+    "gatecount" -> return gateCountResourceSemantics
+    _ -> readerError "Supported global resources are 'width' and 'gatecount'."
+
+localResourceArgParser :: ReadM LocalResourceSemantics
+localResourceArgParser = readerError "Local resources are unsupported."
 
 data Arguments = CommandLineArguments
   { filepath :: String,
     verbose :: Bool,
     debug :: Maybe String,
-    noprelude :: Bool
+    noprelude :: Bool,
+    grs :: Maybe GlobalResourceSemantics,
+    lrs :: Maybe LocalResourceSemantics
   }
 
 interface :: ParserInfo Arguments
@@ -52,13 +69,31 @@ interface =
           ( long "noprelude"
               <> help "Do not include the prelude"
           )
+        <*> optional (option globalResourceArgParser
+          ( long "global-resource-analysis"
+              <> short 'g'
+              <> metavar "RESOURCE"
+              <> help "Analyse global RESOURCE"
+              ))
+        <*> optional (option localResourceArgParser
+          ( long "local-resource-analysis"
+              <> short 'l'
+              <> metavar "RESOURCE"
+              <> help "Analyse local RESOURCE"
+              ))
 
 main :: IO ()
 main = do
-  CommandLineArguments {filepath = file, verbose = verb, debug = deb, noprelude = nopre} <- execParser interface
+  CommandLineArguments {
+    filepath = file,
+    verbose = verb,
+    debug = deb,
+    noprelude = nopre,
+    grs = mgrs,
+    lrs = mlrs} <- execParser interface
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
   contents <- readFile file
-  case parse parseProgram "" contents of
+  case runParser parseProgram IP.ParserConfig{IP.parsegra = isJust mgrs, IP.parselra = isJust mlrs} "" contents of
     Left err -> print err
     Right ast -> do
       when verb $ do
@@ -66,18 +101,15 @@ main = do
         putStrLn "Inferring type..."
       withSolver deb $ \qfh -> do
         let actualAst = if nopre then ast else library ast
-        outcome <- runAnalysis actualAst qfh widthResourceSemantics (error "Internal: No local resource semantics")
+        outcome <- runAnalysis actualAst qfh mgrs mlrs
         case outcome of
           Left err -> do
             hSetSGR stderr [SetColor Foreground Vivid Red]
             hPrint stderr err
             hSetSGR stderr [Reset]
-          Right (t, Just i) -> do
-            t' <- simplifyType qfh widthResourceSemantics (error "Internal: No local resource semantics") t
-            i' <- simplifyIndex qfh widthResourceSemantics (error "Internal: No local resource semantics") i
+          Right (t, i) -> do
+            t' <- simplifyType qfh mgrs mlrs t
             putStrLn $ "* Inferred type: " ++ pretty t'
-            putStrLn $ "* Inferred bound: " ++ pretty i'
-          Right (t, Nothing) -> do
-            t' <- simplifyType qfh widthResourceSemantics (error "Internal: No local resource semantics") t
-            putStrLn $ "* Inferred type: " ++ pretty t'
-            putStrLn "* No bound inferred"
+            when (isJust mgrs) $ do
+              i' <- simplifyIndex qfh mgrs mlrs (fromJust i)
+              putStrLn $ "* Inferred bound: " ++ pretty i'

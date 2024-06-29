@@ -45,22 +45,22 @@ instance Pretty Constant where
   pretty MakeUnitList = "MakeUnitList"
 
 -- | @typeOf c@ returns the type of constant @c@
-typeOf :: GlobalResourceSemantics -> Constant -> Type
-typeOf grs (Boxed QInit0) = TCirc (Just $ Number $ opGroundTruth grs QInit0) TUnit (TWire Qubit)
-typeOf grs (Boxed QInit1) = TCirc (Just $ Number $ opGroundTruth grs QInit1) TUnit (TWire Qubit)
-typeOf grs (Boxed QDiscard) = TCirc (Just $ Number $ opGroundTruth grs QDiscard) (TWire Qubit) TUnit
-typeOf grs (Boxed Meas) = TCirc (Just $ Number $ opGroundTruth grs Meas) (TWire Qubit) (TWire Bit)
-typeOf grs (Boxed CInit0) = TCirc (Just $ Number $ opGroundTruth grs CInit0) TUnit (TWire Bit)
-typeOf grs (Boxed CInit1) = TCirc (Just $ Number $ opGroundTruth grs CInit1) TUnit (TWire Bit)
-typeOf grs (Boxed CDiscard) = TCirc (Just $ Number $ opGroundTruth grs CDiscard) (TWire Bit) TUnit
-typeOf grs (Boxed Hadamard) = TCirc (Just $ Number $ opGroundTruth grs Hadamard) (TWire Qubit) (TWire Qubit)
-typeOf grs (Boxed PauliX) = TCirc (Just $ Number $ opGroundTruth grs PauliX) (TWire Qubit) (TWire Qubit)
-typeOf grs (Boxed PauliY) = TCirc (Just $ Number $ opGroundTruth grs PauliY) (TWire Qubit) (TWire Qubit)
-typeOf grs (Boxed PauliZ) = TCirc (Just $ Number $ opGroundTruth grs PauliZ) (TWire Qubit) (TWire Qubit)
-typeOf grs (Boxed CNot) = TCirc (Just $ Number $ opGroundTruth grs CNot) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])
-typeOf grs (Boxed CZ) = TCirc (Just $ Number $ opGroundTruth grs CZ) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])
-typeOf grs (Boxed Toffoli) = TCirc (Just $ Number $ opGroundTruth grs Toffoli) (TTensor [TWire Qubit, TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit, TWire Qubit])
-typeOf grs MakeCRGate = TIForall "i" (TCirc (Just $ Number $ opGroundTruth grs CZ) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
-typeOf grs MakeNToffoli = TIForall "i" (TCirc (Parallel (IndexVariable "i") <$> Just (Number $ opGroundTruth grs PauliX)) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit]) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
-typeOf grs MakeNCZ = TIForall "i" (TCirc (Parallel (IndexVariable "i") <$> Just (Number $ opGroundTruth grs PauliZ)) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit]) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
+typeOf :: Maybe GlobalResourceSemantics -> Constant -> Type
+typeOf grs (Boxed QInit0) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just QInit0)) TUnit (TWire Qubit)
+typeOf grs (Boxed QInit1) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just QInit1)) TUnit (TWire Qubit)
+typeOf grs (Boxed QDiscard) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just QDiscard)) (TWire Qubit) TUnit
+typeOf grs (Boxed Meas) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just Meas)) (TWire Qubit) (TWire Bit)
+typeOf grs (Boxed CInit0) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CInit0)) TUnit (TWire Bit)
+typeOf grs (Boxed CInit1) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CInit1)) TUnit (TWire Bit)
+typeOf grs (Boxed CDiscard) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CDiscard)) (TWire Bit) TUnit
+typeOf grs (Boxed Hadamard) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just Hadamard)) (TWire Qubit) (TWire Qubit)
+typeOf grs (Boxed PauliX) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just PauliX)) (TWire Qubit) (TWire Qubit)
+typeOf grs (Boxed PauliY) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just PauliY)) (TWire Qubit) (TWire Qubit)
+typeOf grs (Boxed PauliZ) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just PauliZ)) (TWire Qubit) (TWire Qubit)
+typeOf grs (Boxed CNot) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CNot)) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])
+typeOf grs (Boxed CZ) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CZ)) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])
+typeOf grs (Boxed Toffoli) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just Toffoli)) (TTensor [TWire Qubit, TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit, TWire Qubit])
+typeOf grs MakeCRGate = TIForall "i" (TCirc (Number <$> (opGroundTruth <$> grs <*> Just CZ)) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
+typeOf grs MakeNToffoli = TIForall "i" (TCirc (Parallel (IndexVariable "i") . Number <$> (opGroundTruth <$> grs <*> Just PauliX)) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit]) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
+typeOf grs MakeNCZ = TIForall "i" (TCirc (Parallel (IndexVariable "i") . Number <$> (opGroundTruth <$> grs <*> Just PauliZ)) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit]) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
 typeOf _ MakeUnitList = TIForall "i" (TList "_" (IndexVariable "i") TUnit) (Just $ Number 0) (Just $ Number 0)

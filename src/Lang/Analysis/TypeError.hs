@@ -16,7 +16,7 @@ data TypeError
   | UnboundIndexVariable IndexVariableId [Expr]
   | UnexpectedType Expr Type Type [Expr]
   | UnexpectedIndex Index Index [Expr]
-  | UnexpectedWidthAnnotation Expr Index Index [Expr]
+  | UnexpectedResourceAnnotation Expr Index Index [Expr]
   | ExpectedBundleType Expr Type [Expr]
   | CannotSynthesizeType Expr [Expr]
   | -- Pattern errors
@@ -43,8 +43,8 @@ instance Show TypeError where
   show (LiftedLinearVariable id surr) = "* Linear variable '" ++ id ++ "' cannot be consumed in a lifted expression" ++ printSurroundings surr
   show (UnexpectedType exp typ1 typ2 surr) =
     "* Expected expression '" ++ trnc 80 (pretty exp) ++ "'\n   to have type\n    '" ++ pretty typ1 ++ "',\n   got\n    '" ++ pretty typ2 ++ "'\n   instead" ++ printSurroundings surr
-  show (UnexpectedWidthAnnotation m i j surr) =
-    "* Expected expression '" ++ pretty m ++ "' to have width annotation '" ++ pretty i ++ "', got '" ++ pretty j ++ "' instead" ++ printSurroundings surr
+  show (UnexpectedResourceAnnotation m i j surr) =
+    "* Expected expression '" ++ pretty m ++ "' to have resource annotation '" ++ pretty i ++ "', got '" ++ pretty j ++ "' instead" ++ printSurroundings surr
   show (UnexpectedIndex i1 i2 surr) = "* Expected index '" ++ pretty i1 ++ "', got '" ++ pretty i2 ++ "' instead" ++ printSurroundings surr
   show (UnboxableType v typ surr) = "* Cannot box value '" ++ pretty v ++ "' of type '" ++ pretty typ ++ "'" ++ printSurroundings surr
   show (UnfoldableStepfunction v typ surr) = "* Expression '" ++ pretty v ++ "' of type '" ++ pretty typ ++ "' is not a valid step function" ++ printSurroundings surr

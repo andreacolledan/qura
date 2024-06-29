@@ -2,6 +2,7 @@ module Solving.CVC5
   ( querySMTWithContext,
     withSolver,
     SolverHandle,
+    smtBoundedMaxGeneric
   )
 where
 
@@ -15,6 +16,7 @@ import System.IO
 import Control.Concurrent
 import Control.Exception
 import Index.Semantics.Resource
+import Data.Maybe
 
 --- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
 ---
@@ -38,82 +40,102 @@ embedConstraint Leq = "<="
 -- It returns a pair @(d, i')@ where @d@ is a string containing the applicable SMTLIB declarations and constraints
 -- that must precede the main query in the smtlib file and @i'@ is an appropriate encoding of i as an SMTLIB term, where
 -- every occurrence of a bounded operation is replaced by the corresponding newly introduced variable.
-embedIndex :: GlobalResourceSemantics -> LocalResourceSemantics -> Index -> State Int (String, String)
-embedIndex _ _ (IndexVariable id) = return ("", id)
-embedIndex _ _ (Number n) = return ("", show n)
-embedIndex grs lrs (Plus i j) = do
-  (di, i') <- embedIndex grs lrs i
-  (dj, j') <- embedIndex grs lrs j
+embedIndex :: Index -> State Int (String, String)
+embedIndex (IndexVariable id) = return ("", id)
+embedIndex (Number n) = return ("", show n)
+embedIndex (Plus i j) = do
+  (di, i') <- embedIndex i
+  (dj, j') <- embedIndex j
   return (di ++ dj, "(+ " ++ i' ++ " " ++ j' ++ ")")
-embedIndex grs lrs (Max i j) = do
-  (di, i') <- embedIndex grs lrs i
-  (dj, j') <- embedIndex grs lrs j
+embedIndex (Max i j) = do
+  (di, i') <- embedIndex i
+  (dj, j') <- embedIndex j
   return (di ++ dj, "(max " ++ i' ++ " " ++ j' ++ ")")
-embedIndex grs lrs (Mult i j) = do
-  (di, i') <- embedIndex grs lrs i
-  (dj, j') <- embedIndex grs lrs j
+embedIndex (Mult i j) = do
+  (di, i') <- embedIndex i
+  (dj, j') <- embedIndex j
   return (di ++ dj, "(* " ++ i' ++ " " ++ j' ++ ")")
-embedIndex grs lrs (Minus i j) = do
-  (di, i') <- embedIndex grs lrs i
-  (dj, j') <- embedIndex grs lrs j
+embedIndex (Minus i j) = do
+  (di, i') <- embedIndex i
+  (dj, j') <- embedIndex j
   return (di ++ dj, "(natminus " ++ i' ++ " " ++ j' ++ ")")
-embedIndex grs lrs (Maximum id i j) = do
+embedIndex (BoundedMax id i j) = do
+  (d, _, maxName) <- smtBoundedMaxGeneric id i j embedIndex
+  return (d, maxName)
+embedIndex (BoundedSum id i j) = do
+  (d, i', maxName) <- smtBoundedMaxGeneric id i j embedIndex
+  return (d, "(* " ++ i' ++ " " ++ maxName ++ ")")
+--embedIndex grs lrs (OpOutput op n is) = do
+--  let lrs' = fromMaybe (error "unembeddable index escaped parser") lrs
+--  (ds, is) <- mapAndUnzipM (embedIndex grs lrs) is
+--  return (concat ds, embedOutput lrs' op n is)
+--embedIndex grs _ Identity = do
+--  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
+--  return ("", show $ interpretIdentity grs')
+--embedIndex grs _ (Wire wt) = do
+--  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
+--  return ("", show $ interpretWire grs' wt)
+--embedIndex grs lrs (Sequence i j) = do
+--  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
+--  (di, i') <- embedIndex grs lrs i
+--  (dj, j') <- embedIndex grs lrs j
+--  return (di ++ dj, smtEmbedSequence grs' i' j')
+--embedIndex grs lrs (Parallel i j) = do
+--  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
+--  (di, i') <- embedIndex grs lrs i
+--  (dj, j') <- embedIndex grs lrs j
+--  return (di ++ dj, smtEmbedParallel grs' i' j')
+--embedIndex grs lrs (BoundedSequence id i j) = do
+--  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
+--  smtEmbedBoundedSequence grs' id i j (embedIndex grs lrs)
+--embedIndex grs lrs (BoundedParallel id i j) = do
+--  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
+--  smtEmbedBoundedParallel grs' id i j (embedIndex grs lrs)
+embedIndex i = error $ "Internal error: resource operator was not desugared (embedIndex):" ++ pretty i
+
+smtBoundedMaxGeneric :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String, String)
+smtBoundedMaxGeneric id i j embed = do
   count <- get
   put $ count + 1
   let maxName = "_max" ++ show count
   let argMaxName = "_argmax" ++ show count
-  (di, i') <- embedIndex grs lrs i
+  (di, i') <- embed i
   s <- get
-  (dj, j') <- embedIndex grs lrs (isub (IndexVariable argMaxName) id j)
+  (dj, j') <- embed (isub (IndexVariable argMaxName) id j)
   put s
-  (_, j'') <- embedIndex grs lrs (isub (IndexVariable "_w") id j)
+  (_, j'') <- embed (isub (IndexVariable "_w") id j)
   -- the following declarations must occur before the constraints of the sub-terms
   let d0 =
-        "; the following variables stand for the max value and argmax of " ++ pretty (Maximum id i j) ++ "\n"
+        "; the following variables stand for the max value and argmax of " ++ pretty (BoundedMax id i j) ++ "\n"
           ++ "(declare-const " ++ maxName ++ " Int)\n"
           ++ "(assert (<= 0 " ++ maxName ++ "))\n"
           ++ "(declare-const " ++ argMaxName ++ " Int)\n"
           ++ "(assert (<= 0 " ++ argMaxName ++ "))\n"
   -- the following declrations must occur after the constraints of the sub-terms
   let d =
-        "; the following block ensures that " ++ maxName ++ " = " ++ pretty (Maximum id i j) ++ "\n"
+        "; the following block ensures that " ++ maxName ++ " = " ++ pretty (BoundedMax id i j) ++ "\n"
           ++ "(assert (=> (<= " ++ i' ++ " 0) (= " ++ maxName ++ " 0)))\n"
           ++ "(assert (=> (> " ++ i' ++ " 0) (= " ++ maxName ++ " " ++ j' ++ ")))\n"
           ++ "(assert (< " ++ argMaxName ++ " " ++ i' ++ "))\n"
           ++ "(assert (forall ((_w Int)) (=> "
             ++ "(and (<= 0 _w) (< _w " ++ i' ++ "))"
             ++ "(<= " ++ j'' ++ " " ++ j' ++ "))))\n"
-  return (d0 ++ di ++ dj ++ d, maxName)
-embedIndex grs lrs (OpOutput op n is) = do
-  (ds, is) <- mapAndUnzipM (embedIndex grs lrs) is
-  return (concat ds, embedOutput lrs op n is)
-embedIndex grs _ Identity = return ("", show $ interpretIdentity grs)
-embedIndex grs _ (Wire wt) = return ("", show $ interpretWire grs wt)
-embedIndex grs lrs (Sequence i j) = do
-  (di, i') <- embedIndex grs lrs i
-  (dj, j') <- embedIndex grs lrs j
-  return (di ++ dj, smtEmbedSequence grs i' j')
-embedIndex grs lrs (Parallel i j) = do
-  (di, i') <- embedIndex grs lrs i
-  (dj, j') <- embedIndex grs lrs j
-  return (di ++ dj, smtEmbedParallel grs i' j')
-embedIndex grs lrs (BoundedSequence id i j) = smtEmbedBoundedSequence grs id i j (embedIndex grs lrs)
-embedIndex grs lrs (BoundedParallel id i j) = smtEmbedBoundedParallel grs id i j (embedIndex grs lrs)
+  return (d0 ++ di ++ dj ++ d, i', maxName)
 
 
 -- | @querySMTWithContext qfh c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables.
 -- It returns @True@ if the constraint holds, @False@ otherwise or if an error occurs in the interaction with the solver.
 -- The handle @qfh@ is used to communicate with the SMT solver.
-querySMTWithContext :: SolverHandle -> GlobalResourceSemantics -> LocalResourceSemantics -> Constraint -> IO Bool
-querySMTWithContext (sin, sout) grs lrs c@(Constraint rel i j) = do
+querySMTWithContext :: SolverHandle -> Constraint -> IO Bool
+querySMTWithContext (sin, sout) c@(Constraint rel i j) = do
   hPutStrLn sin $ "\n; PROVE " ++ pretty c
   hPutStrLn sin "(push 1)"
   forM_ (ifv i `Set.union` ifv j) $ \id -> do
     -- for each free index variable in c, initialize an unknown natural variable:
     hPutStrLn sin $ "(declare-const " ++ id ++ " Int)"
     hPutStrLn sin $ "(assert (<= 0 " ++ id ++ "))"
-  let ((ci, i'), n) = runState (embedIndex grs lrs i) 0
-  let (cj, j') = evalState (embedIndex grs lrs j) n
+  let ((ci, i'), n) = runState (embedIndex i) 0
+  let (cj, j') = evalState (embedIndex j) n
   hPutStr sin (ci ++ cj) -- dump the constraints that desugar bounded maxima
   -- try to find a counterexample to c:
   hPutStrLn sin "; assert the negation of the constraint to check if it is valid"

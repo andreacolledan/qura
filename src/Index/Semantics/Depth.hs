@@ -1,11 +1,12 @@
 module Index.Semantics.Depth where
 
 import Index.Semantics.Resource
+import Index.AST
 
 depthResourceSemantics :: LocalResourceSemantics
 depthResourceSemantics =
   LocalResourceSemantics
     {
-      outputInterpretation = \_ _ is -> 1 + maximum is,
+      desugarOutput = \_ _ is -> Number 1 `Plus` foldr1 Max is,
       embedOutput = undefined
     }

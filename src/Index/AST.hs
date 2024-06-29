@@ -30,7 +30,8 @@ data Index
   | Max Index Index                       -- Max of indices         : max(i, j)
   | Mult Index Index                      -- Product of indices     : i * j
   | Minus Index Index                     -- Natural subtraction    : i - j
-  | Maximum IndexVariableId Index Index   -- Bounded maximum        :max[id < i] j
+  | BoundedMax IndexVariableId Index Index-- Bounded maximum        :max[id < i] j
+  | BoundedSum IndexVariableId Index Index-- Bounded sum            :sum[id < i] j
   -- Resource operations 
   | OpOutput QuantumOperation Int [Index]       -- Local resource annotation of op output       -- Output[g,n](i1,...,in)
   | Identity                                    -- No global resource consumption               -- None
@@ -48,7 +49,8 @@ instance Pretty Index where
   pretty (Max i j) = "max(" ++ pretty i ++ ", " ++ pretty j ++ ")"
   pretty (Mult i j) = "(" ++ pretty i ++ " * " ++ pretty j ++ ")"
   pretty (Minus i j) = "(" ++ pretty i ++ " - " ++ pretty j ++ ")"
-  pretty (Maximum id i j) = "max[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty j
+  pretty (BoundedMax id i j) = "max[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty j
+  pretty (BoundedSum id i j) = "sum[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty j
   pretty (OpOutput op n is) = "Output[" ++ show op ++ "," ++ show n ++ "](" ++ intercalate ", " (pretty <$> is) ++ ")"
   pretty Identity = "Identity"
   pretty (Wire wt) = "Wire[" ++ show wt ++ "]"
@@ -81,7 +83,8 @@ instance HasIndex Index where
   iv (Max i j) = iv i `Set.union` iv j
   iv (Mult i j) = iv i `Set.union` iv j
   iv (Minus i j) = iv i `Set.union` iv j
-  iv (Maximum id i j) = Set.insert id (iv i `Set.union` iv j)
+  iv (BoundedMax id i j) = Set.insert id (iv i `Set.union` iv j)
+  iv (BoundedSum id i j) = Set.insert id (iv i `Set.union` iv j)
   iv (OpOutput _ _ is) = Set.unions $ iv <$> is
   iv Identity = Set.empty
   iv (Wire _) = Set.empty
@@ -96,7 +99,8 @@ instance HasIndex Index where
   ifv (Max i j) = ifv i `Set.union` ifv j
   ifv (Mult i j) = ifv i `Set.union` ifv j
   ifv (Minus i j) = ifv i `Set.union` ifv j
-  ifv (Maximum id i j) = Set.delete id (ifv i `Set.union` ifv j)
+  ifv (BoundedMax id i j) = Set.delete id (ifv i `Set.union` ifv j)
+  ifv (BoundedSum id i j) = Set.delete id (ifv i `Set.union` ifv j)
   ifv (OpOutput _ _ is) = Set.unions $ ifv <$> is
   ifv Identity = Set.empty
   ifv (Wire _) = Set.empty
@@ -111,9 +115,12 @@ instance HasIndex Index where
   isub i id (Max j k) = Max (isub i id j) (isub i id k)
   isub i id (Mult j k) = Mult (isub i id j) (isub i id k)
   isub i id (Minus j k) = Minus (isub i id j) (isub i id k)
-  isub i id (Maximum id' j k) =
+  isub i id (BoundedMax id' j k) =
     let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
-     in Maximum id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
+     in BoundedMax id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
+  isub i id (BoundedSum id' j k) =
+    let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
+     in BoundedSum id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
   isub i id (OpOutput op n is) = OpOutput op n (isub i id <$> is)
   isub _ _ Identity = Identity
   isub _ _ (Wire wt) = Wire wt

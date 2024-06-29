@@ -5,14 +5,28 @@ module Lang.Type.Parse
   )
 where
 
+import Index.AST
 import Index.Parse
 import Lang.Type.AST
 import Text.Parsec
 import Text.Parsec.Expr
 import Text.Parsec.Language
-import Text.Parsec.String
 import Text.Parsec.Token
 import Control.Monad (unless)
+
+parseGlobalAnnotation :: Parser (Maybe Index)
+parseGlobalAnnotation = do
+  ParserConfig{parsegra = shouldParse} <- getState
+  if shouldParse
+    then Just <$> parseIndex
+    else return Nothing
+
+parseLocalAnnotation :: Parser (Maybe Index)
+parseLocalAnnotation = do
+  ParserConfig{parselra = shouldParse} <- getState
+  if shouldParse
+    then Just <$> parseIndex
+    else return Nothing
 
 --- TYPE PARSER MODULE -------------------------------------------
 ---
@@ -44,11 +58,11 @@ arrowOperator :: Parser (Type -> Type -> Type)
 arrowOperator = do
   m_reservedOp "-o"
   (i, j) <- m_brackets $ do
-    i <- parseIndex
+    i <- parseGlobalAnnotation
     _ <- m_comma
-    j <- parseIndex
+    j <- parseGlobalAnnotation
     return (i, j)
-  return $ \t1 t2 -> TArrow t1 t2 (Just i) (Just j)
+  return $ \t1 t2 -> TArrow t1 t2 i j
 
 -- Parses "id ->[i,j] t" as (IForall id t i j)
 forallOperator :: Parser (Type -> Type)
@@ -56,23 +70,23 @@ forallOperator = do
   id <- m_identifier
   m_reservedOp "->"
   (i, j) <- m_brackets $ do
-    i <- parseIndex
+    i <- parseGlobalAnnotation
     _ <- m_comma
-    j <- parseIndex
+    j <- parseGlobalAnnotation
     return (i, j)
-  return $ \t -> TIForall id t (Just i) (Just j)
+  return $ \t -> TIForall id t i j
 
 -- Parses "Circ[i](btype1, btype2)" as (Circ i btype1 btype2)
 circ :: Parser Type
 circ = do
   m_reservedOp "Circ"
-  i <- m_brackets parseIndex
+  i <- m_brackets parseGlobalAnnotation
   (btype1, btype2) <- m_parens $ do
     btype1 <- parseType
     _ <- m_comma
     btype2 <- parseType
     return (btype1, btype2)
-  return $ TCirc (Just i) btype1 btype2
+  return $ TCirc i btype1 btype2
 
 -- Parses "Bit" as (TWire Bit)
 bit :: Parser Type
@@ -110,8 +124,8 @@ listOperator = do
 bangOperator :: Parser (Type -> Type)
 bangOperator = do
   m_reservedOp "!"
-  i <- m_brackets parseIndex
-  return $ TBang (Just i)
+  i <- m_brackets parseGlobalAnnotation
+  return $ TBang i
 
 delimitedType :: Parser Type
 delimitedType =
