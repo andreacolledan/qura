@@ -38,6 +38,8 @@ instance Pretty Constant where
   pretty (Boxed PauliZ) = "PauliZ"
   pretty (Boxed CNot) = "CNot"
   pretty (Boxed CZ) = "CZ"
+  pretty (Boxed CCNot) = "CCNot"
+  pretty (Boxed CCZ) = "CCZ"
   pretty (Boxed Toffoli) = "Toffoli"
   pretty MakeCRGate = "MakeCRGate"
   pretty MakeNToffoli = "MakeNToffoli"
@@ -59,6 +61,8 @@ typeOf grs (Boxed PauliY) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just Pa
 typeOf grs (Boxed PauliZ) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just PauliZ)) (TWire Qubit) (TWire Qubit)
 typeOf grs (Boxed CNot) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CNot)) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])
 typeOf grs (Boxed CZ) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CZ)) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])
+typeOf grs (Boxed CCNot) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CCNot)) (TTensor [TWire Bit, TWire Qubit]) (TTensor [TWire Bit, TWire Qubit])
+typeOf grs (Boxed CCZ) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just CCZ)) (TTensor [TWire Bit, TWire Qubit]) (TTensor [TWire Bit, TWire Qubit])
 typeOf grs (Boxed Toffoli) = TCirc (Number <$> (opGroundTruth <$> grs <*> Just Toffoli)) (TTensor [TWire Qubit, TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit, TWire Qubit])
 typeOf grs MakeCRGate = TIForall "i" (TCirc (Number <$> (opGroundTruth <$> grs <*> Just CZ)) (TTensor [TWire Qubit, TWire Qubit]) (TTensor [TWire Qubit, TWire Qubit])) (Just $ Number 0) (Just $ Number 0)
 typeOf grs MakeNToffoli = TIForall "i" (TCirc (Parallel (IndexVariable "i") . Number <$> (opGroundTruth <$> grs <*> Just PauliX)) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit]) (TTensor [TList "_" (IndexVariable "i") (TWire Qubit), TWire Qubit])) (Just $ Number 0) (Just $ Number 0)

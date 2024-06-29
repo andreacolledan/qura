@@ -64,6 +64,18 @@ pauliZ = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed PauliZ)) (
 cnot :: Expr
 cnot = ELift $ EAbs (PVar "ctrl") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CNot)) (ETuple [EVar "ctrl", EVar "trgt"])
 
+-- | @cz@ is the function that applies the CZ gate to a pair qubits.
+cz :: Expr
+cz = ELift $ EAbs (PVar "ctrl") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CZ)) (ETuple [EVar "ctrl", EVar "trgt"])
+
+-- | @ccnot@ is the function that applies the CNOT gate to a pair qubits.
+ccnot :: Expr
+ccnot = ELift $ EAbs (PVar "ctrl") (TWire Bit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CCNot)) (ETuple [EVar "ctrl", EVar "trgt"])
+
+-- | @ccz@ is the function that applies the CZ gate to a pair qubits.
+ccz :: Expr
+ccz = ELift $ EAbs (PVar "ctrl") (TWire Bit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CCZ)) (ETuple [EVar "ctrl", EVar "trgt"])
+
 -- | @toffoli@ is the function that applies the Toffoli gate to three qubits.
 toffoli :: Expr
 toffoli = ELift $ EAbs (PVar "ctrl1") (TWire Qubit) $ EAbs (PVar "ctrl2") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed Toffoli)) (ETuple [EVar "ctrl1", EVar "ctrl2", EVar "trgt"])
@@ -193,6 +205,9 @@ libraryBindings = [
   ("pauliY", pauliY),
   ("pauliZ", pauliZ),
   ("cnot", cnot),
+  ("cz", cz),
+  ("ccnot", ccnot),
+  ("ccz", ccz),
   ("toffoli", toffoli),
   ("cR", cR),
   ("mcZ", mcZ),

@@ -24,6 +24,9 @@ data QuantumOperation =
   -- Two qubit gates
   | CNot
   | CZ
+  -- Classically controlled gates
+  | CCNot
+  | CCZ
   -- Three qubit gates
   | Toffoli
   deriving (Show, Eq)

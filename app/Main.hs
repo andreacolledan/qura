@@ -12,9 +12,12 @@ import System.Console.ANSI
 import System.IO.Extra
 import Text.Parsec (runParser)
 import Lang.Library.Prelude
-import Index.Semantics.Width (widthResourceSemantics)
-import Index.Semantics.GateCount (gateCountResourceSemantics)
 import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
+import Index.Semantics.Width (widthResourceSemantics)
+import Index.Semantics.Qubits (qubitsResourceSemantics)
+import Index.Semantics.TCount (tCountResourceSemantics)
+import Index.Semantics.Bits (bitsResourceSemantics)
+import Index.Semantics.GateCount (gateCountResourceSemantics)
 import Data.Maybe (fromMaybe, isJust, fromJust)
 import qualified Index.Parse as IP
 
@@ -23,7 +26,10 @@ globalResourceArgParser = do
   s <- str 
   case s of
     "width" -> return widthResourceSemantics
+    "qubits" -> return qubitsResourceSemantics
+    "bits" -> return bitsResourceSemantics
     "gatecount" -> return gateCountResourceSemantics
+    "tcount" -> return tCountResourceSemantics
     _ -> readerError "Supported global resources are 'width' and 'gatecount'."
 
 localResourceArgParser :: ReadM LocalResourceSemantics

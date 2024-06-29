@@ -115,6 +115,9 @@ constant = try $ do
     "PauliY" -> return $ EConst (Boxed PauliY)
     "PauliZ" -> return $ EConst (Boxed PauliZ)
     "CNot" -> return $ EConst (Boxed CNot)
+    "CZ" -> return $ EConst (Boxed CZ)
+    "CCNot" -> return $ EConst (Boxed CCNot)
+    "CCZ" -> return $ EConst (Boxed CCZ)
     "Toffoli" -> return $ EConst (Boxed Toffoli)
     "MakeCRGate" -> return $ EConst MakeCRGate
     "MakeNToffoli" -> return $ EConst MakeNToffoli
@@ -344,7 +347,7 @@ delimitedExpr =
     <|> m_parens parseExpr
     <|> apply
     <|> fold
-    -- <|> constant
+    <|> constant
     <|> variable
 
 -- parse a PQR expression

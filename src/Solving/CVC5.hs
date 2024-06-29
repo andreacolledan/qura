@@ -15,8 +15,6 @@ import System.Process as Proc
 import System.IO
 import Control.Concurrent
 import Control.Exception
-import Index.Semantics.Resource
-import Data.Maybe
 
 --- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
 ---
@@ -65,32 +63,6 @@ embedIndex (BoundedMax id i j) = do
 embedIndex (BoundedSum id i j) = do
   (d, i', maxName) <- smtBoundedMaxGeneric id i j embedIndex
   return (d, "(* " ++ i' ++ " " ++ maxName ++ ")")
---embedIndex grs lrs (OpOutput op n is) = do
---  let lrs' = fromMaybe (error "unembeddable index escaped parser") lrs
---  (ds, is) <- mapAndUnzipM (embedIndex grs lrs) is
---  return (concat ds, embedOutput lrs' op n is)
---embedIndex grs _ Identity = do
---  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
---  return ("", show $ interpretIdentity grs')
---embedIndex grs _ (Wire wt) = do
---  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
---  return ("", show $ interpretWire grs' wt)
---embedIndex grs lrs (Sequence i j) = do
---  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
---  (di, i') <- embedIndex grs lrs i
---  (dj, j') <- embedIndex grs lrs j
---  return (di ++ dj, smtEmbedSequence grs' i' j')
---embedIndex grs lrs (Parallel i j) = do
---  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
---  (di, i') <- embedIndex grs lrs i
---  (dj, j') <- embedIndex grs lrs j
---  return (di ++ dj, smtEmbedParallel grs' i' j')
---embedIndex grs lrs (BoundedSequence id i j) = do
---  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
---  smtEmbedBoundedSequence grs' id i j (embedIndex grs lrs)
---embedIndex grs lrs (BoundedParallel id i j) = do
---  let grs' = fromMaybe (error "unembeddable index escaped parser") grs
---  smtEmbedBoundedParallel grs' id i j (embedIndex grs lrs)
 embedIndex i = error $ "Internal error: resource operator was not desugared (embedIndex):" ++ pretty i
 
 smtBoundedMaxGeneric :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String, String)
