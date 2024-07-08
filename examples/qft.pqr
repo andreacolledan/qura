@@ -16,17 +16,17 @@ in
 
 -- qft @i (qs) applies the quantum fourier transform to a list of i qubits
 -- by iterating qftStep over the list of qubits
-let qft = lift @i.\qs :: List[k<i] Qubit.
+let qft = lift @n.\qs :: List[i<n] Qubit.
   -- qftStep @j (qs, q) applies the j-th iteration of the qft algorithm to the qubit q
   -- which consists of j rotations with target j and control each of the quibits in qs
   -- followed by a hadamard gate on j
-  let qftStep = lift @j.\(qs, q) :: (List[h<j] Qubit, Qubit).
-      let revqs = (force qrev @j) qs in
-      let (q, qs) = fold(rotate @j, (q, []), revqs) in
+  let qftStep = lift @m.\(qs, q) :: (List[j<m] Qubit, Qubit).
+      let revqs = (force qrev @m) qs in
+      let (q, qs) = fold(rotate @m, (q, []), revqs) in
       let q = force hadamard q in
       qs:q
   in
   fold(qftStep, [], qs)
 in
 
-qft
+qft -- :: ![0](i ->[0, 0] (List[k < i] Qubit -o[i , 0] List[h < i] Qubit))

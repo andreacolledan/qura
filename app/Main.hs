@@ -30,7 +30,7 @@ globalResourceArgParser = do
     "bits" -> return bitsResourceSemantics
     "gatecount" -> return gateCountResourceSemantics
     "tcount" -> return tCountResourceSemantics
-    _ -> readerError "Supported global resources are 'width' and 'gatecount'."
+    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
 
 localResourceArgParser :: ReadM LocalResourceSemantics
 localResourceArgParser = readerError "Local resources are unsupported."
