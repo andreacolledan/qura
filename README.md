@@ -83,7 +83,7 @@ Currently, qura supports the analysis of the following resource metrics:
 | qubits | How many individual qubits required to execute the circuit  |
 | bits | How many individual bits required to execute the circuit
 | gatecount | How many gates the circuit is made of
-| tcount | How many Toffoli gates are in the circuit |
+| tcount | How many T gates are in the circuit |
 
 Use option `--debug DEBUG` to dump a copy of all SMT queries performed during typechecking to file `DEBUG`.
 

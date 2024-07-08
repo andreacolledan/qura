@@ -16,5 +16,5 @@ tCountResourceSemantics =
   }
 
 opTCount :: QuantumOperation -> Int
-opTCount Toffoli = 1
+opTCount T = 1
 opTCount _ = 0

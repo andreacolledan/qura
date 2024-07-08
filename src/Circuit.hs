@@ -21,6 +21,7 @@ data QuantumOperation =
   | PauliX
   | PauliY
   | PauliZ
+  | T
   -- Two qubit gates
   | CNot
   | CZ
