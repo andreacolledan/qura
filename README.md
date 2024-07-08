@@ -89,13 +89,9 @@ Use option `--debug DEBUG` to dump a copy of all SMT queries performed during ty
 
 General usage of qura is thus
 ```
-qura FILE [-v | --verbose] [-d | --debug DEBUG] 
-            [-g | --global-resource-analysis RESOURCE]
+qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-resource-analysis RESOURCE]
 ```
 For more information, refer to `qura --help`.
-
-## Paper
-The implementation of QuRA and its input language are based on ["Colledan, A. and Lago, U.D. 2023. Circuit Width Estimation via Effect Typing and Linear Dependency (Long Version). arXiv."](https://doi.org/10.48550/arXiv.2310.19096)
 
 ## Tests
 To execute unit tests, run `stack test`
