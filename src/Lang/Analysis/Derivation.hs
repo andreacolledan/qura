@@ -153,8 +153,8 @@ makePatternBindings pat typ sl = do
     go sh sl p@(PCons p1 p2) typ@(TList id i typ1) = do
       -- used during inference with indices, check that list is not empty
       when (sl == SizedLists) $ unlessLeq (Number 1) i $ throwLocalError $ ConsEmptyList p typ
-      bindings1 <- go sh sl p1 typ1
-      bindings2 <- go sh sl p2 (TList id (Minus i (Number 1)) typ1)
+      bindings1 <- go sh sl p1 (TList id (Minus i (Number 1)) typ1)
+      bindings2 <- go sh sl p2 typ1
       return $ bindings1 ++ bindings2
     go _ _ p t = throwLocalError $ PatternMismatch p t
 

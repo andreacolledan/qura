@@ -19,14 +19,14 @@ parseGlobalAnnotation = do
   ParserConfig{parsegra = shouldParse} <- getState
   if shouldParse
     then Just <$> parseIndex
-    else return Nothing
+    else parseIndex >> return Nothing
 
 parseLocalAnnotation :: Parser (Maybe Index)
 parseLocalAnnotation = do
   ParserConfig{parselra = shouldParse} <- getState
   if shouldParse
     then Just <$> parseIndex
-    else return Nothing
+    else parseIndex >> return Nothing
 
 --- TYPE PARSER MODULE -------------------------------------------
 ---

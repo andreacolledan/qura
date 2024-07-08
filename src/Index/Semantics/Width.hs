@@ -32,6 +32,7 @@ opWidths Hadamard = 1
 opWidths PauliX = 1
 opWidths PauliY = 1
 opWidths PauliZ = 1
+opWidths T = 1
 opWidths CNot = 2
 opWidths CZ = 2
 opWidths CCNot = 2
