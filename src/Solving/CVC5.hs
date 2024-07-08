@@ -95,10 +95,31 @@ smtBoundedMaxGeneric id i j embed = do
   return (d0 ++ di ++ dj ++ d, i', maxName)
 
 
+containsBoundedSum :: Index -> Bool
+containsBoundedSum (BoundedSum {}) = True
+containsBoundedSum (IndexVariable _) = False
+containsBoundedSum (Number _) = False
+containsBoundedSum (Plus i j) = containsBoundedSum i || containsBoundedSum j
+containsBoundedSum (Max i j) = containsBoundedSum i || containsBoundedSum j
+containsBoundedSum (Mult i j) = containsBoundedSum i || containsBoundedSum j
+containsBoundedSum (Minus i j) = containsBoundedSum i || containsBoundedSum j
+containsBoundedSum (BoundedMax _ i j) = containsBoundedSum i || containsBoundedSum j
+containsBoundedSum i = error $ "Internal error: resource operator was not desugared (containsBoundedSum):" ++ pretty i
+
+
 -- | @querySMTWithContext qfh c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables.
 -- It returns @True@ if the constraint holds, @False@ otherwise or if an error occurs in the interaction with the solver.
 -- The handle @qfh@ is used to communicate with the SMT solver.
 querySMTWithContext :: SolverHandle -> Constraint -> IO Bool
+-- Since bounded sums are overapproximated in SMT, the presence of
+-- a bounded sum in an equality, or on the right of a LEQ, makes
+-- the constraint undecidable by the SMT. i.e.
+-- a <= a' => b <= b' => a' = b' =/=> a = b
+-- and b <= b' => a <= b' =/=> a <= b,
+-- but a <= a' => a' <= b => a <= b.
+querySMTWithContext _ (Constraint Eq i j) | containsBoundedSum i || containsBoundedSum j = return False
+querySMTWithContext _ (Constraint Leq _ j) | containsBoundedSum j = return False
+-- if bounded sums are not a problem, proceed:
 querySMTWithContext (sin, sout) c@(Constraint rel i j) = do
   hPutStrLn sin $ "\n; PROVE " ++ pretty c
   hPutStrLn sin "(push 1)"
