@@ -1,32 +1,30 @@
--- rotate @n @m ((q, cs), c) applies a controlled rotation gate to q with control
--- the magnitude of the rotation depends on n (the iteration of the qft) and m (the qubit being rotated)
-let rotate = @n. lift @m.\((q, cs), c) :: ((Qubit, List[_<m] Qubit), Qubit).
-    let rotation = force cR @ (n+1-m) in 
-    let (q, c) = rotation q c in
-    (q, cs:c)
-in
-
-let revStep = lift @i.\(qs, q) :: (List[k<i] Qubit, Qubit).
-  qs:q
-in
-
 let qrev = lift @n. \qs :: List[i<n] Qubit.
+  let revStep = lift @i.\(qs, q) :: (List[k<i] Qubit, Qubit).
+    qs:q
+  in
   fold(revStep, [], qs)
 in
 
--- qft @i (qs) applies the quantum fourier transform to a list of i qubits
--- by iterating qftStep over the list of qubits
-let qft = lift @n.\qs :: List[i<n] Qubit.
-  -- qftStep @j (qs, q) applies the j-th iteration of the qft algorithm to the qubit q
-  -- which consists of j rotations with target j and control each of the quibits in qs
-  -- followed by a hadamard gate on j
-  let qftStep = lift @m.\(qs, q) :: (List[j<m] Qubit, Qubit).
-      let revqs = (force qrev @m) qs in
-      let (q, qs) = fold(rotate @m, (q, []), revqs) in
-      let q = force hadamard q in
-      qs:q
+-- rotationStep @n @m ((trg, ctrls), ctrl) applies a controlled rotation gate to trg with control ctrl. Then ctrl is added to the list of previous controls ctrls.
+-- the magnitude of the rotation depends on m (the iteration of the qft) and k (the qubit serving as control)
+let rotationStep = @m. lift @k.\((ctrls, trg), ctrl) :: ((List[j<k] Qubit, Qubit), Qubit).
+    let rotation = force cR @ (m+1-k) in 
+    let (ctrl, trg) = rotation ctrl trg in
+    (ctrls:ctrl, trg)
+in
+
+-- qft @n reg applies the quantum fourier transform to a list of n qubits
+let qft = @n.\reg :: List[j<n] Qubit.
+  -- qftStep @m (ctrls, trg) applies the m-th iteration of the qft algorithm to the target qubit trg
+  -- which consists of m rotations with target the m-th qubit and control each of the qubits preceding it
+  -- followed by a hadamard gate on the target
+  let qftStep = lift @m.\(ctrls, trg) :: (List[j<m] Qubit, Qubit).
+      let revctrls = (force qrev @m) ctrls in
+      let (ctrls, trg) = fold(rotationStep @m, ([], trg), revctrls) in
+      let trg = force hadamard trg in
+      ctrls:trg
   in
-  fold(qftStep, [], qs)
+  fold(qftStep, [], reg)
 in
 
 qft

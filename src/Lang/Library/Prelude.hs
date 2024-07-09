@@ -60,6 +60,10 @@ pauliY = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed PauliY)) (
 pauliZ :: Expr
 pauliZ = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed PauliZ)) (EVar "q"))
 
+-- | @tgate@ is the function that applies the T gate to a qubit.
+tgate :: Expr
+tgate = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed T)) (EVar "q"))
+
 -- | @cnot@ is the function that applies the CNOT gate to a pair qubits.
 cnot :: Expr
 cnot = ELift $ EAbs (PVar "ctrl") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CNot)) (ETuple [EVar "ctrl", EVar "trgt"])
@@ -204,6 +208,7 @@ libraryBindings = [
   ("pauliX", pauliX),
   ("pauliY", pauliY),
   ("pauliZ", pauliZ),
+  ("tgate", tgate),
   ("cnot", cnot),
   ("cz", cz),
   ("ccnot", ccnot),

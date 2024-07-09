@@ -18,5 +18,7 @@ let doubleNegation = lift \q :: Qubit.
   force dumbNot (force dumbNot q)
 in
 
-let q = force qinit0 () in
-force doubleNegation q
+dumbNot
+
+-- let q = force qinit0 () in
+-- force doubleNegation q

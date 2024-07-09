@@ -3,17 +3,22 @@
 **Disclaimer:** support for metrics other than circuit width is still experimental.
 
 QuRA is a static analysis tool for the verification of the resource consumption of quantum circuit description programs. QuRA takes as input a program written in a variant of Quipper called Proto-Quipper-R and outputs two things: a type for the program and an upper bound to the size of the circuit it builds.
-A more detailed description of QuRA's input language can be found [here](src/Lang/Unified/README.md). At the heart of QuRA lies a linear dependent type-and-effect system which is described in greater detail in [this work](https://doi.org/10.48550/arXiv.2310.19096).
+A more detailed description of QuRA's input language can be found [here](src/Lang/Unified/README.md).
 
 ## Getting started
 
-Consider a function `dumbNot` defined as:
+Consider a Proto-Quipper-R program that implements a function `dumbNot` defined as:
 ```
-\q :: Qubit .
+-- examples/dumbNot.pqr --
+
+let dumbNot = \q :: Qubit .
   let a = force qinit1 () in        -- initialize a temporary qubit
   let (a,q) = force cnot a q in     -- apply cnot between input q and temporary qubit a
   let _ = force qdiscard a          -- discard temporary qubit a
   in q                              -- return input qubit
+in
+
+dumbNot
 ```
 This function describes a very basic quantum computation in the form of a quantum circuit: the fundamental units of data are `Qubit`s and `Bit`s and computations on these data are carried out by applying elementary operations on them. These operations are either quantum gates (e.g. `cnot`, `hadamard`, etc.) or other operations on bits and qubits (e.g.`qinit1`, `qdiscard`, `meas`, etc.).
 
@@ -23,34 +28,55 @@ As the name suggests, `dumbNot` implements the negation of a qubit in a dumb, un
 
 In terms of width, this circuit has size 2. In terms of gate count, it has size 1. QuRA is able to automatically infer this information from the definition of `dumbNot`, without having to run the program, by giving `dumbNot` one of the following function types, depending on the chosen metric:
 ```
-Qubit -o[2,0] Qubit -- for width
-Qubit -o[1,0] Qubit -- for gate count
-```
-Each linear arrow is indexed with two numbers: the first one tells us the size of the circuit build by `dumbNot` according to the chosen metric, while the second one tells us the size of the circuit wires that are captured inside the function's closure (in this case, no wires are captured). The latter index, although exotic in nature, is essential to correctly estimate circuit metrics in many cases.
+$ qura examples/dumbNot.pqr -g width
+Inferred type: Qubit -o[2,0] Qubit
 
-Proto-Quipper-R (QuRA's input language) supports a limited form of depdendency, which is precisely restricted to the indices used to annotate types. This allows for the description of circuit families that depend on a natural number parameter. E.g. the `qft` circuit family is implemented as follows:
+$ qura examples/dumbNot.pqr -g gatecount
+Inferred type: Qubit -o[1,0] Qubit
 ```
+Each linear arrow is indexed with two numbers: the first one tells us the size of the circuit build by `dumbNot` according to the chosen metric, while the second one tells us the size of the circuit wires that are captured inside the function's closure (in this case, no wires are captured). The latter annotation, although exotic in nature, is essential to correctly estimate circuit metrics in many cases.
+
+In such a simple example, there is no incentive to verify this porperty, as opposed to test it: dumbNot always builds the same circuit, regardless of its input. We can run the program once
+Where QuRA really excels is in the verification of *circuit families*, that is, functions that build different circuits depending on some input parameter.
+Proto-Quipper-R supports a limited form of depdendency, which is restricted to the indices used to annotate types. This allows to verify entire circit families at once, obtaining generic, parametric upper bounds that hold for *any* of their instances. E.g. the `qft` circuit family is implemented as follows:
+```
+-- examples/qft.pqr --
+
 ... -- auxiliary functions
 
-@n.\qs :: List[i<n] Qubit.
-  -- define the step function
-  let qftStep = lift @m.\(qs, q) :: (List[j<m] Qubit, Qubit).
-      let revqs = (force qrev @m) qs in
-      let (q, qs) = fold(rotate @m, (q, []), revqs) in
-      let q = force hadamard q in
-      qs:q
+-- rotationStep @m @k ((trg, ctrls), ctrl) applies a controlled rotation gate to trg with control ctrl. Then ctrl is added to the list of previous controls ctrls.
+-- the magnitude of the rotation depends on m (the iteration of the qft) and k (the qubit serving as control)
+let rotationStep = @m. lift @k.\((ctrls, trg), ctrl) :: ((List[j<k] Qubit, Qubit), Qubit).
+    let rotation = force cR @ (m+1-k) in 
+    let (ctrl, trg) = rotation ctrl trg in
+    (ctrls:ctrl, trg)
+in
+
+-- qft @n reg applies the quantum fourier transform to a list of n qubits
+let qft = @n.\reg :: List[j<n] Qubit.
+  -- qftStep @m (ctrls, trg) applies the m-th iteration of the qft algorithm, consisting of...
+  let qftStep = lift @m.\(ctrls, trg) :: (List[j<m] Qubit, Qubit).
+      let revctrls = (force qrev @m) ctrls in
+      -- ...m rotations with target trg and control each of the qubits preceding it...
+      let (ctrls, trg) = fold(rotationStep @m, ([], trg), revctrls) in
+      -- ...followed by a Hadamard transform on the target
+      let trg = force hadamard trg in
+      ctrls:trg
   in
-  -- fold it over the input
-  fold(qftStep, [], qs)
+  fold(qftStep, [], reg)
+in
+
+qft
 ```
 Abstractions over index variables is achieved through the `@` binder. Indices are arithmetic expressions over natural numbers and index variables and are the only kind of term that's allowed to appear in types. Note also that general recursion is not available in Proto-Quipper-R. Instead, a limited form of recursion is made available via the primitive `fold` construct. QuRA infers the following types for `qft`:
 ```
--- for width:
-n ->[0, 0] (List[i < n] Qubit -o[n, 0] List[j < n] Qubit)
--- for gate count:
-n ->[0, 0] (List[i < n] Qubit -o[sum[m < n] (m + 1), 0] List[j < n] Qubit)
+qura examples/qft.pqr -g width
+Inferred type: n ->[0,0] (List[i<n] Qubit -o[n,0] List[j<n] Qubit)
+
+qura examples/qft.pqr -g gatecount
+Inferred type: n ->[0,0] (List[i<n] Qubit -o[sum[m<n] m+1, 0] List[j<n] Qubit)
 ```
-meaning that for every `n`, `qft` takes as input `n` qubits and builds a circuit of width at most `n` comprising of at most $\sum_{m=0}^{n-1} m+1$ gates.
+meaning that for every natural number $n$, `qft` takes as input $n$ qubits and builds a circuit of width at most $n$ made up of at most $\sum_{m=0}^{n-1} m+1$ gates.
 
 The whole code for `qft`, as well as other examples, can be found in the `examples` directory. 
 
@@ -69,7 +95,7 @@ To run QuRA on program file `FILE`, run
 ```
 $ qura FILE
 ```
-This runs standard type inference for the program in `FILE`, without any resource estimation. To also perform resource estimation, add the `-g RESOURCE` option. For example, to perform width estimation, run
+This runs standard type inference for the program in `FILE`, without any resource estimation. To also perform resource estimation, use the `-g RESOURCE` option. For example, to perform width estimation, run
 
 ```
 $ qura FILE -g width
