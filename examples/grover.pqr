@@ -46,7 +46,8 @@ let groverIteration = lift @i. @j.
 in
 
 -- Runs Grover's algorithm on an oracle of input size i and width at most j
---Note that j in Circ[j] is HO and therefore should be adjusted depending on the resource for tighter bounds
+-- Note that Grover is HO: annotation j in Circ[j] should be instantiated differently
+-- depending on the expected resource consumption of the oracle, for tighter bounds
 let grover = lift @i. @j. \oracle :: Circ[j](List[_<i+1] Qubit, List[_<i+1] Qubit).
   let inputs = force mQInit0 @ i+1 in
   let prepared = (force mHadamard @ i+1) inputs in
@@ -70,5 +71,5 @@ let oracleOne = box $ lift \reg :: List[_<4] Qubit.
   reg
 in
 
--- Run Grover on oracleOne
+-- Run Grover on oracleOne (e.g. change 5 to 0 if estimating bit requirements)
 (force grover @ 3 @ 5) oracleOne

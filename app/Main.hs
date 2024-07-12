@@ -49,8 +49,8 @@ interface =
   info
     (arguments <**> helper)
     ( fullDesc
-        <> progDesc "Verify the resource consumption of a quantum circuit description program"
-        <> header "QuRA: a static analysis tool for the verification of the resource consumption of quantum programs"
+        <> progDesc "Verify the resource consumption of the program in FILE according to RESOURCE."
+        <> header "QuRA: a static analysis tool for the resource verification of quantum circuit description programs"
     )
   where
     arguments :: Parser Arguments
