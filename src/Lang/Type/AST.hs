@@ -41,16 +41,25 @@ data Type
   | TIForall IndexVariableId Type (Maybe Index) (Maybe Index) -- Dep. fun. type   : i ->[i,j] t
   deriving (Show, Eq)
 
+prettyAnno :: Maybe Index -> String
+prettyAnno Nothing = ""
+prettyAnno (Just i) = "[" ++ pretty i ++ "]"
+
+prettyAnnos :: Maybe Index -> Maybe Index -> String
+prettyAnnos Nothing Nothing = ""
+prettyAnnos (Just i) (Just j) = "[" ++ pretty i ++ ", " ++ pretty j ++ "]"
+prettyAnnos _ _ = error "Internal: inconsistent annotations (prettyAnnos)"
+
 instance Pretty Type where
   pretty TUnit = "()"
   pretty (TWire wt) = pretty wt
   pretty (TTensor ts) = "(" ++ intercalate ", " (map pretty ts) ++ ")"
-  pretty (TCirc i inBtype outBtype) = "Circ [" ++ pretty i ++ "] (" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
-  pretty (TArrow typ1 typ2 i j) = "(" ++ pretty typ1 ++ " -o[" ++ pretty i ++ ", " ++ pretty j ++ "] " ++ pretty typ2 ++ ")"
-  pretty (TBang i typ) = "![" ++ pretty i ++ "]" ++ pretty typ
-  pretty (TList id i typ) = "List[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty typ
+  pretty (TCirc i inBtype outBtype) = "Circ" ++ prettyAnno i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
+  pretty (TArrow typ1 typ2 i j) = "(" ++ pretty typ1 ++ " -o" ++ prettyAnnos i j ++ " " ++ pretty typ2 ++ ")"
+  pretty (TBang i typ) = "!" ++ prettyAnno i  ++ pretty typ
+  pretty (TList id i typ) = "List[" ++ id ++ "<" ++ pretty i ++ "] " ++ pretty typ
   pretty (TVar id) = id
-  pretty (TIForall id typ i j) = "(" ++ id ++ " ->[" ++ pretty i ++ ", " ++ pretty j ++ "] " ++ pretty typ ++ ")"
+  pretty (TIForall id typ i j) = "(" ++ id ++ " ->" ++ prettyAnnos i j ++ " " ++ pretty typ ++ ")"
 
 -- Def. 2 (Wire Count)
 -- PQR types are amenable to wire counting
