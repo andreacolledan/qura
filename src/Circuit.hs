@@ -8,13 +8,11 @@ instance Pretty WireType where
 
 data QuantumOperation =
   -- Qubit metaoperations
-  QInit0
-  | QInit1
+  QInit Bool
   | QDiscard
   | Meas
   -- Bit metaoperations
-  | CInit0
-  | CInit1
+  | CInit Bool
   | CDiscard
   -- Single qubit gates
   | Hadamard
@@ -22,9 +20,11 @@ data QuantumOperation =
   | PauliY
   | PauliZ
   | T
+  | R Int
   -- Two qubit gates
   | CNot
   | CZ
+  | CR Int
   -- Classically controlled gates
   | CCNot
   | CCZ

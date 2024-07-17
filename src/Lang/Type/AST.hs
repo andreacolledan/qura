@@ -31,7 +31,7 @@ type TVarId = String
 -- | The datatype of PQR types
 data Type
   = TUnit                                       -- Unit type        : ()
-  | TWire WireType                              -- Wire type        : Bit | Qubit
+  | TWire WireType (Maybe Index)                -- Wire type        : Bit{i} | Qubit{i}
   | TTensor [Type]                              -- Tensor type      : (t1, t2, ...)
   | TCirc (Maybe Index) Type Type               -- Circuit type     : Circ[i](t1, t2)
   | TArrow Type Type (Maybe Index) (Maybe Index)-- Function type    : t1 -o[i,j] t2
@@ -41,31 +41,35 @@ data Type
   | TIForall IndexVariableId Type (Maybe Index) (Maybe Index) -- Dep. fun. type   : i ->[i,j] t
   deriving (Show, Eq)
 
-prettyAnno :: Maybe Index -> String
-prettyAnno Nothing = ""
-prettyAnno (Just i) = "[" ++ pretty i ++ "]"
+prettyGlobalAnnotation :: Maybe Index -> String
+prettyGlobalAnnotation Nothing = ""
+prettyGlobalAnnotation (Just i) = "[" ++ pretty i ++ "]"
 
-prettyAnnos :: Maybe Index -> Maybe Index -> String
-prettyAnnos Nothing Nothing = ""
-prettyAnnos (Just i) (Just j) = "[" ++ pretty i ++ ", " ++ pretty j ++ "]"
-prettyAnnos _ _ = error "Internal: inconsistent annotations (prettyAnnos)"
+prettyGlobalAnnotations :: Maybe Index -> Maybe Index -> String
+prettyGlobalAnnotations Nothing Nothing = ""
+prettyGlobalAnnotations (Just i) (Just j) = "[" ++ pretty i ++ ", " ++ pretty j ++ "]"
+prettyGlobalAnnotations _ _ = error "Internal: inconsistent annotations (prettyAnnos)"
+
+prettyLocalAnnotation :: Maybe Index -> String
+prettyLocalAnnotation Nothing = ""
+prettyLocalAnnotation (Just i) = "{" ++ pretty i ++ "}"
 
 instance Pretty Type where
   pretty TUnit = "()"
-  pretty (TWire wt) = pretty wt
+  pretty (TWire wt i) = pretty wt -- ++ prettyGlobalAnnotation i TODO uncomment
   pretty (TTensor ts) = "(" ++ intercalate ", " (map pretty ts) ++ ")"
-  pretty (TCirc i inBtype outBtype) = "Circ" ++ prettyAnno i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
-  pretty (TArrow typ1 typ2 i j) = "(" ++ pretty typ1 ++ " -o" ++ prettyAnnos i j ++ " " ++ pretty typ2 ++ ")"
-  pretty (TBang i typ) = "!" ++ prettyAnno i  ++ pretty typ
+  pretty (TCirc i inBtype outBtype) = "Circ" ++ prettyGlobalAnnotation i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
+  pretty (TArrow typ1 typ2 i j) = "(" ++ pretty typ1 ++ " -o" ++ prettyGlobalAnnotations i j ++ " " ++ pretty typ2 ++ ")"
+  pretty (TBang i typ) = "!" ++ prettyGlobalAnnotation i  ++ pretty typ
   pretty (TList id i typ) = "List[" ++ id ++ "<" ++ pretty i ++ "] " ++ pretty typ
   pretty (TVar id) = id
-  pretty (TIForall id typ i j) = "(" ++ id ++ " ->" ++ prettyAnnos i j ++ " " ++ pretty typ ++ ")"
+  pretty (TIForall id typ i j) = "forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ pretty typ
 
 -- Def. 2 (Wire Count)
 -- PQR types are amenable to wire counting
 instance Wide Type where
   wireCount TUnit = return Identity
-  wireCount (TWire wt) = return $ Wire wt
+  wireCount (TWire wt _) = return $ Wire wt
   wireCount (TTensor ts) = do
     wirecounts <- mapM wireCount ts
     return $ foldl Parallel Identity wirecounts
@@ -82,7 +86,7 @@ instance Wide Type where
 instance HasIndex Type where
   iv :: Type -> Set.HashSet IndexVariableId
   iv TUnit = Set.empty
-  iv (TWire _) = Set.empty
+  iv (TWire _ i) = Set.empty -- iv i TODO uncomment
   iv (TTensor ts) = foldr (Set.union . iv) Set.empty ts
   iv (TCirc i _ _) = iv i
   iv (TArrow typ1 typ2 i j) = iv typ1 `Set.union` iv typ2 `Set.union` iv i `Set.union` iv j
@@ -92,7 +96,7 @@ instance HasIndex Type where
   iv (TIForall id typ i j) = Set.insert id (iv typ `Set.union` iv i `Set.union` iv j)
   ifv :: Type -> Set.HashSet IndexVariableId
   ifv TUnit = Set.empty
-  ifv (TWire _) = Set.empty
+  ifv (TWire _ i) = Set.empty -- ifv i TODO uncomment
   ifv (TTensor ts) = foldr (Set.union . ifv) Set.empty ts
   ifv (TCirc i _ _) = ifv i
   ifv (TArrow typ1 typ2 i j) = ifv typ1 `Set.union` ifv typ2 `Set.union` ifv i `Set.union` ifv j
@@ -102,7 +106,7 @@ instance HasIndex Type where
   ifv (TIForall id typ i j) = Set.delete id (ifv typ `Set.union` ifv i `Set.union` ifv j)
   isub :: Index -> IndexVariableId -> Type -> Type
   isub _ _ TUnit = TUnit
-  isub _ _ (TWire wtype) = TWire wtype
+  isub i id (TWire wtype j) = TWire wtype j --(isub i id j) TODO uncomment
   isub i id (TTensor ts) = TTensor (map (isub i id) ts)
   isub i id (TCirc j inBtype outBtype) = TCirc (isub i id j) (isub i id inBtype) (isub i id outBtype) -- Bundle types have no free variables
   isub i id (TArrow typ1 typ2 j k) = TArrow (isub i id typ1) (isub i id typ2) (isub i id j) (isub i id k)
@@ -118,7 +122,7 @@ instance HasIndex Type where
 -- | @isLinear t@ returns 'True' @t@ is a linear type, and 'False' otherwise
 isLinear :: Type -> Bool
 isLinear TUnit = False
-isLinear (TWire _) = True
+isLinear (TWire _ _) = True
 isLinear (TTensor ts) = any isLinear ts
 isLinear (TCirc {}) = False
 isLinear (TArrow {}) = True
@@ -130,7 +134,7 @@ isLinear (TIForall _ typ _ _) = isLinear typ
 
 isBundleType :: Type -> Bool
 isBundleType TUnit = True
-isBundleType (TWire _) = True
+isBundleType (TWire _ _) = True
 isBundleType (TTensor ts) = all isBundleType ts
 isBundleType (TList _ _ typ) = isBundleType typ
 -- isBundleType (TVar _) = True -- TODO check

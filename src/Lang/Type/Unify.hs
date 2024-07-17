@@ -43,7 +43,7 @@ class HasType a where
 
 instance HasType Type where
   tfv TUnit = Set.empty
-  tfv (TWire _) = Set.empty
+  tfv (TWire _ _) = Set.empty
   tfv (TTensor ts) = foldr (Set.union . tfv) Set.empty ts
   tfv (TCirc {}) = Set.empty
   tfv (TArrow t1 t2 _ _) = tfv t1 `Set.union` tfv t2
@@ -52,7 +52,7 @@ instance HasType Type where
   tfv (TVar id) = Set.singleton id
   tfv (TIForall _ t _ _) = tfv t
   tsub _ TUnit = TUnit
-  tsub _ typ@(TWire _) = typ
+  tsub _ typ@(TWire _ _) = typ
   tsub sub (TTensor ts) = TTensor (map (tsub sub) ts)
   tsub _ typ@(TCirc {}) = typ
   tsub sub (TArrow typ1 typ2 i j) = TArrow (tsub sub typ1) (tsub sub typ2) i j
@@ -78,7 +78,7 @@ mgtu :: Type -> Type -> Maybe TypeSubstitution
 mgtu (TVar id) t = assignTVar id t
 mgtu t (TVar id) = assignTVar id t
 mgtu TUnit TUnit = return mempty
-mgtu (TWire wt1) (TWire wt2) | wt1 == wt2 = return mempty
+mgtu (TWire wt1 _) (TWire wt2 _) | wt1 == wt2 = return mempty
 mgtu (TTensor ts) (TTensor ts')
   | length ts == length ts' = do
     when (length ts < 2) $ error "Internal error: Tensors must have at least two elements"

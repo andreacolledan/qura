@@ -35,11 +35,12 @@ desugarIndex mgrs lrs (BoundedMax id i j) = BoundedMax id (desugarIndex mgrs lrs
 desugarIndex mgrs lrs (BoundedSum id i j) = BoundedSum id (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
 desugarIndex (Just grs) _ Identity = desugarIdentity grs
 desugarIndex (Just grs) _ (Wire wt) = desugarWire grs wt
+desugarIndex (Just grs) _ (Operation op) = desugarOperation grs op
 desugarIndex mgrs@(Just grs) lrs (Sequence i j) = desugarSequence grs (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
 desugarIndex mgrs@(Just grs) lrs (Parallel i j) = desugarParallel grs (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
 desugarIndex mgrs@(Just grs) lrs (BoundedSequence id i j) = desugarBoundedSequence grs id (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
 desugarIndex mgrs@(Just grs) lrs (BoundedParallel id i j) = desugarBoundedParallel grs id (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
-desugarIndex grs mlrs@(Just lrs) (OpOutput op n is) = desugarOutput lrs op n (desugarIndex grs mlrs <$> is)
+desugarIndex grs mlrs@(Just lrs) (Output op n is) = desugarOutput lrs op n (desugarIndex grs mlrs <$> is)
 desugarIndex _ _ i = error $ "Internal error: resource operator was not desugared (desugarIndex): " ++ pretty i
 
 -- | @simplifyIndexStrong grs lrs qfh i@ returns index expression @i@ in a normal form.

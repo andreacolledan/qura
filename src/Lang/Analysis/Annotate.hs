@@ -10,6 +10,7 @@ import Lang.Expr.AST
 import Lang.Analysis.Derivation
 import Data.Foldable
 import Control.Monad.Extra
+import Lang.Library.Constant
 
 --- ANNOTATING PASS MODULE ------------------------------------------------------------------------------------
 ---
@@ -136,8 +137,7 @@ annotate e@(EIApp e1 g) = withScope e $ do
   return (tsub sub (EIApp e1' g), tsub sub typ1', sub)
 -- CONSTANTS
 annotate e@(EConst c) = withScope e $ do
-  t <- runTypeof c
-  return (EConst c, t, mempty)
+  return (EConst c, typeOf c, mempty)
 -- ASSUME
 annotate e@(EAssume e1 annotyp) = withScope e $ do
   (e1', _, sub1) <- annotate e1

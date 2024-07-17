@@ -103,12 +103,12 @@ constant :: Parser Expr
 constant = try $ do
   name <- m_identifier
   case name of
-    "QInit0" -> return $ EConst (Boxed QInit0)
-    "QInit1" -> return $ EConst (Boxed QInit1)
+    "QInit0" -> return $ EConst (Boxed (QInit False))
+    "QInit1" -> return $ EConst (Boxed (QInit True))
     "QDiscard" -> return $ EConst (Boxed QDiscard)
     "Meas" -> return $ EConst (Boxed Meas)
-    "CInit0" -> return $ EConst (Boxed CInit0)
-    "CInit1" -> return $ EConst (Boxed CInit1)
+    "CInit0" -> return $ EConst (Boxed (CInit False))
+    "CInit1" -> return $ EConst (Boxed (CInit True))
     "CDiscard" -> return $ EConst (Boxed CDiscard)
     "Hadamard" -> return $ EConst (Boxed Hadamard)
     "PauliX" -> return $ EConst (Boxed PauliX)
@@ -120,8 +120,6 @@ constant = try $ do
     "CCZ" -> return $ EConst (Boxed CCZ)
     "Toffoli" -> return $ EConst (Boxed Toffoli)
     "MakeCRGate" -> return $ EConst MakeCRGate
-    "MakeNToffoli" -> return $ EConst MakeNToffoli
-    "MakeNCZ" -> return $ EConst MakeNCZ
     "MakeUnitList" -> return $ EConst MakeUnitList
     _ -> fail $ "Unrecognized constant \"" ++ name ++ "\""
     <?> "constant"

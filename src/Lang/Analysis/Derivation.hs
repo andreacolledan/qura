@@ -31,7 +31,6 @@ module Lang.Analysis.Derivation
     unlessIdentity,
     makePatternBindings,
     runSimplifyType,
-    runTypeof,
     ifGlobalResources,
     SizeDiscipline (..),
   )
@@ -164,11 +163,6 @@ runSimplifyType t = do
   grs <- gets grs
   lrs <- gets lrs
   liftIO $ simplifyType sh grs lrs t
-
-runTypeof :: Constant -> TypeDerivation Type
-runTypeof c = do
-  grs <- gets grs
-  return $ typeOf grs c
 
 ifGlobalResources :: a -> TypeDerivation (Maybe a)
 ifGlobalResources x = do

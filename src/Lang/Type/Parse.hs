@@ -90,11 +90,11 @@ circ = do
 
 -- Parses "Bit" as (TWire Bit)
 bit :: Parser Type
-bit = m_reserved "Bit" >> return (TWire Bit)
+bit = m_reserved "Bit" >> return (TWire Bit Nothing) -- TODO parse local annotation
 
 -- Parses "Qubit" as (TWire Qubit)
 qubit :: Parser Type
-qubit = m_reserved "Qubit" >> return (TWire Qubit)
+qubit = m_reserved "Qubit" >> return (TWire Qubit Nothing) -- TODO parse local annotation
 
 -- Parses "()" as TUnit
 unitType :: Parser Type

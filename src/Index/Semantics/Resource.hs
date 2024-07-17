@@ -5,6 +5,7 @@ import Index.AST
 data GlobalResourceSemantics = GlobalResourceSemantics
   { desugarIdentity :: Index,
     desugarWire :: WireType -> Index,
+    desugarOperation :: QuantumOperation -> Index,
     desugarSequence :: Index -> Index -> Index,
     desugarParallel :: Index -> Index -> Index,
     desugarBoundedSequence :: IndexVariableId -> Index -> Index -> Index,

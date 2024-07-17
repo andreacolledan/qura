@@ -33,7 +33,8 @@ data Index
   | BoundedMax IndexVariableId Index Index-- Bounded maximum        :max[id < i] j
   | BoundedSum IndexVariableId Index Index-- Bounded sum            :sum[id < i] j
   -- Resource operations 
-  | OpOutput QuantumOperation Int [Index]       -- Local resource annotation of op output       -- Output[g,n](i1,...,in)
+  | Output QuantumOperation Int [Index]         -- Local resource annotation of op output       -- Output[g,n](i1,...,in)
+  | Operation QuantumOperation                  -- Global resource consumption of an operation  -- Op[g]
   | Identity                                    -- No global resource consumption               -- None
   | Wire WireType                               -- Global resource consumption of a wire        -- Wire[w]
   | Sequence Index Index                        -- Composition in sequence of global resources  -- i >> j
@@ -51,9 +52,10 @@ instance Pretty Index where
   pretty (Minus i j) = "(" ++ pretty i ++ " - " ++ pretty j ++ ")"
   pretty (BoundedMax id i j) = "max[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty j
   pretty (BoundedSum id i j) = "sum[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty j
-  pretty (OpOutput op n is) = "Output[" ++ show op ++ "," ++ show n ++ "](" ++ intercalate ", " (pretty <$> is) ++ ")"
+  pretty (Output op n is) = "Output[" ++ show op ++ "," ++ show n ++ "](" ++ intercalate ", " (pretty <$> is) ++ ")"
   pretty Identity = "Identity"
   pretty (Wire wt) = "Wire[" ++ show wt ++ "]"
+  pretty (Operation op) = "Operation[" ++ show op ++ "]"
   pretty (Sequence i j) = "(" ++ pretty i ++ " >> " ++ pretty j ++ ")"
   pretty (Parallel i j) = "(" ++ pretty i ++ " || " ++ pretty j ++ ")"
   pretty (BoundedSequence id i j) = "S[" ++ id ++ " < " ++ pretty i ++ "] " ++ pretty j
@@ -85,9 +87,10 @@ instance HasIndex Index where
   iv (Minus i j) = iv i `Set.union` iv j
   iv (BoundedMax id i j) = Set.insert id (iv i `Set.union` iv j)
   iv (BoundedSum id i j) = Set.insert id (iv i `Set.union` iv j)
-  iv (OpOutput _ _ is) = Set.unions $ iv <$> is
+  iv (Output _ _ is) = Set.unions $ iv <$> is
   iv Identity = Set.empty
   iv (Wire _) = Set.empty
+  iv (Operation _) = Set.empty
   iv (Sequence i j) = iv i `Set.union` iv j
   iv (Parallel i j) = iv i `Set.union` iv j
   iv (BoundedSequence id i j) = Set.insert id (iv i `Set.union` iv j)
@@ -101,9 +104,10 @@ instance HasIndex Index where
   ifv (Minus i j) = ifv i `Set.union` ifv j
   ifv (BoundedMax id i j) = Set.delete id (ifv i `Set.union` ifv j)
   ifv (BoundedSum id i j) = Set.delete id (ifv i `Set.union` ifv j)
-  ifv (OpOutput _ _ is) = Set.unions $ ifv <$> is
+  ifv (Output _ _ is) = Set.unions $ ifv <$> is
   ifv Identity = Set.empty
   ifv (Wire _) = Set.empty
+  ifv (Operation _) = Set.empty
   ifv (Sequence i j) = ifv i `Set.union` ifv j
   ifv (Parallel i j) = ifv i `Set.union` ifv j
   ifv (BoundedSequence id i j) = Set.delete id (ifv i `Set.union` ifv j)
@@ -121,9 +125,10 @@ instance HasIndex Index where
   isub i id (BoundedSum id' j k) =
     let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
      in BoundedSum id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
-  isub i id (OpOutput op n is) = OpOutput op n (isub i id <$> is)
+  isub i id (Output op n is) = Output op n (isub i id <$> is)
   isub _ _ Identity = Identity
   isub _ _ (Wire wt) = Wire wt
+  isub _ _ (Operation op) = Operation op
   isub i id (Sequence j k) = Sequence (isub i id j) (isub i id k)
   isub i id (Parallel j k) = Parallel (isub i id j) (isub i id k)
   isub i id (BoundedSequence id' j k) =

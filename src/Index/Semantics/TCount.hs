@@ -8,6 +8,7 @@ tCountResourceSemantics =
   GlobalResourceSemantics
     { desugarIdentity = Number 0,
       desugarWire = const (Number 0),
+      desugarOperation = Number . opTCount,
       desugarSequence = Plus,
       desugarParallel = Plus,
       desugarBoundedSequence = BoundedSum,

@@ -16,6 +16,7 @@ import Control.Monad.Except
 import Solving.CVC5 (SolverHandle)
 import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
 import Data.Maybe
+import Lang.Library.Constant
 
 --- TYPE SYNTHESIS MODULE ---------------------------------------------------------------
 ---
@@ -178,9 +179,8 @@ analyze e@(EIApp e1 g) = withScope e $ do
   return (isub g id typ2, join k)
 -- CONSTANTS
 analyze e@(EConst c) = withScope e $ do
-  t <- runTypeof c
   k <- ifGlobalResources Identity
-  return (t, k)
+  return (typeOf c, k)
 -- ASSUMPTION (unsafe)
 analyze e@(EAssume e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp

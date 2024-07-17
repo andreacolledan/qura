@@ -18,83 +18,75 @@ import Circuit
 
 -- | @qinit0@ is the function that initializes a qubit to the |0⟩ state.
 qinit0 :: Expr
-qinit0 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed QInit0)) EUnit
+qinit0 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed (QInit False))) EUnit
 
 -- | @qinit1@ is the function that initializes a qubit to the |1⟩ state.
 qinit1 :: Expr
-qinit1 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed QInit1)) EUnit
+qinit1 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed (QInit True))) EUnit
 
 -- | @qdiscard@ is the function that discards a qubit.
 qdiscard :: Expr
-qdiscard = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed QDiscard)) (EVar "q"))
+qdiscard = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed QDiscard)) (EVar "q"))
 
 -- | @meas@ is the function that measures a qubit.
 meas :: Expr
-meas = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed Meas)) (EVar "q"))
+meas = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed Meas)) (EVar "q"))
 
 -- | @cinit0@ is the expression that initializes a bit to the 0 state.
 cinit0 :: Expr
-cinit0 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed CInit0)) EUnit
+cinit0 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed (CInit False))) EUnit
 
 -- | @cinit1@ is the expression that initializes a bit to the 1 state.
 cinit1 :: Expr
-cinit1 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed CInit1)) EUnit
+cinit1 = ELift $ EAbs (PVar "_") TUnit $ EApply (EConst (Boxed (CInit True))) EUnit
 
 -- | @cdiscard@ is the function that discards a bit.
 cdiscard :: Expr
-cdiscard = ELift $ EAbs (PVar "c") (TWire Bit) (EApply (EConst (Boxed CDiscard)) (EVar "c"))
+cdiscard = ELift $ EAbs (PVar "c") (TWire Bit undefined) (EApply (EConst (Boxed CDiscard)) (EVar "c"))
 
 -- | @hadamard@ is the function that applies the Hadamard gate to a qubit.
 hadamard :: Expr
-hadamard = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed Hadamard)) (EVar "q"))
+hadamard = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed Hadamard)) (EVar "q"))
 
 -- | @pauliX@ is the function that applies the Pauli-X gate to a qubit.
 pauliX :: Expr
-pauliX = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed PauliX)) (EVar "q"))
+pauliX = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed PauliX)) (EVar "q"))
 
 -- | @pauliY@ is the function that applies the Pauli-Y gate to a qubit.
 pauliY :: Expr
-pauliY = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed PauliY)) (EVar "q"))
+pauliY = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed PauliY)) (EVar "q"))
 
 -- | @pauliZ@ is the function that applies the Pauli-Z gate to a qubit.
 pauliZ :: Expr
-pauliZ = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed PauliZ)) (EVar "q"))
+pauliZ = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed PauliZ)) (EVar "q"))
 
 -- | @tgate@ is the function that applies the T gate to a qubit.
 tgate :: Expr
-tgate = ELift $ EAbs (PVar "q") (TWire Qubit) (EApply (EConst (Boxed T)) (EVar "q"))
+tgate = ELift $ EAbs (PVar "q") (TWire Qubit undefined) (EApply (EConst (Boxed T)) (EVar "q"))
 
 -- | @cnot@ is the function that applies the CNOT gate to a pair qubits.
 cnot :: Expr
-cnot = ELift $ EAbs (PVar "ctrl") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CNot)) (ETuple [EVar "ctrl", EVar "trgt"])
+cnot = ELift $ EAbs (PVar "ctrl") (TWire Qubit undefined) $ EAbs (PVar "trgt") (TWire Qubit undefined) $ EApply (EConst (Boxed CNot)) (ETuple [EVar "ctrl", EVar "trgt"])
 
 -- | @cz@ is the function that applies the CZ gate to a pair qubits.
 cz :: Expr
-cz = ELift $ EAbs (PVar "ctrl") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CZ)) (ETuple [EVar "ctrl", EVar "trgt"])
+cz = ELift $ EAbs (PVar "ctrl") (TWire Qubit undefined) $ EAbs (PVar "trgt") (TWire Qubit undefined) $ EApply (EConst (Boxed CZ)) (ETuple [EVar "ctrl", EVar "trgt"])
 
 -- | @ccnot@ is the function that applies the CNOT gate to a pair qubits.
 ccnot :: Expr
-ccnot = ELift $ EAbs (PVar "ctrl") (TWire Bit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CCNot)) (ETuple [EVar "ctrl", EVar "trgt"])
+ccnot = ELift $ EAbs (PVar "ctrl") (TWire Bit undefined) $ EAbs (PVar "trgt") (TWire Qubit undefined) $ EApply (EConst (Boxed CCNot)) (ETuple [EVar "ctrl", EVar "trgt"])
 
 -- | @ccz@ is the function that applies the CZ gate to a pair qubits.
 ccz :: Expr
-ccz = ELift $ EAbs (PVar "ctrl") (TWire Bit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed CCZ)) (ETuple [EVar "ctrl", EVar "trgt"])
+ccz = ELift $ EAbs (PVar "ctrl") (TWire Bit undefined) $ EAbs (PVar "trgt") (TWire Qubit undefined) $ EApply (EConst (Boxed CCZ)) (ETuple [EVar "ctrl", EVar "trgt"])
 
 -- | @toffoli@ is the function that applies the Toffoli gate to three qubits.
 toffoli :: Expr
-toffoli = ELift $ EAbs (PVar "ctrl1") (TWire Qubit) $ EAbs (PVar "ctrl2") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EConst (Boxed Toffoli)) (ETuple [EVar "ctrl1", EVar "ctrl2", EVar "trgt"])
+toffoli = ELift $ EAbs (PVar "ctrl1") (TWire Qubit undefined) $ EAbs (PVar "ctrl2") (TWire Qubit undefined) $ EAbs (PVar "trgt") (TWire Qubit undefined) $ EApply (EConst (Boxed Toffoli)) (ETuple [EVar "ctrl1", EVar "ctrl2", EVar "trgt"])
 
 -- | @cR@ is the function that applies the controlled-R gate of angle 2π/2^n to a pair of qubits.
 cR :: Expr
-cR = ELift $ EIAbs "n" $ EAbs (PVar "ctrl") (TWire Qubit) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EIApp (EConst MakeCRGate) (IndexVariable "n")) (ETuple [EVar "ctrl", EVar "trgt"])
-
--- | @mcZ@ is the function that applies the multi-controlled Z gate to a list of control qubits and a target qubit.
-mcZ :: Expr
-mcZ = ELift $ EIAbs "n" $ EAbs (PVar "ctrls") (TList "i" (IndexVariable "n") (TWire Qubit)) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EIApp (EConst MakeNCZ) (IndexVariable "n")) (ETuple [EVar "ctrls", EVar "trgt"])
-
--- | @mcnot@ is the function that applies the multi-controlled NOT (Toffoli) gate to a list of control qubits and a target qubit.
-mcnot :: Expr
-mcnot = ELift $ EIAbs "n" $ EAbs (PVar "ctrls") (TList "i" (IndexVariable "n") (TWire Qubit)) $ EAbs (PVar "trgt") (TWire Qubit) $ EApply (EIApp (EConst MakeNToffoli) (IndexVariable "n")) (ETuple [EVar "ctrls", EVar "trgt"])
+cR = ELift $ EIAbs "n" $ EAbs (PVar "ctrl") (TWire Qubit undefined) $ EAbs (PVar "trgt") (TWire Qubit undefined) $ EApply (EIApp (EConst MakeCRGate) (IndexVariable "n")) (ETuple [EVar "ctrl", EVar "trgt"])
 
 ----- LIST FUNCTIONS --------------------------------------------------------------------------------------------
 --
@@ -215,9 +207,7 @@ libraryBindings = [
   ("ccz", ccz),
   ("toffoli", toffoli),
   ("cR", cR),
-  ("mcZ", mcZ),
-  ("range", range),
-  ("mcnot", mcnot){-,
+  ("range", range){-,
   ("qrev", qrev),
   ("crev", crev),
   ("qmap", qmap),

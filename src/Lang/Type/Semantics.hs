@@ -24,7 +24,9 @@ simplifyType _ _ _ t = return t
 -- SolverHandle @qfh@ is used to interact with the SMT solver.
 checkSubtype :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Type -> Type -> IO Bool
 checkSubtype _ _ _ TUnit TUnit = return True
-checkSubtype _ _ _ (TWire wtype1) (TWire wtype2) = return $ wtype1 == wtype2
+checkSubtype qfh _ lrs (TWire wtype1 i) (TWire wtype2 j) = do
+  c <- checkLRLeq qfh lrs i j
+  return $ wtype1 == wtype2 -- && c --TODO uncomment
 checkSubtype qfh grs lrs (TBang i1 t1) (TBang i2 t2) = do
   c1 <- checkGRLeq qfh grs i1 i2
   c2 <- checkSubtype qfh grs lrs t1 t2
