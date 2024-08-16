@@ -5,7 +5,6 @@ module Lang.Type.Parse
   )
 where
 
-import Index.AST
 import Index.Parse
 import Lang.Type.AST
 import Text.Parsec
@@ -13,20 +12,6 @@ import Text.Parsec.Expr
 import Text.Parsec.Language
 import Text.Parsec.Token
 import Control.Monad (unless)
-
-parseGlobalAnnotation :: Parser (Maybe Index)
-parseGlobalAnnotation = do
-  ParserConfig{parsegra = shouldParse} <- getState
-  if shouldParse
-    then Just <$> parseIndex
-    else parseIndex >> return Nothing
-
-parseLocalAnnotation :: Parser (Maybe Index)
-parseLocalAnnotation = do
-  ParserConfig{parselra = shouldParse} <- getState
-  if shouldParse
-    then Just <$> parseIndex
-    else parseIndex >> return Nothing
 
 --- TYPE PARSER MODULE -------------------------------------------
 ---
@@ -38,7 +23,7 @@ typeLang :: LanguageDef st
 typeLang =
   emptyDef
     { reservedOpNames = ["->", "-o", "!"],
-      reservedNames = ["Bit", "Qubit", "List", "Circ"]
+      reservedNames = ["Bit", "Qubit", "List", "Circ", "forall"]
     }
 
 typeTokenParser :: TokenParser st
@@ -48,39 +33,61 @@ typeTokenParser@TokenParser
     reserved = m_reserved,
     reservedOp = m_reservedOp,
     brackets = m_brackets,
+    braces = m_braces,
     comma = m_comma,
     commaSep1 = m_commaSep1,
     symbol = m_symbol
   } = makeTokenParser typeLang
 
+-- Resource annotation parser combinators
+
+parseIfGlobalAnalysis :: Parser a -> Parser (Maybe a)
+parseIfGlobalAnalysis p = do
+  ParserConfig{parsegra = shouldParse} <- getState
+  if shouldParse
+    then Just <$> p
+    else optionMaybe p >> return Nothing
+
+parseIfLocalAnalysis :: Parser a -> Parser (Maybe a)
+parseIfLocalAnalysis p = do
+  ParserConfig{parselra = shouldParse} <- getState
+  if shouldParse
+    then Just <$> p
+    else optionMaybe p >> return Nothing
+
 -- Parses "t1 -o[i,j] t2" as (Arrow t1 t2 i j)
 arrowOperator :: Parser (Type -> Type -> Type)
 arrowOperator = do
   m_reservedOp "-o"
-  (i, j) <- m_brackets $ do
-    i <- parseGlobalAnnotation
+  resAnno <- parseIfGlobalAnalysis $ m_brackets $ do
+    i <- parseIndex
     _ <- m_comma
-    j <- parseGlobalAnnotation
+    j <- parseIndex
     return (i, j)
-  return $ \t1 t2 -> TArrow t1 t2 i j
+  return $ case resAnno of
+    Just (i, j) -> \t1 t2 -> TArrow t1 t2 (Just i) (Just j)
+    Nothing -> \t1 t2 -> TArrow t1 t2 Nothing Nothing
 
--- Parses "id ->[i,j] t" as (IForall id t i j)
+-- Parses "forall[i,j] id . t" as (IForall id t i j)
 forallOperator :: Parser (Type -> Type)
 forallOperator = do
-  id <- m_identifier
-  m_reservedOp "->"
-  (i, j) <- m_brackets $ do
-    i <- parseGlobalAnnotation
+  m_reserved "forall"
+  resAnno <- parseIfGlobalAnalysis $ m_brackets $ do
+    i <- parseIndex
     _ <- m_comma
-    j <- parseGlobalAnnotation
+    j <- parseIndex
     return (i, j)
-  return $ \t -> TIForall id t i j
+  id <- m_identifier
+  _ <- m_symbol "."
+  return $ case resAnno of
+    Just (i,j) -> \t -> TIForall id t (Just i) (Just j)
+    Nothing -> \t -> TIForall id t Nothing Nothing
 
 -- Parses "Circ[i](btype1, btype2)" as (Circ i btype1 btype2)
 circ :: Parser Type
 circ = do
   m_reservedOp "Circ"
-  i <- m_brackets parseGlobalAnnotation
+  i <- parseIfGlobalAnalysis $ m_brackets parseIndex
   (btype1, btype2) <- m_parens $ do
     btype1 <- parseType
     _ <- m_comma
@@ -90,11 +97,17 @@ circ = do
 
 -- Parses "Bit" as (TWire Bit)
 bit :: Parser Type
-bit = m_reserved "Bit" >> return (TWire Bit Nothing) -- TODO parse local annotation
+bit = do
+  m_reserved "Bit"
+  i <- parseIfLocalAnalysis $ m_braces parseIndex
+  return (TWire Bit i)
 
 -- Parses "Qubit" as (TWire Qubit)
 qubit :: Parser Type
-qubit = m_reserved "Qubit" >> return (TWire Qubit Nothing) -- TODO parse local annotation
+qubit = do
+  m_reserved "Qubit"
+  i <- parseIfLocalAnalysis $ m_braces parseIndex
+  return (TWire Qubit i) 
 
 -- Parses "()" as TUnit
 unitType :: Parser Type
@@ -124,7 +137,7 @@ listOperator = do
 bangOperator :: Parser (Type -> Type)
 bangOperator = do
   m_reservedOp "!"
-  i <- m_brackets parseGlobalAnnotation
+  i <- parseIfGlobalAnalysis $ m_brackets parseIndex
   return $ TBang i
 
 delimitedType :: Parser Type
@@ -141,8 +154,7 @@ delimitedType =
 parseType :: Parser Type
 parseType =
   let table =
-        [ [Prefix listOperator, Prefix bangOperator],
-          [Infix arrowOperator AssocRight], -- arrows have lower precedence than bangs and list constructors
-          [Prefix forallOperator]
+        [ [Prefix listOperator, Prefix bangOperator, Prefix forallOperator],
+          [Infix arrowOperator AssocRight] -- arrows have lower precedence than bangs and list constructors
         ]
    in buildExpressionParser table delimitedType <?> "type"

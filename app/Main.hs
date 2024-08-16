@@ -3,7 +3,7 @@ module Main (main) where
 import Control.Monad (when)
 import Index.Semantics
 import Lang.Type.Semantics
-import Lang.Analysis.Analyze
+import Lang.Analysis.InferRefinedType
 import Lang.Expr.Parse
 import Options.Applicative
 import PrettyPrinter
@@ -18,8 +18,9 @@ import Index.Semantics.Qubits (qubitsResourceSemantics)
 import Index.Semantics.TCount (tCountResourceSemantics)
 import Index.Semantics.Bits (bitsResourceSemantics)
 import Index.Semantics.GateCount (gateCountResourceSemantics)
-import Data.Maybe (fromMaybe, isJust, fromJust)
+import Data.Maybe (isJust, fromJust)
 import qualified Index.Parse as IP
+import Index.Semantics.Depth
 
 globalResourceArgParser :: ReadM GlobalResourceSemantics
 globalResourceArgParser = do
@@ -33,7 +34,11 @@ globalResourceArgParser = do
     _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
 
 localResourceArgParser :: ReadM LocalResourceSemantics
-localResourceArgParser = readerError "Local resources are unsupported."
+localResourceArgParser = do
+  s <- str
+  case s of
+    "depth" -> return depthResourceSemantics
+    _ -> readerError "Supported local resources are 'depth'."
 
 data Arguments = CommandLineArguments
   { filepath :: String,
@@ -107,7 +112,7 @@ main = do
         putStrLn "Inferring type..."
       withSolver deb $ \qfh -> do
         let actualAst = if nopre then ast else library ast
-        outcome <- runAnalysis actualAst qfh mgrs mlrs
+        outcome <- runRefinedTypeInference actualAst qfh mgrs mlrs
         case outcome of
           Left err -> do
             hSetSGR stderr [SetColor Foreground Vivid Red]

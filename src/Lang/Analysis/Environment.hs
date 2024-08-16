@@ -21,8 +21,8 @@ import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics
 data BindingInfo = BindingInfo {getType :: Type, isUsed :: Bool} deriving (Eq, Show)
 
 -- 
-instance Wide BindingInfo where
-  wireCount binding = if isUsed binding then Just Identity else wireCount (getType binding)
+instance HasSize BindingInfo where
+  typeSize binding = if isUsed binding then Just Identity else typeSize (getType binding)
 
 instance Pretty BindingInfo where
   pretty = pretty . getType
@@ -63,8 +63,8 @@ data TypingEnvironment = TypingEnvironment
     lrs :: Maybe LocalResourceSemantics   -- the local resource semantics
   }
 
-instance Wide TypingEnvironment where
-  wireCount TypingEnvironment {typingContext = gamma} = wireCount gamma
+instance HasSize TypingEnvironment where
+  typeSize TypingEnvironment {typingContext = gamma} = typeSize gamma
 
 -- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- The index variables in @theta@ are considered to be in scope.

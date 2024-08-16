@@ -19,13 +19,14 @@ module Lang.Analysis.Derivation
     substituteInEnvironment,
     checkWellFormedness,
     makeFreshVariable,
-    unify,
+    unifyTypes,
     withBoundVariables,
     withWireCount,
     withNonLinearContext,
     withBoundIndexVariable,
     withScope,
     unlessSubtype,
+    unlessSubtypeAssuming,
     unlessEq,
     unlessLeq,
     unlessIdentity,
@@ -53,7 +54,7 @@ import Lang.Type.Semantics (checkSubtype, simplifyType)
 import Index.Semantics
 import Solving.CVC5 (SolverHandle)
 import Lang.Expr.Pattern
-import Lang.Library.Constant
+import Index.Unify
 
 --- TYPE DERIVATIONS MODULE --------------------------------------------------------------
 ---
@@ -128,12 +129,12 @@ makeFreshVariable prefix = do
   put env {freshCounter = c + 1}
   return $ prefix ++ show c
 
--- | @unify e t1 t2@ attempts to find the most general type substitution @sub@ such that @sub t1 == t2@.
+-- | @unifyType e t1 t2@ attempts to find the most general type substitution @sub@ such that @sub t1 == t2@.
 -- If such a substitution does not exist, it throws 'UnexpectedType'. If it exists, the resulting substitution
 -- is applied to the current typing environment and returned.
 -- Expression @e@ is only used for error reporting.
-unify :: Expr -> Type -> Type -> TypeDerivation TypeSubstitution
-unify e t1 t2 = case mgtu t1 t2 of
+unifyTypes :: Expr -> Type -> Type -> TypeDerivation TypeSubstitution
+unifyTypes e t1 t2 = case mgtu t1 t2 of
   Just sub -> do
     substituteInEnvironment sub
     return sub
@@ -163,13 +164,6 @@ runSimplifyType t = do
   grs <- gets grs
   lrs <- gets lrs
   liftIO $ simplifyType sh grs lrs t
-
-ifGlobalResources :: a -> TypeDerivation (Maybe a)
-ifGlobalResources x = do
-  grs <- gets grs
-  case grs of
-    Nothing -> return Nothing
-    Just _ -> return $ Just x
 
 --- DERIVATION COMBINATORS ------------------------------------------------------
 
@@ -210,7 +204,7 @@ withWireCount der = do
   where
     diffcount :: TypingContext -> TypingContext -> Maybe Index
     diffcount  gamma1 gamma2 =
-      wireCount  $
+      typeSize  $
         Map.elems $
           Map.differenceWith
             ( \bs1 bs2 -> case (bs1, bs2) of
@@ -266,25 +260,35 @@ withScope e der = do
   return outcome
 
 unlessSubtype :: Type -> Type -> TypeDerivation () -> TypeDerivation ()
-unlessSubtype t1 t2 der = do
+unlessSubtype = unlessSubtypeAssuming []
+
+unlessSubtypeAssuming :: [Constraint] -> Type -> Type -> TypeDerivation () -> TypeDerivation ()
+unlessSubtypeAssuming cs t1 t2 der = do
   sh <- gets solverHandle
   grs <- gets grs
   lrs <- gets lrs
-  c <- liftIO $ checkSubtype sh grs lrs t1 t2
+  c <- liftIO $ checkSubtype cs sh grs lrs t1 t2
   unless c der
+
+ifGlobalResources :: a -> TypeDerivation (Maybe a)
+ifGlobalResources x = do
+  grs <- gets grs
+  case grs of
+    Nothing -> return Nothing
+    Just _ -> return $ Just x
 
 -- Arithmetic index checking
 
 unlessLeq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
 unlessLeq i j der = do
   sh <- gets solverHandle
-  c <- liftIO $ checkLeq sh i j
+  c <- liftIO $ checkLeq [] sh i j
   unless c der
 
 unlessEq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
 unlessEq i j der = do
   sh <- gets solverHandle
-  c <- liftIO $ checkEq sh i j
+  c <- liftIO $ checkEq [] sh i j
   unless c der
 
 -- Global resource index checking
@@ -293,14 +297,14 @@ unlessGRLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation
 unlessGRLeq i j der = do
   qfh <- gets solverHandle
   grs <- gets grs
-  c <- liftIO $ checkGRLeq qfh grs i j
+  c <- liftIO $ checkGRLeq [] qfh grs i j
   unless c der
 
 unlessGREq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessGREq i j der = do
   qfh <- gets solverHandle
   grs <- gets grs
-  c <- liftIO $ checkGREq qfh grs i j
+  c <- liftIO $ checkGREq [] qfh grs i j
   unless c der
 
 -- Local resource index checking
@@ -309,14 +313,14 @@ unlessLRLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation
 unlessLRLeq i j der = do
   qfh <- gets solverHandle
   lrs <- gets lrs
-  c <- liftIO $ checkLRLeq qfh lrs i j
+  c <- liftIO $ checkLRLeq [] qfh lrs i j
   unless c der
 
 unlessLREq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessLREq i j der = do
   qfh <- gets solverHandle
   lrs <- gets lrs
-  c <- liftIO $ checkLREq qfh lrs i j
+  c <- liftIO $ checkLREq [] qfh lrs i j
   unless c der
 
 unlessIdentity :: Maybe Index -> TypeDerivation () -> TypeDerivation ()

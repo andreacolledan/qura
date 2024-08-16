@@ -7,6 +7,5 @@ depthResourceSemantics :: LocalResourceSemantics
 depthResourceSemantics =
   LocalResourceSemantics
     {
-      desugarOutput = \_ _ is -> Number 1 `Plus` foldr1 Max is,
-      embedOutput = undefined
+      desugarOutput = \_ _ is -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
     }

@@ -1,33 +1,33 @@
 -- put q and p into the entangled |+) state
 let bell = lift \(q,p) :: (Qubit, Qubit) .
-  let q = force hadamard q in
-  let (q,p) = force cnot q p in
+  let q = apply(Hadamard, q) in
+  let (q,p) = apply(CNot, (q,p)) in
   (q,p)
 in
 
 -- Alice's part of the teleportation protocol
 let alice = lift \(p,r) :: (Qubit, Qubit) .
-  let (r,p) = force cnot r p in
-  let r = force hadamard r in
-  let c = force meas p in
-  let d = force meas r in
+  let (r,p) = apply(CNot, (r,p)) in
+  let r = apply(Hadamard, r) in
+  let c = apply(Meas, p) in
+  let d = apply(Meas, r) in
   (c,d)
 in
 
 -- Bob's part of the teleportation protocol
 let bob = lift \(q, c, d) :: (Qubit, Bit, Bit) .
-  let (c,q) = force ccnot c q in
-  let (d,q) = force ccz d q in
-  let _ = force cdiscard c in
-  let _ = force cdiscard d in
+  let (c,q) = apply(CCNot, (c,q)) in
+  let (d,q) = apply(CCZ, (d,q)) in
+  let _ = apply(CDiscard, c) in
+  let _ = apply(CDiscard, d) in
   q
 in
 
 -- teleport the state of qubit r into qubit q
 let teleport = lift \r :: Qubit .
   -- set-up
-  let q = force qinit0 () in
-  let p = force qinit0 () in
+  let q = apply(QInit0, ()) in
+  let p = apply(QInit0, ()) in
   let (q,p) = force bell (q,p) in
   -- Alice gets p and r, Bob gets q, Alice travels away from Bob
   let (c,d) = force alice (p,r) in

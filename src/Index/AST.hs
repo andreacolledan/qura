@@ -1,16 +1,12 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE InstanceSigs #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 module Index.AST
   ( Index (..),
     IndexVariableId,
     IndexContext,
-    HasIndex (..),
     Constraint (..),
-    IRel (..),
     emptyictx,
-    fresh,
   )
 where
 
@@ -68,103 +64,12 @@ type IndexContext = Set.HashSet IndexVariableId
 emptyictx :: IndexContext
 emptyictx = Set.empty
 
--- | The class of types that contain index variables
-class HasIndex a where
-  -- | @iv x@ returns the set of index variables (bound or free) that occur in @x@
-  iv :: a -> Set.HashSet IndexVariableId
-  -- | @ifv x@ returns the set of free index variables that occur in @x@
-  ifv :: a -> Set.HashSet IndexVariableId
-  -- | @isub i id x@ substitutes the index variable @id@ by the index @i@ in @x@
-  isub :: Index -> IndexVariableId -> a -> a
-
-instance HasIndex Index where
-  iv :: Index -> Set.HashSet IndexVariableId
-  iv (IndexVariable id) = Set.singleton id
-  iv (Number _) = Set.empty
-  iv (Plus i j) = iv i `Set.union` iv j
-  iv (Max i j) = iv i `Set.union` iv j
-  iv (Mult i j) = iv i `Set.union` iv j
-  iv (Minus i j) = iv i `Set.union` iv j
-  iv (BoundedMax id i j) = Set.insert id (iv i `Set.union` iv j)
-  iv (BoundedSum id i j) = Set.insert id (iv i `Set.union` iv j)
-  iv (Output _ _ is) = Set.unions $ iv <$> is
-  iv Identity = Set.empty
-  iv (Wire _) = Set.empty
-  iv (Operation _) = Set.empty
-  iv (Sequence i j) = iv i `Set.union` iv j
-  iv (Parallel i j) = iv i `Set.union` iv j
-  iv (BoundedSequence id i j) = Set.insert id (iv i `Set.union` iv j)
-  iv (BoundedParallel id i j) = Set.insert id (iv i `Set.union` iv j)
-  ifv :: Index -> Set.HashSet IndexVariableId
-  ifv (IndexVariable id) = Set.singleton id
-  ifv (Number _) = Set.empty
-  ifv (Plus i j) = ifv i `Set.union` ifv j
-  ifv (Max i j) = ifv i `Set.union` ifv j
-  ifv (Mult i j) = ifv i `Set.union` ifv j
-  ifv (Minus i j) = ifv i `Set.union` ifv j
-  ifv (BoundedMax id i j) = Set.delete id (ifv i `Set.union` ifv j)
-  ifv (BoundedSum id i j) = Set.delete id (ifv i `Set.union` ifv j)
-  ifv (Output _ _ is) = Set.unions $ ifv <$> is
-  ifv Identity = Set.empty
-  ifv (Wire _) = Set.empty
-  ifv (Operation _) = Set.empty
-  ifv (Sequence i j) = ifv i `Set.union` ifv j
-  ifv (Parallel i j) = ifv i `Set.union` ifv j
-  ifv (BoundedSequence id i j) = Set.delete id (ifv i `Set.union` ifv j)
-  ifv (BoundedParallel id i j) = Set.delete id (ifv i `Set.union` ifv j)
-  isub :: Index -> IndexVariableId -> Index -> Index
-  isub _ _ (Number n) = Number n
-  isub i id j@(IndexVariable id') = if id == id' then i else j
-  isub i id (Plus j k) = Plus (isub i id j) (isub i id k)
-  isub i id (Max j k) = Max (isub i id j) (isub i id k)
-  isub i id (Mult j k) = Mult (isub i id j) (isub i id k)
-  isub i id (Minus j k) = Minus (isub i id j) (isub i id k)
-  isub i id (BoundedMax id' j k) =
-    let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
-     in BoundedMax id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
-  isub i id (BoundedSum id' j k) =
-    let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
-     in BoundedSum id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
-  isub i id (Output op n is) = Output op n (isub i id <$> is)
-  isub _ _ Identity = Identity
-  isub _ _ (Wire wt) = Wire wt
-  isub _ _ (Operation op) = Operation op
-  isub i id (Sequence j k) = Sequence (isub i id j) (isub i id k)
-  isub i id (Parallel j k) = Parallel (isub i id j) (isub i id k)
-  isub i id (BoundedSequence id' j k) =
-    let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
-     in BoundedSequence id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
-  isub i id (BoundedParallel id' j k) =
-    let id'' = fresh id' [IndexVariable id, i, k] -- find an id'', preferably id', that is not id and does not capture anything in i or k
-     in BoundedParallel id'' (isub i id j) (isub i id . isub (IndexVariable id'') id' $ k)
-
-
--- | @fresh id xs@ returns a fresh index variable name that does not occur in @xs@, @id@ if possible.
-fresh :: (HasIndex a) => IndexVariableId -> [a] -> IndexVariableId
-fresh id xs =
-  let toavoid = Set.unions $ iv <$> xs
-   in head $ filter (not . (`Set.member` toavoid)) $ id : [id ++ show n | n <- [0 ..]]
-
--- Natural lifting of well-formedness to traversable data structures
-instance (Traversable t, HasIndex a) => HasIndex (t a) where
-  iv :: t a -> Set.HashSet IndexVariableId
-  iv x = let ivets = iv <$> x in foldr Set.union Set.empty ivets
-  ifv :: t a -> Set.HashSet IndexVariableId
-  ifv x = let ifvets = ifv <$> x in foldr Set.union Set.empty ifvets
-  isub :: Index -> IndexVariableId -> t a -> t a
-  isub i id x = isub i id <$> x
-
--- | The datatype of index relations
-data IRel = Eq | Leq
-  deriving (Show, Eq)
-
-instance Pretty IRel where
-  pretty Eq = "="
-  pretty Leq = "≤"
-
 -- | The datatype of index constraints
-data Constraint = Constraint IRel Index Index
+data Constraint = Eq Index Index | Leq Index Index
   deriving (Show, Eq)
 
 instance Pretty Constraint where
-  pretty (Constraint rel i j) = pretty i ++ " " ++ pretty rel ++ " " ++ pretty j
+  pretty (Eq i j) = pretty i ++ " = " ++ " " ++ pretty j
+  pretty (Leq i j) = pretty i ++ " <= " ++ pretty j
+
+

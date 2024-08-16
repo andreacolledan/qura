@@ -13,7 +13,7 @@ data GlobalResourceSemantics = GlobalResourceSemantics
     opGroundTruth :: QuantumOperation -> Int
   }
 
-data LocalResourceSemantics = LocalResourceSemantics
-  { desugarOutput :: QuantumOperation -> Int -> [Index] -> Index,
-    embedOutput :: QuantumOperation -> Int -> [String] -> String
+newtype LocalResourceSemantics = LocalResourceSemantics
+  {
+    desugarOutput :: QuantumOperation -> Int -> [Index] -> Index
   }

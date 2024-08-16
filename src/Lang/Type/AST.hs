@@ -7,7 +7,9 @@ module Lang.Type.AST
     isLinear,
     isBundleType,
     WireType(..),
-    Wide(..)
+    HasSize(..),
+    stripGlobalAnnotations,
+    stripLocalAnnotations
   )
 where
 
@@ -16,6 +18,7 @@ import Index.AST
 import PrettyPrinter
 import Data.List (intercalate)
 import Circuit
+import Index.Unify
 
 --- TYPE SYNTAX MODULE ---------------------------------------------------------------------------------------
 ---
@@ -56,37 +59,37 @@ prettyLocalAnnotation (Just i) = "{" ++ pretty i ++ "}"
 
 instance Pretty Type where
   pretty TUnit = "()"
-  pretty (TWire wt i) = pretty wt -- ++ prettyGlobalAnnotation i TODO uncomment
+  pretty (TWire wt i) = pretty wt ++ prettyLocalAnnotation i
   pretty (TTensor ts) = "(" ++ intercalate ", " (map pretty ts) ++ ")"
   pretty (TCirc i inBtype outBtype) = "Circ" ++ prettyGlobalAnnotation i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
   pretty (TArrow typ1 typ2 i j) = "(" ++ pretty typ1 ++ " -o" ++ prettyGlobalAnnotations i j ++ " " ++ pretty typ2 ++ ")"
   pretty (TBang i typ) = "!" ++ prettyGlobalAnnotation i  ++ pretty typ
-  pretty (TList id i typ) = "List[" ++ id ++ "<" ++ pretty i ++ "] " ++ pretty typ
+  pretty (TList id i typ) = "(List[" ++ id ++ "<" ++ pretty i ++ "] " ++ pretty typ ++ ")"
   pretty (TVar id) = id
-  pretty (TIForall id typ i j) = "forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ pretty typ
+  pretty (TIForall id typ i j) = "(forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ pretty typ ++ ")"
 
 -- Def. 2 (Wire Count)
 -- PQR types are amenable to wire counting
-instance Wide Type where
-  wireCount TUnit = return Identity
-  wireCount (TWire wt _) = return $ Wire wt
-  wireCount (TTensor ts) = do
-    wirecounts <- mapM wireCount ts
+instance HasSize Type where
+  typeSize TUnit = return Identity
+  typeSize (TWire wt _) = return $ Wire wt
+  typeSize (TTensor ts) = do
+    wirecounts <- mapM typeSize ts
     return $ foldl Parallel Identity wirecounts
-  wireCount (TCirc {}) = return Identity
-  wireCount (TArrow _ _ _ i) = i
-  wireCount (TBang _ _) = return Identity
-  wireCount (TList id i t) = do
-    wirecount <- wireCount t
+  typeSize (TCirc {}) = return Identity
+  typeSize (TArrow _ _ _ i) = i
+  typeSize (TBang _ _) = return Identity
+  typeSize (TList id i t) = do
+    wirecount <- typeSize t
     return $ BoundedParallel id i wirecount
-  wireCount (TIForall _ _ _ i) = i
-  wireCount (TVar _) = error "Cannot count wires of a type variable"
+  typeSize (TIForall _ _ _ i) = i
+  typeSize (TVar _) = error "Cannot count wires of a type variable"
 
 -- PQR types are amenable to the notion of well-formedness with respect to an index context
 instance HasIndex Type where
   iv :: Type -> Set.HashSet IndexVariableId
   iv TUnit = Set.empty
-  iv (TWire _ i) = Set.empty -- iv i TODO uncomment
+  iv (TWire _ i) = iv i
   iv (TTensor ts) = foldr (Set.union . iv) Set.empty ts
   iv (TCirc i _ _) = iv i
   iv (TArrow typ1 typ2 i j) = iv typ1 `Set.union` iv typ2 `Set.union` iv i `Set.union` iv j
@@ -96,7 +99,7 @@ instance HasIndex Type where
   iv (TIForall id typ i j) = Set.insert id (iv typ `Set.union` iv i `Set.union` iv j)
   ifv :: Type -> Set.HashSet IndexVariableId
   ifv TUnit = Set.empty
-  ifv (TWire _ i) = Set.empty -- ifv i TODO uncomment
+  ifv (TWire _ i) = ifv i
   ifv (TTensor ts) = foldr (Set.union . ifv) Set.empty ts
   ifv (TCirc i _ _) = ifv i
   ifv (TArrow typ1 typ2 i j) = ifv typ1 `Set.union` ifv typ2 `Set.union` ifv i `Set.union` ifv j
@@ -104,20 +107,22 @@ instance HasIndex Type where
   ifv (TList id i typ) = Set.delete id $ ifv i `Set.union` ifv typ
   ifv (TVar _) = Set.empty
   ifv (TIForall id typ i j) = Set.delete id (ifv typ `Set.union` ifv i `Set.union` ifv j)
-  isub :: Index -> IndexVariableId -> Type -> Type
-  isub _ _ TUnit = TUnit
-  isub i id (TWire wtype j) = TWire wtype j --(isub i id j) TODO uncomment
-  isub i id (TTensor ts) = TTensor (map (isub i id) ts)
-  isub i id (TCirc j inBtype outBtype) = TCirc (isub i id j) (isub i id inBtype) (isub i id outBtype) -- Bundle types have no free variables
-  isub i id (TArrow typ1 typ2 j k) = TArrow (isub i id typ1) (isub i id typ2) (isub i id j) (isub i id k)
-  isub i id (TBang j typ) = TBang (isub i id j) (isub i id typ)
-  isub i id (TList id' j typ) = --TODO check
-    let id'' = fresh (fresh id' [IndexVariable id, i, j]) [typ]
-        in TList id'' (isub i id . isub (IndexVariable id'') id' $ j) (isub i id . isub (IndexVariable id'') id' $ typ)
-  isub _ _ (TVar a) = TVar a
-  isub i id (TIForall id' typ j k) =
-    let id'' = fresh (fresh (fresh id' [IndexVariable id, i]) [j, k]) [typ]
-     in TIForall id'' (isub i id . isub (IndexVariable id'') id' $ typ) (isub i id . isub (IndexVariable id'') id' $ j) (isub i id . isub (IndexVariable id'') id' $ k)
+  isub :: IndexSubstitution -> Type -> Type
+  isub _ TUnit = TUnit
+  isub sub (TWire wtype j) = TWire wtype (isub sub j)
+  isub sub (TTensor ts) = TTensor (map (isub sub) ts)
+  isub sub (TCirc j inBtype outBtype) = TCirc (isub sub j) (isub sub inBtype) (isub sub outBtype) -- Bundle types have no free variables
+  isub sub (TArrow typ1 typ2 j k) = TArrow (isub sub typ1) (isub sub typ2) (isub sub j) (isub sub k)
+  isub sub (TBang j typ) = TBang (isub sub j) (isub sub typ)
+  isub sub (TList id j typ) = --TODO check
+    let id' = fresh (fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub)) [typ]
+        renaming = isubSingleton id (IndexVariable id')  
+        in TList id' (isub sub . isub renaming $ j) (isub sub . isub renaming $ typ)
+  isub _ (TVar a) = TVar a
+  isub sub (TIForall id typ j k) =
+    let id' = fresh (fresh (fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub)) [j,k]) [typ]
+        renaming = isubSingleton id (IndexVariable id')  
+     in TIForall id' (isub sub . isub renaming $ typ) (isub sub . isub renaming $ j) (isub sub . isub renaming $ k)
 
 -- | @isLinear t@ returns 'True' @t@ is a linear type, and 'False' otherwise
 isLinear :: Type -> Bool
@@ -140,23 +145,45 @@ isBundleType (TList _ _ typ) = isBundleType typ
 -- isBundleType (TVar _) = True -- TODO check
 isBundleType _ = False
 
+stripGlobalAnnotations :: Type -> Type
+stripGlobalAnnotations TUnit = TUnit
+stripGlobalAnnotations (TVar id) = TVar id
+stripGlobalAnnotations (TArrow t1 t2 _ _) = TArrow (stripGlobalAnnotations t1) (stripGlobalAnnotations t2) Nothing Nothing
+stripGlobalAnnotations (TIForall id t _ _) = TIForall id (stripGlobalAnnotations t) Nothing Nothing
+stripGlobalAnnotations (TList id i t) = TList id i (stripGlobalAnnotations t)
+stripGlobalAnnotations (TBang _ t) = TBang Nothing (stripGlobalAnnotations t)
+stripGlobalAnnotations (TCirc _ t1 t2) = TCirc Nothing (stripGlobalAnnotations t1) (stripGlobalAnnotations t2)
+stripGlobalAnnotations (TTensor ts) = TTensor (map stripGlobalAnnotations ts)
+stripGlobalAnnotations (TWire wt i) = TWire wt i
+
+stripLocalAnnotations :: Type -> Type
+stripLocalAnnotations TUnit = TUnit
+stripLocalAnnotations (TVar id) = TVar id
+stripLocalAnnotations (TArrow t1 t2 i j) = TArrow (stripLocalAnnotations t1) (stripLocalAnnotations t2) i j
+stripLocalAnnotations (TIForall id t i j) = TIForall id (stripLocalAnnotations t) i j
+stripLocalAnnotations (TList id i t) = TList id i (stripLocalAnnotations t)
+stripLocalAnnotations (TBang i t) = TBang i (stripLocalAnnotations t)
+stripLocalAnnotations (TCirc i t1 t2) = TCirc i (stripLocalAnnotations t1) (stripLocalAnnotations t2)
+stripLocalAnnotations (TTensor ts) = TTensor (map stripLocalAnnotations ts)
+stripLocalAnnotations (TWire wt _) = TWire wt Nothing
+
 --- WIRE COUNTING ---------------------------------------------------------------------------------
 
 -- The class of datatypes that can contain wires and are thus amenable to wire counting
 -- Def. 2 (Wire Count)
-class Wide a where
-  wireCount :: a -> Maybe Index -- #(•) in the paper
+class HasSize a where
+  typeSize :: a -> Maybe Index -- #(•) in the paper
 
-instance Wide WireType where
-  wireCount wt = Just (Wire wt)
+instance HasSize WireType where
+  typeSize wt = Just (Wire wt)
 
 -- Any traversable structure of elements with wire counts can be wire counted
 -- Its wire count is the sum of the wire counts of its elements
-instance (Traversable t, Wide a) => Wide (t a) where
-  wireCount x = do
-    wirecounts <- mapM wireCount x
+instance (Traversable t, HasSize a) => HasSize (t a) where
+  typeSize x = do
+    wirecounts <- mapM typeSize x
     return $ foldr Parallel Identity wirecounts
 
-instance Wide a => Wide (Maybe a) where
-  wireCount Nothing = Nothing
-  wireCount (Just x) = wireCount x
+instance HasSize a => HasSize (Maybe a) where
+  typeSize Nothing = Nothing
+  typeSize (Just x) = typeSize x

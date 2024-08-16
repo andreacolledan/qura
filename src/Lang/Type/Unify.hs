@@ -11,6 +11,8 @@ import qualified Data.HashMap.Strict as Map
 import Control.Monad (zipWithM)
 import Data.Foldable
 import Control.Monad.Extra (when)
+import Index.AST
+import Index.Unify
 
 --- TYPE UNIFICATION MODULE ---------------------------------------------------------------------------------
 ---

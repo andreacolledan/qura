@@ -1,5 +1,5 @@
 module Solving.CVC5
-  ( querySMTWithContext,
+  ( querySMT,
     withSolver,
     SolverHandle,
     smtBoundedMaxGeneric
@@ -7,7 +7,7 @@ module Solving.CVC5
 where
 
 import Control.Monad
-import Control.Monad.State (MonadState (..), State, evalState, runState)
+import Control.Monad.State (MonadState (..), State, evalState)
 import qualified Data.HashSet as Set
 import Index.AST
 import PrettyPrinter
@@ -15,6 +15,8 @@ import System.Process as Proc
 import System.IO
 import Control.Concurrent
 import Control.Exception
+import Index.Unify
+import Data.List
 
 --- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
 ---
@@ -23,16 +25,16 @@ import Control.Exception
 --- passed to the solver. The solver's response is then read from the same file.
 -----------------------------------------------------------------------------------------
 
--- | @embedConstraint rel@ returns a string representing the relation @rel@ in SMTLIB format.
---
--- >>> embedConstraint Eq
--- "="
---
--- >>> embedConstraint Leq
--- "<="
-embedConstraint :: IRel -> String
-embedConstraint Eq = "="
-embedConstraint Leq = "<="
+
+embedConstraint :: Constraint -> State Int (String, String)
+embedConstraint (Eq i j) = do
+  (di, ei) <- embedIndex i
+  (dj, ej) <- embedIndex j
+  return (di ++ dj, "(= " ++ ei ++ " " ++ ej ++ ")")
+embedConstraint (Leq i j) = do
+  (di, ei) <- embedIndex i
+  (dj, ej) <- embedIndex j
+  return (di ++ dj, "(<= " ++ ei ++ " " ++ ej ++ ")")
 
 -- | @embedIndex grs lrs grs lrs i@ desugars all bounded operations in index @i@ into fresh, appropriately constrained variables.
 -- It returns a pair @(d, i')@ where @d@ is a string containing the applicable SMTLIB declarations and constraints
@@ -73,9 +75,9 @@ smtBoundedMaxGeneric id i j embed = do
   let argMaxName = "_argmax" ++ show count
   (di, i') <- embed i
   s <- get
-  (dj, j') <- embed (isub (IndexVariable argMaxName) id j)
+  (dj, j') <- embed (isub (isubSingleton id (IndexVariable argMaxName)) j)
   put s
-  (_, j'') <- embed (isub (IndexVariable "_w") id j)
+  (_, j'') <- embed (isub (isubSingleton id (IndexVariable "_w")) j)
   -- the following declarations must occur before the constraints of the sub-terms
   let d0 =
         "; the following variables stand for the max value and argmax of " ++ pretty (BoundedMax id i j) ++ "\n"
@@ -110,29 +112,35 @@ containsBoundedSum i = error $ "Internal error: resource operator was not desuga
 -- | @querySMTWithContext qfh c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables.
 -- It returns @True@ if the constraint holds, @False@ otherwise or if an error occurs in the interaction with the solver.
 -- The handle @qfh@ is used to communicate with the SMT solver.
-querySMTWithContext :: SolverHandle -> Constraint -> IO Bool
+querySMT :: SolverHandle -> [Constraint] -> Constraint -> IO Bool
 -- Since bounded sums are overapproximated in SMT, the presence of
 -- a bounded sum in an equality, or on the right of a LEQ, makes
 -- the constraint undecidable by the SMT. i.e.
 -- a <= a' => b <= b' => a' = b' =/=> a = b
 -- and b <= b' => a <= b' =/=> a <= b,
 -- but a <= a' => a' <= b => a <= b.
-querySMTWithContext _ (Constraint Eq i j) | containsBoundedSum i || containsBoundedSum j = return False
-querySMTWithContext _ (Constraint Leq _ j) | containsBoundedSum j = return False
+querySMT _ _ (Eq i j) | containsBoundedSum i || containsBoundedSum j = return False
+querySMT _ _ (Leq _ j) | containsBoundedSum j = return False
 -- if bounded sums are not a problem, proceed:
-querySMTWithContext (sin, sout) c@(Constraint rel i j) = do
-  hPutStrLn sin $ "\n; PROVE " ++ pretty c
+querySMT (sin, sout) hypotheses thesis = do
+  hPutStrLn sin $ "\n; PROVE " ++ pretty thesis
+  unless (null hypotheses) $ hPutStrLn sin $ "; ASSUMING" ++ intercalate ", " (pretty <$> hypotheses)
   hPutStrLn sin "(push 1)"
-  forM_ (ifv i `Set.union` ifv j) $ \id -> do
+  forM_ (ifv thesis `Set.union` ifv hypotheses) $ \id -> do
     -- for each free index variable in c, initialize an unknown natural variable:
     hPutStrLn sin $ "(declare-const " ++ id ++ " Int)"
     hPutStrLn sin $ "(assert (<= 0 " ++ id ++ "))"
-  let ((ci, i'), n) = runState (embedIndex i) 0
-  let (cj, j') = evalState (embedIndex j) n
-  hPutStr sin (ci ++ cj) -- dump the constraints that desugar bounded maxima
+  forM_ hypotheses $ \h -> do
+    -- for each hypothesis, embed it as an SMTLIB term and assert it:
+    let (d, eh) = evalState (embedConstraint h) 0
+    hPutStr sin d
+    hPutStrLn sin $ "(assert " ++ eh ++ ")"
+  -- embed the thesis as an SMTLIB term:
+  let (d, ethesis) = evalState (embedConstraint thesis) 0
+  hPutStr sin d -- dump the constraints that desugar bounded maxima
   -- try to find a counterexample to c:
   hPutStrLn sin "; assert the negation of the constraint to check if it is valid"
-  hPutStrLn sin $ "(assert (not (" ++ embedConstraint rel ++ " " ++ i' ++ " " ++ j' ++ ")))"
+  hPutStrLn sin $ "(assert (not " ++ ethesis ++ "))"
   hPutStrLn sin "(check-sat)"
   hFlush sin
   resp <- hGetLine sout
@@ -149,11 +157,11 @@ querySMTWithContext (sin, sout) c@(Constraint rel i j) = do
     [] -> do
       -- empty response is considered an error
       hPutStrLn sin "; got empty response"
-      error $ "CVC5 empty response while solving " ++ pretty c
+      error $ "CVC5 empty response while solving " ++ pretty thesis
     other -> do
       -- any other response is considered an error
       hPutStrLn sin $ "; got response: " ++ other
-      error $ "CVC5 unknown response: " ++ other ++ " while solving " ++ pretty c
+      error $ "CVC5 unknown response: " ++ other ++ " while solving " ++ pretty thesis
   hPutStrLn sin "(pop 1)"
   return result
 

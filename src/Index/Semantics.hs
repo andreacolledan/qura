@@ -16,6 +16,7 @@ import Solving.CVC5
 import qualified Data.HashSet as Set
 import Index.Semantics.Resource
 import PrettyPrinter
+import Index.Unify
 
 toNumber :: Index -> Maybe Int
 toNumber (Number n) = Just n
@@ -65,7 +66,7 @@ evalIndex qfh (Max i j) = do
     (i', Number 0) -> return i' -- zero is right identity
     (Number 0, j') -> return j' -- zero is left identity
     (i', j') -> do
-      c <- checkEq qfh i' j'
+      c <- checkEq [] qfh i' j'
       return $ if c
         then i'          -- idemptotent
         else Max i' j'   -- do not reduce further
@@ -87,7 +88,7 @@ evalIndex qfh (Minus i j) = do
     (i', Number 0) -> return i' -- zero is right identity
     (Number 0, _) -> return $ Number 0 -- zero is left absorbing
     (i',j') -> do
-      c <- checkEq qfh i' j'
+      c <- checkEq [] qfh i' j'
       return $ if c
         then Number 0      -- equal terms cancel each other out
         else Minus i' j'   -- do not reduce further
@@ -98,7 +99,7 @@ evalIndex qfh (BoundedMax id i j) = do
     Number 0 -> return $ Number 0
     -- if the upper bound is known, unroll the maximum into a sequence of binary maxima
     Number n -> do
-      elems <- sequence [evalIndex qfh (isub (Number step) id j) | step <- [0 .. n - 1]]
+      elems <- sequence [evalIndex qfh (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
       let unrolling = foldr1 Max elems
       evalIndex qfh unrolling
     i' -> do
@@ -113,7 +114,7 @@ evalIndex qfh (BoundedSum id i j) = do
     Number 0 -> return $ Number 0
     -- if the upper bound is known, unroll the bounded sum into a sequence of binary sums
     Number n -> do
-      elems <- sequence [evalIndex qfh (isub (Number step) id j) | step <- [0 .. n - 1]]
+      elems <- sequence [evalIndex qfh (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
       let unrolling = foldr1 Plus elems
       evalIndex qfh unrolling
     i' -> do
@@ -125,54 +126,53 @@ evalIndex _ i = error $ "Internal error: resource operator was not desugared (ev
 
 -- Fundamental checking functions
 
--- Θ ⊨ i ≤ j (figs. 12,15)
 -- | @checkLeq qfh i j@ checks if index expression @i@ is lesser-or-equal than index expression @j@
 -- for all assignments of their free index variables.
 -- SolverHandle @qfh@ is used to interact with the SMT solver.
-checkLeq :: SolverHandle -> Index -> Index -> IO Bool
-checkLeq qfh i j = do
+checkLeq :: [Constraint] -> SolverHandle -> Index -> Index -> IO Bool
+checkLeq cs qfh i j = do
   i' <- evalIndex qfh i
   j' <- evalIndex qfh j
   case (i', j') of
     (i', j') | i' == j' -> return True -- identical indices are lesser-or-equal
     (Number n, Number m) -> return $ n <= m -- number indices are lesser-or-equal iff their values are lesser-or-equal
-    (i', j') -> querySMTWithContext qfh $ Constraint Leq i' j' -- in all other cases, query the solver
+    (i', j') -> querySMT qfh cs $ Leq i' j' -- in all other cases, query the solver
 
--- Θ ⊨ i = j (figs. 10,15)
 -- | @checkEq qfh i j@ checks if index expressions @i@ and @j@ are equal
 -- for all assignments of their free index variables.
 -- SolverHandle @qfh@ is used to interact with the SMT solver.
-checkEq :: SolverHandle -> Index -> Index -> IO Bool
-checkEq qfh i j = do
+checkEq :: [Constraint] -> SolverHandle -> Index -> Index -> IO Bool
+checkEq cs qfh i j = do
   i' <- evalIndex qfh i
   j' <- evalIndex qfh j
   case (i', j') of
     (i', j') | i' == j' -> return True -- identical indices are equal
     (i', j') | Set.null (ifv i') && Set.null (ifv j') -> return False -- if both indices are closed and not equal, they are not equal
-    (i', j') -> querySMTWithContext qfh $ Constraint Eq i' j' -- in all other cases, query the solver
+    (i', j') -> querySMT qfh cs $ Eq i' j' -- in all other cases, query the solver
 
-checkGRLeq :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
-checkGRLeq _ Nothing _ _ = return True
-checkGRLeq qfh (Just grs) (Just i) (Just j) = checkLeq qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
-checkGRLeq _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGRLeq)."
+checkGRLeq :: [Constraint] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkGRLeq _ _ Nothing _ _ = return True
+checkGRLeq cs qfh (Just grs) (Just i) (Just j) = checkLeq cs qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
+checkGRLeq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGRLeq)."
 
-checkGREq :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
-checkGREq _ Nothing _ _ = return True
-checkGREq qfh (Just grs) (Just i) (Just j) = checkEq qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
-checkGREq _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGREq)."
+checkGREq :: [Constraint] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkGREq _ _ Nothing _ _ = return True
+checkGREq cs qfh (Just grs) (Just i) (Just j) = checkEq cs qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
+checkGREq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGREq)."
 
-checkLRLeq :: SolverHandle -> Maybe LocalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
-checkLRLeq _ Nothing _ _ = return True
-checkLRLeq qfh (Just lrs) (Just i) (Just j) = checkLeq qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
-checkLRLeq _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLRLeq)."
+checkLRLeq :: [Constraint] -> SolverHandle -> Maybe LocalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkLRLeq _ _ Nothing _ _ = return True
+checkLRLeq cs qfh (Just lrs) (Just i) (Just j) = checkLeq cs qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
+checkLRLeq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLRLeq)."
 
-checkLREq :: SolverHandle -> Maybe LocalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
-checkLREq _ Nothing _ _ = return True
-checkLREq qfh (Just lrs) (Just i) (Just j) = checkEq qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
-checkLREq _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLREq)."
+checkLREq :: [Constraint] -> SolverHandle -> Maybe LocalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkLREq _ _ Nothing _ _ = return True
+checkLREq cs qfh (Just lrs) (Just i) (Just j) = checkEq cs qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
+checkLREq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLREq)."
 
 -- MAYBE variants
 
 maybeSimplifyIndex :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Maybe Index -> IO (Maybe Index)
 maybeSimplifyIndex _ _ _ Nothing = return Nothing
 maybeSimplifyIndex qfh grs lrs (Just i) = Just <$> simplifyIndex qfh grs lrs i
+

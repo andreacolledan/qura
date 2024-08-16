@@ -1,5 +1,5 @@
-module Lang.Analysis.Annotate
-  ( runAnnotation,
+module Lang.Analysis.InferBaseType
+  ( runBaseTypeInference,
   )
 where
 
@@ -29,124 +29,124 @@ irr = IndexVariable "irr"
 -- The result is a triple @(e', t, s)@, where @e'@ is the annotated expression, @t@ is its type, and @s@ is the compound
 -- type substitution that was applied to the expression.
 -- TODO: many unnecessary substitutions are happening, their application could be better tailored to the specific typing case
-annotate :: Expr -> TypeDerivation (Expr, Type, TypeSubstitution)
+inferBaseType :: Expr -> TypeDerivation (Expr, Type, TypeSubstitution)
 -- UNIT
-annotate EUnit = withScope EUnit $ return (EUnit, TUnit, mempty)
+inferBaseType EUnit = withScope EUnit $ return (EUnit, TUnit, mempty)
 -- VARIABLE
-annotate e@(EVar id) = withScope e $ do
+inferBaseType e@(EVar id) = withScope e $ do
   typ <- typingContextLookup id
   return (EVar id, typ, mempty)
 -- TUPLE
-annotate e@(ETuple es) = withScope e $ do
+inferBaseType e@(ETuple es) = withScope e $ do
   when (length es < 2) $ error "Internal error: tuple with less than 2 elements escaped parser."
-  (es', typs, subs) <- unzip3 <$> mapM annotate es
+  (es', typs, subs) <- unzip3 <$> mapM inferBaseType es
   let sub = fold subs
   return (tsub sub $ ETuple es', tsub sub $ TTensor typs, sub)
 -- NIL
-annotate e@(ENil _) = withScope e $ do
+inferBaseType e@(ENil _) = withScope e $ do
   typ <- TVar <$> makeFreshVariable "a"
   return (ENil (Just typ), TList "_" irr typ, mempty)
 -- ABSTRACTION
-annotate e@(EAbs p annotyp e1) = withScope e $ do
+inferBaseType e@(EAbs p annotyp e1) = withScope e $ do
   (ids, annotyps) <- makePatternBindings p annotyp UnsizedLists
-  (e1', typ1, sub1) <- withBoundVariables ids annotyps $ annotate e1
+  (e1', typ1, sub1) <- withBoundVariables ids annotyps $ inferBaseType e1
   return (EAbs p (tsub sub1 annotyp) e1', tsub sub1 (TArrow annotyp typ1 Nothing Nothing), sub1)
 -- LIFT
-annotate e@(ELift e1) = withScope e $ do
-  (e1', typ1, sub1) <- withNonLinearContext $ annotate e1
+inferBaseType e@(ELift e1) = withScope e $ do
+  (e1', typ1, sub1) <- withNonLinearContext $ inferBaseType e1
   return (ELift e1', TBang Nothing typ1, sub1)
 -- CONS
-annotate e@(ECons e1 e2) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
-  (e2', typ2, sub2) <- annotate e2
-  sub3 <- unify e1 (tsub sub2 typ1) (TList "_" irr typ2)
+inferBaseType e@(ECons e1 e2) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
+  (e2', typ2, sub2) <- inferBaseType e2
+  sub3 <- unifyTypes e1 (tsub sub2 typ1) (TList "_" irr typ2)
   let sub = sub3 <> sub2 <> sub1
   return (tsub sub (ECons e1' e2'), TList "_" irr typ2, sub)
 -- LET-IN
-annotate e@(ELet p e1 e2) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
+inferBaseType e@(ELet p e1 e2) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
   (ids, typs) <- makePatternBindings p typ1 UnsizedLists
-  (e2', typ2, sub2) <- withBoundVariables ids typs $ annotate e2
+  (e2', typ2, sub2) <- withBoundVariables ids typs $ inferBaseType e2
   let sub = sub2 <> sub1
   return (tsub sub (ELet p e1' e2'), tsub sub typ2, sub)
 -- ANNOTATION
-annotate e@(EAnno e1 annotyp) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
-  sub2 <- unify e1 typ1 annotyp
+inferBaseType e@(EAnno e1 annotyp) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
+  sub2 <- unifyTypes e1 typ1 annotyp
   let sub = sub2 <> sub1
   return (tsub sub (EAnno e1' annotyp), tsub sub annotyp, sub)
 -- FORCE
-annotate e@(EForce e1) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
+inferBaseType e@(EForce e1) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
   typ1' <- TVar <$> makeFreshVariable "a"
-  sub2 <- unify e1 typ1 (TBang Nothing typ1')
+  sub2 <- unifyTypes e1 typ1 (TBang Nothing typ1')
   let sub = sub2 <> sub1
   return (tsub sub (EForce e1'), tsub sub typ1', sub)
 -- APPLICATION (FUNCTIONS)
-annotate e@(EApp e1 e2) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
-  (e2', typ2, sub2) <- annotate e2
+inferBaseType e@(EApp e1 e2) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
+  (e2', typ2, sub2) <- inferBaseType e2
   typ1c <- TVar <$> makeFreshVariable "a"
-  sub3 <- unify e1 (tsub sub2 typ1) (TArrow typ2 typ1c Nothing Nothing)
+  sub3 <- unifyTypes e1 (tsub sub2 typ1) (TArrow typ2 typ1c Nothing Nothing)
   let sub = sub3 <> sub2 <> sub1
   return (tsub sub (EApp e1' e2'), tsub sub typ1c, sub)
 -- APPLY (CIRCUITS)
-annotate e@(EApply e1 e2) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
-  (e2', typ2, sub2) <- annotate e2
+inferBaseType e@(EApply e1 e2) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
+  (e2', typ2, sub2) <- inferBaseType e2
   btc <- TVar <$> makeFreshVariable "a"
   let sub = sub2 <> sub1
   unless (isBundleType typ2) $ throwLocalError $ ExpectedBundleType e2 typ2
-  sub3 <- unify e1 (tsub sub typ1) (TCirc Nothing typ2 btc)
+  sub3 <- unifyTypes e1 (tsub sub typ1) (TCirc Nothing typ2 btc)
   let sub = sub3 <> sub2 <> sub1
   return (tsub sub (EApply e1' e2'), tsub sub btc, sub)
 -- BOX
-annotate e@(EBox _ e1) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
+inferBaseType e@(EBox _ e1) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
   typ1' <- TVar <$> makeFreshVariable "a"
   typ1'' <- TVar <$> makeFreshVariable "a"
-  sub2 <- unify e1 typ1 (TBang Nothing (TArrow typ1' typ1'' Nothing Nothing))
+  sub2 <- unifyTypes e1 typ1 (TBang Nothing (TArrow typ1' typ1'' Nothing Nothing))
   let sub = sub2 <> sub1
   unless (isBundleType (tsub sub typ1') && isBundleType (tsub sub typ1'')) $ throwLocalError $ UnboxableType e1 (tsub sub typ1)
   return (tsub sub (EBox (Just (tsub sub typ1')) e1'), tsub sub (TCirc Nothing (tsub sub typ1') (tsub sub typ1'')), sub)
 -- FOLD
-annotate e@(EFold e1 e2 e3) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
-  (e2', typ2, sub2) <- annotate e2
-  (e3', typ3, sub3) <- annotate e3
+inferBaseType e@(EFold e1 e2 e3) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
+  (e2', typ2, sub2) <- inferBaseType e2
+  (e3', typ3, sub3) <- inferBaseType e3
   elemtyp <- TVar <$> makeFreshVariable "a"
   acctyp <- TVar <$> makeFreshVariable "a"
   let sub = sub3 <> sub2 <> sub1
-  stepsub <- unify e1 (tsub sub typ1) (TBang Nothing (TIForall "_" (TArrow (TTensor [acctyp, elemtyp]) acctyp Nothing Nothing) Nothing Nothing))
+  stepsub <- unifyTypes e1 (tsub sub typ1) (TBang Nothing (TIForall "_" (TArrow (TTensor [acctyp, elemtyp]) acctyp Nothing Nothing) Nothing Nothing))
   let sub = stepsub <> sub3 <> sub2 <> sub1
-  accsub <- unify e2 (tsub sub typ2) (tsub sub acctyp)
+  accsub <- unifyTypes e2 (tsub sub typ2) (tsub sub acctyp)
   let sub = accsub <> stepsub <> sub3 <> sub2 <> sub1
-  argsub <- unify e3 (tsub sub typ3) (tsub sub $ TList "_" irr elemtyp)
+  argsub <- unifyTypes e3 (tsub sub typ3) (tsub sub $ TList "_" irr elemtyp)
   let sub = argsub <> accsub <> stepsub <> sub3 <> sub2 <> sub1
   return (tsub sub (EFold e1' e2' e3'), tsub sub acctyp, sub)
 -- INDEX ABSTRACTION
-annotate e@(EIAbs id e1) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
+inferBaseType e@(EIAbs id e1) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
   return (EIAbs id e1', TIForall id typ1 Nothing Nothing, sub1)
 -- INDEX APPLICATION
-annotate e@(EIApp e1 g) = withScope e $ do
-  (e1', typ1, sub1) <- annotate e1
+inferBaseType e@(EIApp e1 g) = withScope e $ do
+  (e1', typ1, sub1) <- inferBaseType e1
   typ1' <- TVar <$> makeFreshVariable "a"
-  sub2 <- unify e1 typ1 (TIForall "_" typ1' Nothing Nothing)
+  sub2 <- unifyTypes e1 typ1 (TIForall "_" typ1' Nothing Nothing)
   let sub = sub2 <> sub1
   return (tsub sub (EIApp e1' g), tsub sub typ1', sub)
 -- CONSTANTS
-annotate e@(EConst c) = withScope e $ do
+inferBaseType e@(EConst c) = withScope e $ do
   return (EConst c, typeOf c, mempty)
 -- ASSUME
-annotate e@(EAssume e1 annotyp) = withScope e $ do
-  (e1', _, sub1) <- annotate e1
+inferBaseType e@(EAssume e1 annotyp) = withScope e $ do
+  (e1', _, sub1) <- inferBaseType e1
   return (EAssume e1' annotyp, annotyp, sub1)
 
 --- TOP-LEVEL EXPORTED FUNCTIONS -------------------------------------------------------
 
 -- | @ runAnnotation env e @ annotates all the empty lists in expression @e@ with the correct parameter type under environment @env@.
 -- If successful, returns the annotated expression. Otherwise, returns the error.
-runAnnotation :: TypingEnvironment -> Expr -> DerivationResult Expr
-runAnnotation env e = extractFirst <$> evalTypeDerivation (annotate e) env
+runBaseTypeInference :: TypingEnvironment -> Expr -> DerivationResult Expr
+runBaseTypeInference env e = extractFirst <$> evalTypeDerivation (inferBaseType e) env
   where extractFirst (a, _, _) = a

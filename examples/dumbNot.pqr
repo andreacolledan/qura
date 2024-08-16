@@ -1,24 +1,18 @@
 -- dumbNot implements negation of a qubit q in a dumb way
 -- by initializing an ancillary qubit a to 1 and
 -- applying a cnot with target q and control a
-let dumbNot = lift \q :: Qubit .
-  let a = force qinit1 () in
-  let (a,q) = force cnot a q in
-  let _ = force qdiscard a in
+let dumbNot = lift forall d. \q :: Qubit{d} .
+  let a = force qinit1 in
+  let (a,q) = (force cnot @0 @d) a q in
+  let _ = (force qdiscard @(d+1)) a in
   q
 in
 
--- iter @n f q applies f to q n times in sequence
-let iter = lift @n. @m. \f :: ![0](Qubit -o[m,0] Qubit). \q :: Qubit.
-  let iterStep = lift @i. \(q,_) :: (Qubit,()). (force f q)
-  in fold(iterStep, q, range @n)
-in 
-
-let doubleNegation = lift \q :: Qubit.
-  force dumbNot (force dumbNot q)
+let doubleNegation = lift forall d. \q :: Qubit{d}.
+  (force dumbNot @(d+1)) ((force dumbNot @d) q)
 in
 
-dumbNot
+doubleNegation
 
 -- let q = force qinit0 () in
 -- force doubleNegation q

@@ -48,7 +48,7 @@ unifiedLang =
       commentEnd = "-}",
       identStart = letter <|> char '_',
       identLetter = alphaNum <|> char '_',
-      reservedNames = ["let", "in", "Circ", "apply", "fold", "let", "in", "[]", "()"],
+      reservedNames = ["let", "in", "Circ", "apply", "fold", "let", "in", "[]", "()", "forall"],
       opStart = oneOf "@:\\.=!$",
       opLetter = char ':',
       reservedOpNames = ["@", "::", "!::", ":", "\\", ".", "=", "$", "->"]
@@ -199,12 +199,12 @@ apply =
     return $ EApply e1 e2
     <?> "apply"
 
--- parse "@i . e" as (EIAbs i e)
+-- parse "forall i . e" as (EIAbs i e)
 iabs :: Parser Expr
 iabs =
   do
     i <- try $ do
-      m_reservedOp "@"
+      m_reserved "forall"
       i <- m_identifier
       m_reservedOp "."
       return i

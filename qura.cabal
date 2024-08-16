@@ -36,10 +36,11 @@ library
       Index.Semantics.Resource
       Index.Semantics.TCount
       Index.Semantics.Width
-      Lang.Analysis.Analyze
-      Lang.Analysis.Annotate
+      Index.Unify
       Lang.Analysis.Derivation
       Lang.Analysis.Environment
+      Lang.Analysis.InferBaseType
+      Lang.Analysis.InferRefinedType
       Lang.Analysis.TypeError
       Lang.Expr.AST
       Lang.Expr.Parse
