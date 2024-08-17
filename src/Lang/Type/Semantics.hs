@@ -7,7 +7,6 @@ import Solving.CVC5 (SolverHandle)
 import Control.Monad (zipWithM)
 import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
 import Index.Unify
-import PrettyPrinter
 
 -- | @simplifyType t@ returns type @t@ in which all index annotations have been simplified
 -- to a normal form according to 'simplifyIndexStrong'.

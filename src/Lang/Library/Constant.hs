@@ -46,7 +46,7 @@ instance Pretty Constant where
 typeOf :: Constant -> Type
 typeOf (Boxed (QInit b)) = TCirc (Just $ Operation (QInit b)) TUnit (TWire Qubit (Just $ Output (QInit b) 0 []))
 typeOf (Boxed QDiscard) = TIForall "i0" (TCirc (Just $ Operation QDiscard) (TWire Qubit (Just $ IndexVariable "i0")) TUnit) (Just $ Number 0) (Just $ Number 0)
-typeOf (Boxed Meas) = TIForall "i0" (TCirc (Just $ Operation Meas) (TWire Qubit (Just (IndexVariable "i0"))) (TWire Bit (Just (Output Meas 0 [IndexVariable "i"])))) (Just $ Number 0) (Just $ Number 0)
+typeOf (Boxed Meas) = TIForall "i0" (TCirc (Just $ Operation Meas) (TWire Qubit (Just (IndexVariable "i0"))) (TWire Bit (Just (Output Meas 0 [IndexVariable "i0"])))) (Just $ Number 0) (Just $ Number 0)
 typeOf (Boxed (CInit b)) = TCirc (Just $ Operation (CInit b)) TUnit (TWire Bit (Just $ Output (CInit b) 0 []))
 typeOf (Boxed CDiscard) = TIForall "i0" (TCirc (Just $ Operation CDiscard) (TWire Bit (Just (IndexVariable "i0"))) TUnit) (Just $ Number 0) (Just $ Number 0)
 typeOf (Boxed Hadamard) = TIForall "i0" (TCirc (Just $ Operation Hadamard) (TWire Qubit (Just $ IndexVariable "i0")) (TWire Qubit (Just $ Output Hadamard 0 [IndexVariable "i0"]))) (Just $ Number 0) (Just $ Number 0)

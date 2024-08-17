@@ -1,38 +1,38 @@
 -- put q and p into the entangled |+) state
-let bell = lift \(q,p) :: (Qubit, Qubit) .
-  let q = apply(Hadamard, q) in
-  let (q,p) = apply(CNot, (q,p)) in
+let bell = lift forall i .\(q,p) :: (Qubit{i}, Qubit{i}) .
+  let q = (force hadamard @i) q in
+  let (q,p) = (force cnot @(i+1) @i) q p in
   (q,p)
 in
 
 -- Alice's part of the teleportation protocol
-let alice = lift \(p,r) :: (Qubit, Qubit) .
-  let (r,p) = apply(CNot, (r,p)) in
-  let r = apply(Hadamard, r) in
-  let c = apply(Meas, p) in
-  let d = apply(Meas, r) in
+let alice = lift forall i. \(p,r) :: (Qubit{2}, Qubit{i}) .
+  let (r,p) = (force cnot @i @2) r p in
+  let r = (force hadamard @(1+max(2,i))) r in
+  let c = (force meas @(1+max(2,i))) p in
+  let d = (force meas @(2+max(2,i))) r in
   (c,d)
 in
 
 -- Bob's part of the teleportation protocol
-let bob = lift \(q, c, d) :: (Qubit, Bit, Bit) .
-  let (c,q) = apply(CCNot, (c,q)) in
-  let (d,q) = apply(CCZ, (d,q)) in
-  let _ = apply(CDiscard, c) in
-  let _ = apply(CDiscard, d) in
+let bob = lift forall i. \(q, c, d) :: (Qubit{2}, Bit{2+max(2,i)}, Bit{3+max(2,i)}) .
+  let (c,q) = (force ccnot @(2+max(2,i)) @2) c q in
+  let (d,q) = (force ccz @(3+max(2,i)) @(3+max(2,i))) d q in
+  let _ = (force cdiscard @(3+max(2,i))) c  in
+  let _ = (force cdiscard @(4+max(2,i))) d  in
   q
 in
 
 -- teleport the state of qubit r into qubit q
-let teleport = lift \r :: Qubit .
+let teleport = lift forall i. \r :: Qubit{i} .
   -- set-up
-  let q = apply(QInit0, ()) in
-  let p = apply(QInit0, ()) in
-  let (q,p) = force bell (q,p) in
+  let q = force qinit0 in
+  let p = force qinit0 in
+  let (q,p) = (force bell @0) (q,p) in
   -- Alice gets p and r, Bob gets q, Alice travels away from Bob
-  let (c,d) = force alice (p,r) in
+  let (c,d) = (force alice @i) (p,r) in
   -- classical communication of c,d happens here
-  force bob (q,c,d)
+  ((force bob @i) (q,c,d) :: Qubit{i+6})
 in
 
 teleport
