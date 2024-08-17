@@ -18,15 +18,15 @@ import Data.Foldable
 
 --- INDEX SUBSTITUTION ---
 
-newtype IndexSubstitution = IndexSubstitution (Map.HashMap IndexVariableId Index)
+newtype IndexSubstitution = IndexSubstitution (Map.HashMap IVarId Index)
 
-isubDomain :: IndexSubstitution -> [IndexVariableId]
+isubDomain :: IndexSubstitution -> [IVarId]
 isubDomain (IndexSubstitution map) = Map.keys map
 
 isubCodomain :: IndexSubstitution -> [Index]
 isubCodomain (IndexSubstitution map) = Map.elems map
 
-isubSingleton :: IndexVariableId -> Index -> IndexSubstitution
+isubSingleton :: IVarId -> Index -> IndexSubstitution
 isubSingleton id i = IndexSubstitution $ Map.singleton id i
 
 -- | @compose sub1 sub2@ composes the type substitutions @sub1@ and @sub2@
@@ -45,15 +45,15 @@ instance Monoid IndexSubstitution where
 -- | The class of types that contain index variables
 class HasIndex a where
   -- | @iv x@ returns the set of index variables (bound or free) that occur in @x@
-  iv :: a -> Set.HashSet IndexVariableId
+  iv :: a -> Set.HashSet IVarId
   -- | @ifv x@ returns the set of free index variables that occur in @x@
-  ifv :: a -> Set.HashSet IndexVariableId
+  ifv :: a -> Set.HashSet IVarId
   -- | @isub sub x@ substitutes the index variable @id@ by the index @i@ in @x@
   isub :: IndexSubstitution -> a -> a
 
 instance HasIndex Index where
-  iv :: Index -> Set.HashSet IndexVariableId
-  iv (IndexVariable id) = Set.singleton id
+  iv :: Index -> Set.HashSet IVarId
+  iv (IVar id) = Set.singleton id
   iv (Number _) = Set.empty
   iv (Plus i j) = iv i `Set.union` iv j
   iv (Max i j) = iv i `Set.union` iv j
@@ -69,8 +69,8 @@ instance HasIndex Index where
   iv (Parallel i j) = iv i `Set.union` iv j
   iv (BoundedSequence id i j) = Set.insert id (iv i `Set.union` iv j)
   iv (BoundedParallel id i j) = Set.insert id (iv i `Set.union` iv j)
-  ifv :: Index -> Set.HashSet IndexVariableId
-  ifv (IndexVariable id) = Set.singleton id
+  ifv :: Index -> Set.HashSet IVarId
+  ifv (IVar id) = Set.singleton id
   ifv (Number _) = Set.empty
   ifv (Plus i j) = ifv i `Set.union` ifv j
   ifv (Max i j) = ifv i `Set.union` ifv j
@@ -88,18 +88,18 @@ instance HasIndex Index where
   ifv (BoundedParallel id i j) = Set.delete id (ifv i `Set.union` ifv j)
   isub :: IndexSubstitution -> Index -> Index
   isub _ (Number n) = Number n
-  isub (IndexSubstitution map) j@(IndexVariable id) = Map.findWithDefault j id map
+  isub (IndexSubstitution map) j@(IVar id) = Map.findWithDefault j id map
   isub sub (Plus j k) = Plus (isub sub j) (isub sub k)
   isub sub (Max j k) = Max (isub sub j) (isub sub k)
   isub sub (Mult j k) = Mult (isub sub j) (isub sub k)
   isub sub (Minus j k) = Minus (isub sub j) (isub sub k)
   isub sub (BoundedMax id j k) =
-    let id' = fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub ++ [k])
-        renaming = isubSingleton id (IndexVariable id')
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub ++ [k])
+        renaming = isubSingleton id (IVar id')
      in BoundedMax id' (isub sub j) (isub sub . isub renaming $ k)
   isub sub (BoundedSum id j k) =
-    let id' = fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub ++ [k])
-        renaming = isubSingleton id (IndexVariable id')
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub ++ [k])
+        renaming = isubSingleton id (IVar id')
      in BoundedSum id' (isub sub j) (isub sub . isub renaming $ k)
   isub sub (Output op n is) = Output op n (isub sub <$> is)
   isub _ Identity = Identity
@@ -108,19 +108,19 @@ instance HasIndex Index where
   isub sub (Sequence j k) = Sequence (isub sub j) (isub sub k)
   isub sub (Parallel j k) = Parallel (isub sub j) (isub sub k)
   isub sub (BoundedSequence id j k) =
-    let id' = fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub ++ [k])
-        renaming = isubSingleton id (IndexVariable id')
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub ++ [k])
+        renaming = isubSingleton id (IVar id')
      in BoundedSequence id' (isub sub j) (isub sub . isub renaming $ k)
   isub sub (BoundedParallel id j k) =
-    let id' = fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub ++ [k])
-        renaming = isubSingleton id (IndexVariable id')
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub ++ [k])
+        renaming = isubSingleton id (IVar id')
      in BoundedParallel id' (isub sub j) (isub sub . isub renaming $ k)
 
 instance HasIndex Constraint where
-  iv :: Constraint -> Set.HashSet IndexVariableId
+  iv :: Constraint -> Set.HashSet IVarId
   iv (Eq i j) = iv i `Set.union` iv j
   iv (Leq i j) = iv i `Set.union` iv j
-  ifv :: Constraint -> Set.HashSet IndexVariableId
+  ifv :: Constraint -> Set.HashSet IVarId
   ifv (Eq i j) = ifv i `Set.union` ifv j
   ifv (Leq i j) = ifv i `Set.union` ifv j
   isub :: IndexSubstitution -> Constraint -> Constraint
@@ -129,16 +129,16 @@ instance HasIndex Constraint where
 
 
 -- | @fresh id xs@ returns a fresh index variable name that does not occur in @xs@, @id@ if possible.
-fresh :: (HasIndex a) => IndexVariableId -> [a] -> IndexVariableId
+fresh :: (HasIndex a) => IVarId -> [a] -> IVarId
 fresh id xs =
   let toavoid = Set.unions $ iv <$> xs
    in head $ filter (not . (`Set.member` toavoid)) $ id : [id ++ show n | n <- [0 ..]]
 
 -- Natural lifting of well-formedness to traversable data structures
 instance (Traversable t, HasIndex a) => HasIndex (t a) where
-  iv :: t a -> Set.HashSet IndexVariableId
+  iv :: t a -> Set.HashSet IVarId
   iv x = let ivets = iv <$> x in foldr Set.union Set.empty ivets
-  ifv :: t a -> Set.HashSet IndexVariableId
+  ifv :: t a -> Set.HashSet IVarId
   ifv x = let ifvets = ifv <$> x in foldr Set.union Set.empty ifvets
   isub :: IndexSubstitution -> t a -> t a
   isub sub x = isub sub <$> x
@@ -148,16 +148,16 @@ instance (Traversable t, HasIndex a) => HasIndex (t a) where
 -- | @assignIndexVariable id i@ attempts to return the singleton substitution @[id ↦ i]@.
 -- It returns the empty substitution if @id == i@.
 -- It returns 'Nothing' if @id@ occurs in @i@.
-assignIndexVariable :: IndexVariableId -> Index -> Maybe IndexSubstitution
-assignIndexVariable id (IndexVariable id') | id == id' = return mempty
+assignIndexVariable :: IVarId -> Index -> Maybe IndexSubstitution
+assignIndexVariable id (IVar id') | id == id' = return mempty
 assignIndexVariable id i | id `Set.member` ifv i = Nothing
 assignIndexVariable id i = return $ IndexSubstitution $ Map.singleton id i
 
 -- | @mgiu i1 i2@ attempts to return the most general index substitution sub such that @sub i1 == i2@.
 -- If such a substitution does not exist, it returns 'Nothing'
 mgiu :: Index -> Index -> Maybe IndexSubstitution
-mgiu (IndexVariable id) i = assignIndexVariable id i
-mgiu i (IndexVariable id) = assignIndexVariable id i --TODO check if correct
+mgiu (IVar id) i = assignIndexVariable id i
+mgiu i (IVar id) = assignIndexVariable id i --TODO check if correct
 mgiu (Number n) (Number m) | n == m = return mempty
 mgiu (Plus i j) (Plus i' j') = do
   sub1 <- mgiu i i'
@@ -178,12 +178,12 @@ mgiu (Minus i j) (Minus i' j') = do
 mgiu (BoundedMax id i j) (BoundedMax id' i' j') = do
   let fid = fresh (fresh id [i, i']) [j, j']
   sub1 <- mgiu i i'
-  sub2 <- mgiu (isub (isubSingleton id (IndexVariable fid)) j) (isub (isubSingleton id' (IndexVariable fid)) j')
+  sub2 <- mgiu (isub (isubSingleton id (IVar fid)) j) (isub (isubSingleton id' (IVar fid)) j')
   return $ compose sub2 sub1
 mgiu (BoundedSum id i j) (BoundedSum id' i' j') = do
   let fid = fresh (fresh id [i, i']) [j, j']
   sub1 <- mgiu i i'
-  sub2 <- mgiu (isub (isubSingleton id (IndexVariable fid)) j) (isub (isubSingleton id' (IndexVariable fid)) j')
+  sub2 <- mgiu (isub (isubSingleton id (IVar fid)) j) (isub (isubSingleton id' (IVar fid)) j')
   return $ compose sub2 sub1
 mgiu (Output op n is) (Output op' n' is') | op == op' && n == n' = do
   subs <- zipWithM mgiu is is'
@@ -202,11 +202,11 @@ mgiu (Parallel i j) (Parallel i' j') = do
 mgiu (BoundedSequence id i j) (BoundedSequence id' i' j') = do
   let fid = fresh (fresh id [i, i']) [j, j']
   sub1 <- mgiu i i'
-  sub2 <- mgiu (isub (isubSingleton id (IndexVariable fid)) j) (isub (isubSingleton id' (IndexVariable fid)) j')
+  sub2 <- mgiu (isub (isubSingleton id (IVar fid)) j) (isub (isubSingleton id' (IVar fid)) j')
   return $ compose sub2 sub1
 mgiu (BoundedParallel id i j) (BoundedParallel id' i' j') = do
   let fid = fresh (fresh id [i, i']) [j, j']
   sub1 <- mgiu i i'
-  sub2 <- mgiu (isub (isubSingleton id (IndexVariable fid)) j) (isub (isubSingleton id' (IndexVariable fid)) j')
+  sub2 <- mgiu (isub (isubSingleton id (IVar fid)) j) (isub (isubSingleton id' (IVar fid)) j')
   return $ compose sub2 sub1
 mgiu _ _ = Nothing

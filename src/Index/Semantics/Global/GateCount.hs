@@ -1,5 +1,5 @@
-module Index.Semantics.GateCount (gateCountResourceSemantics) where
-import Index.Semantics.Resource
+module Index.Semantics.Global.GateCount (gateCountResourceSemantics) where
+import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
@@ -7,7 +7,8 @@ gateCountResourceSemantics :: GlobalResourceSemantics
 
 gateCountResourceSemantics =
   GlobalResourceSemantics
-    { desugarIdentity = Number 0,
+    { name = "gate count",
+      desugarIdentity = Number 0,
       desugarWire = const (Number 0),
       desugarOperation = Number . opGateCount,
       desugarSequence = Plus,

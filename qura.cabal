@@ -29,13 +29,14 @@ library
       Index.AST
       Index.Parse
       Index.Semantics
-      Index.Semantics.Bits
-      Index.Semantics.Depth
-      Index.Semantics.GateCount
-      Index.Semantics.Qubits
-      Index.Semantics.Resource
-      Index.Semantics.TCount
-      Index.Semantics.Width
+      Index.Semantics.Global.Bits
+      Index.Semantics.Global.GateCount
+      Index.Semantics.Global.Qubits
+      Index.Semantics.Global.Resource
+      Index.Semantics.Global.TCount
+      Index.Semantics.Global.Width
+      Index.Semantics.Local.Depth
+      Index.Semantics.Local.Resource
       Index.Unify
       Lang.Analysis.Derivation
       Lang.Analysis.Environment

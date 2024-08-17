@@ -238,7 +238,7 @@ withNonLinearContext der = do
         )
 
 -- | @withBoundIndexVariable id der@ is derivation @der@ in which index variable @id@ is in scope.
-withBoundIndexVariable :: IndexVariableId -> TypeDerivation a -> TypeDerivation a
+withBoundIndexVariable :: IVarId -> TypeDerivation a -> TypeDerivation a
 withBoundIndexVariable id der = do
   env@TypingEnvironment {indexContext = theta} <- get
   when (Set.member id theta) $ throwLocalError $ ShadowedIndexVariable id

@@ -63,7 +63,7 @@ parseIndexVariable :: Parser Index
 parseIndexVariable =
   do
     v <- m_identifier
-    return $ IndexVariable v
+    return $ IVar v
     <?> "index variable"
 
 -- Parses "max(i, j)" as (Max i j)
@@ -145,7 +145,8 @@ parseIndex =
   let -- Usual arithmetic operator associativity and precedence
       indexOperators =
         [ [Infix multOp AssocLeft],
-          [Infix plusOp AssocLeft, Infix minusOp AssocLeft],
+          [Infix plusOp AssocLeft],
+          [Infix minusOp AssocLeft],
           [Prefix manyMaximumOp, Prefix manySumOp]
         ]
    in buildExpressionParser indexOperators delimitedIndex <?> "index expression"

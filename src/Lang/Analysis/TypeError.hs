@@ -13,7 +13,7 @@ import PrettyPrinter
 -- The datatype of errors that can occur during a derivation
 data TypeError
   = UnboundVariable VariableId [Expr]
-  | UnboundIndexVariable IndexVariableId [Expr]
+  | UnboundIndexVariable IVarId [Expr]
   | UnexpectedType Expr Type Type [Expr]
   | UnexpectedIndex Index Index [Expr]
   | UnexpectedResourceAnnotation Expr Index Index [Expr]
@@ -33,7 +33,7 @@ data TypeError
   | UnfoldableAccumulator Expr Type [Expr]
   | UnfoldableArg Expr Type [Expr]
   | -- Other
-    ShadowedIndexVariable IndexVariableId [Expr]
+    ShadowedIndexVariable IVarId [Expr]
   | UnexpectedEmptyList Expr Type [Expr]
   deriving (Eq)
 

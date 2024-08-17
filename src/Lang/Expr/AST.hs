@@ -35,7 +35,7 @@ data Expr =
   | EForce Expr                               -- Force                    : force e
   | ELet Pattern Expr Expr                    -- Let                      : let p = e1 in e2
   | EAnno Expr Type                           -- Type annotation          : e :: t
-  | EIAbs IndexVariableId Expr                -- Index Abstraction        : @i . e
+  | EIAbs IVarId Expr                -- Index Abstraction        : @i . e
   | EIApp Expr Index                          -- Index Application        : e @ i
   | EConst Constant                           -- Constant                 : QInit0, Hadamard, ...
   | EAssume Expr Type                         -- Type assumption          : e !:: t

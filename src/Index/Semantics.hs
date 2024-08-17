@@ -14,7 +14,8 @@ where
 import Index.AST
 import Solving.CVC5
 import qualified Data.HashSet as Set
-import Index.Semantics.Resource
+import Index.Semantics.Global.Resource
+import Index.Semantics.Local.Resource
 import PrettyPrinter
 import Index.Unify
 
@@ -27,7 +28,7 @@ simplifyIndex qfh grs lrs i = evalIndex qfh (desugarIndex grs lrs i)
 
 desugarIndex :: Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Index -> Index
 desugarIndex _ _ (Number n) = Number n
-desugarIndex _ _ (IndexVariable id) = IndexVariable id
+desugarIndex _ _ (IVar id) = IVar id
 desugarIndex mgrs lrs (Plus i j) = Plus (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
 desugarIndex mgrs lrs (Max i j) = Max (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
 desugarIndex mgrs lrs (Mult i j) = Mult (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
@@ -49,7 +50,7 @@ desugarIndex _ _ i = error $ "Internal error: resource operator was not desugare
 -- 'SolverHandle' @qfh@ is used to interact with the SMT solver.
 evalIndex :: SolverHandle -> Index -> IO Index
 evalIndex _ (Number n) = return $ Number n
-evalIndex _ (IndexVariable id) = return $ IndexVariable id
+evalIndex _ (IVar id) = return $ IVar id
 evalIndex qfh (Plus i j) = do
   i' <- evalIndex qfh i
   j' <- evalIndex qfh j

@@ -14,7 +14,8 @@ import Lang.Analysis.Derivation
 import Lang.Analysis.InferBaseType
 import Control.Monad.Except
 import Solving.CVC5 (SolverHandle)
-import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
+import Index.Semantics.Global.Resource
+import Index.Semantics.Local.Resource
 import Data.Maybe
 import Index.Unify
 import Lang.Library.Constant
@@ -100,12 +101,12 @@ inferRefinedType e@(EFold e1 e2 e3) = withScope e $ do
   unlessIdentity o2 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o2)
   unlessIdentity o3 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o3)
   -- acctyp' <: acctyp{id+1/id}
-  unlessSubtype incacctyp (isub (isubSingleton step (IndexVariable step `Plus` Number 1)) acctyp) $ throwLocalError $ UnfoldableStepfunction e1 steptyp
+  unlessSubtype incacctyp (isub (isubSingleton step (IVar step `Plus` Number 1)) acctyp) $ throwLocalError $ UnfoldableStepfunction e1 steptyp
   -- List Argument --
   ((argtyp@(TList id' arglen elemtyp'), i3), wc2) <- withWireCount $ inferRefinedType e3
-  let invariant = [Leq (IndexVariable step `Plus` Number 1) arglen] -- step index is bounded by the length of the list
+  let invariant = [Leq (IVar step `Plus` Number 1) arglen] -- step index is bounded by the length of the list
   -- elemtyp'{arglen-(id+1)/id'} <: elemtyp
-  let flippedelemtyp' = isub (isubSingleton id' (arglen `Minus` (IndexVariable step `Plus` Number 1))) elemtyp'
+  let flippedelemtyp' = isub (isubSingleton id' (arglen `Minus` (IVar step `Plus` Number 1))) elemtyp'
   unlessSubtypeAssuming invariant flippedelemtyp' elemtyp $ throwLocalError $ UnfoldableArg e3 argtyp
   -- Accumulator --
   ((acctyp'', i2), wc1) <- withWireCount $ inferRefinedType e2
@@ -113,7 +114,7 @@ inferRefinedType e@(EFold e1 e2 e3) = withScope e $ do
   let baseacctyp = isub (isubSingleton step (Number 0)) acctyp
   unlessSubtypeAssuming invariant acctyp'' baseacctyp $ throwLocalError $ UnexpectedType e2 baseacctyp acctyp'' 
   -- width upper bound of ONLY fold execution: max(#(acctyp{0/id},>>[id<arglen] stepwidth || ||[id'<arglen-(id+1)] #(elemtyp)))
-  k1 <- ifGlobalResources $ Max <$> typeSize baseacctyp <*> (BoundedSequence step arglen <$> (Parallel <$> stepres {-todo has to be changed afterwards to include bang and such-} <*> (BoundedParallel id' (Minus arglen (Plus (IndexVariable step) (Number 1))) <$> typeSize elemtyp))) --todo check
+  k1 <- ifGlobalResources $ Max <$> typeSize baseacctyp <*> (BoundedSequence step arglen <$> (Parallel <$> stepres {-todo has to be changed afterwards to include bang and such-} <*> (BoundedParallel id' (Minus arglen (Plus (IVar step) (Number 1))) <$> typeSize elemtyp))) --todo check
   -- the total upper bound takes into consideration the evaluation of e1, e2, e3 and the fold execution
   -- (i1 || wires in e2 and e3) >> (i2 || wires in e3) >> (i3 || wires in the result of e2) >> k1:
   k2 <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> (Parallel <$> wc1 <*> wc2)) <*> (Sequence <$> (Parallel <$> i2 <*> wc2) <*> (Sequence <$> (Parallel <$> i3 <*> typeSize (isub (isubSingleton step (Number 0)) acctyp)) <*> join k1))

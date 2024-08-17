@@ -154,7 +154,8 @@ delimitedType =
 parseType :: Parser Type
 parseType =
   let table =
-        [ [Prefix listOperator, Prefix bangOperator, Prefix forallOperator],
-          [Infix arrowOperator AssocRight] -- arrows have lower precedence than bangs and list constructors
+        [ [Prefix listOperator, Prefix bangOperator],
+          [Infix arrowOperator AssocRight], -- arrows have lower precedence than bangs and list constructors
+          [Prefix forallOperator]
         ]
    in buildExpressionParser table delimitedType <?> "type"

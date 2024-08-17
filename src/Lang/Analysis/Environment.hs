@@ -6,7 +6,8 @@ import Lang.Expr.AST
 import Index.AST
 import qualified Data.HashSet as Set
 import Solving.CVC5
-import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
+import Index.Semantics.Global.Resource
+import Index.Semantics.Local.Resource
 
 
 --- TYPE ENVIRONMENT MODULE ------------------------------------------------------------
@@ -68,7 +69,7 @@ instance HasSize TypingEnvironment where
 
 -- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- The index variables in @theta@ are considered to be in scope.
-makeEnvForall :: [IndexVariableId] -> [(VariableId, Type)] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> TypingEnvironment
+makeEnvForall :: [IVarId] -> [(VariableId, Type)] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> TypingEnvironment
 makeEnvForall theta gamma sh =
   let gamma' = Map.fromList [(id, [BindingInfo typ False]) | (id, typ) <- gamma]
    in TypingEnvironment gamma' (Set.fromList theta) [] True 0 sh

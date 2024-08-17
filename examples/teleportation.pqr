@@ -23,7 +23,7 @@ let bob = lift forall i. \(q, c, d) :: (Qubit{2}, Bit{2+max(2,i)}, Bit{3+max(2,i
   q
 in
 
--- teleport the state of qubit r into qubit q
+-- teleport the state of qubit r (at depth i) into qubit q
 let teleport = lift forall i. \r :: Qubit{i} .
   -- set-up
   let q = force qinit0 in

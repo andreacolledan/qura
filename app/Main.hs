@@ -12,15 +12,16 @@ import System.Console.ANSI
 import System.IO.Extra
 import Text.Parsec (runParser)
 import Lang.Library.Prelude
-import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
-import Index.Semantics.Width (widthResourceSemantics)
-import Index.Semantics.Qubits (qubitsResourceSemantics)
-import Index.Semantics.TCount (tCountResourceSemantics)
-import Index.Semantics.Bits (bitsResourceSemantics)
-import Index.Semantics.GateCount (gateCountResourceSemantics)
+import Index.Semantics.Global.Resource
+import Index.Semantics.Local.Resource
+import Index.Semantics.Global.Width (widthResourceSemantics)
+import Index.Semantics.Global.Qubits (qubitsResourceSemantics)
+import Index.Semantics.Global.TCount (tCountResourceSemantics)
+import Index.Semantics.Global.Bits (bitsResourceSemantics)
+import Index.Semantics.Global.GateCount (gateCountResourceSemantics)
 import Data.Maybe (isJust, fromJust)
 import qualified Index.Parse as IP
-import Index.Semantics.Depth
+import Index.Semantics.Local.Depth
 
 globalResourceArgParser :: ReadM GlobalResourceSemantics
 globalResourceArgParser = do
@@ -123,4 +124,4 @@ main = do
             putStrLn $ "* Inferred type: " ++ pretty t'
             when (isJust mgrs) $ do
               i' <- simplifyIndex qfh mgrs mlrs (fromJust i)
-              putStrLn $ "* Inferred bound: " ++ pretty i'
+              putStrLn $ "* Inferred " ++ pretty mgrs ++ " upper bound: " ++ pretty i'

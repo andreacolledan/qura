@@ -1,14 +1,14 @@
 {-# LANGUAGE LambdaCase #-}
-module Index.Semantics.Bits (bitsResourceSemantics) where
+module Index.Semantics.Global.Bits (bitsResourceSemantics) where
 
-import Index.Semantics.Resource
+import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
 bitsResourceSemantics :: GlobalResourceSemantics
 bitsResourceSemantics =
   GlobalResourceSemantics
-  {
+  { name = "bits",
     desugarIdentity = Number 0,
     desugarWire = \case Qubit -> Number 0; Bit -> Number 1,
     desugarOperation = Number . opBits,

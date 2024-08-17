@@ -5,7 +5,8 @@ import Index.Semantics
 import Lang.Type.AST
 import Solving.CVC5 (SolverHandle)
 import Control.Monad (zipWithM)
-import Index.Semantics.Resource (GlobalResourceSemantics, LocalResourceSemantics)
+import Index.Semantics.Global.Resource
+import Index.Semantics.Local.Resource
 import Index.Unify
 
 -- | @simplifyType t@ returns type @t@ in which all index annotations have been simplified
@@ -53,15 +54,15 @@ checkSubtype cs qfh grs lrs (TList id i t) (TList id' i' t') = do
   cempty1 <- checkEq cs qfh i (Number 0)
   cempty2 <- checkEq cs qfh i' (Number 0)
   if cempty1 && cempty2 then return True else do -- empty list types are equal regardless of parameter
-    let fid = fresh (fresh (fresh id [i, i']) [IndexVariable id']) [t, t']
+    let fid = fresh (fresh (fresh id [i, i']) [IVar id']) [t, t']
     c1 <- checkEq cs qfh i i'
-    c2 <- checkSubtype cs qfh grs lrs (isub (isubSingleton id (IndexVariable fid)) t) (isub (isubSingleton id' (IndexVariable fid)) t')
+    c2 <- checkSubtype cs qfh grs lrs (isub (isubSingleton id (IVar fid)) t) (isub (isubSingleton id' (IVar fid)) t')
     return $ c1 && c2
 checkSubtype cs qfh grs lrs (TIForall id t i j) (TIForall id' t' i' j') =
-  let fid = fresh (fresh (fresh id [i, j, i', j']) [IndexVariable id']) [t, t']
+  let fid = fresh (fresh (fresh id [i, j, i', j']) [IVar id']) [t, t']
     in do
-      c1 <- checkSubtype cs qfh grs lrs (isub (isubSingleton id (IndexVariable fid)) t) (isub (isubSingleton id' (IndexVariable fid)) t')
-      c2 <- checkGRLeq cs qfh grs (isub (isubSingleton id (IndexVariable fid)) i) (isub (isubSingleton id' (IndexVariable fid)) i') 
-      c3 <- checkGREq cs qfh grs (isub (isubSingleton id (IndexVariable fid)) j) (isub (isubSingleton id' (IndexVariable fid)) j') 
+      c1 <- checkSubtype cs qfh grs lrs (isub (isubSingleton id (IVar fid)) t) (isub (isubSingleton id' (IVar fid)) t')
+      c2 <- checkGRLeq cs qfh grs (isub (isubSingleton id (IVar fid)) i) (isub (isubSingleton id' (IVar fid)) i') 
+      c3 <- checkGREq cs qfh grs (isub (isubSingleton id (IVar fid)) j) (isub (isubSingleton id' (IVar fid)) j') 
       return $ c1 && c2 && c3
 checkSubtype cs _ _ _ _ _ = return False

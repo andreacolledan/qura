@@ -2,6 +2,7 @@
 
 module PrettyPrinter
   ( Pretty (..),
+    withinPar
   )
 where
 
@@ -10,10 +11,16 @@ import qualified Data.List as List
 import qualified Data.HashSet as Set
 
 -- | The @Pretty@ typeclass is used to define a pretty-printing function 'pretty' for a type.
-class (Show a) => Pretty a where
+class Pretty a where
   -- | The 'pretty' function is used to pretty-print a value of type @a@.
   pretty :: a -> String
-  pretty = show -- default implementation just shows the value
+  pretty = prettyPrec 0
+  prettyPrec :: Int -> a -> String
+  prettyPrec _ = pretty
+
+withinPar :: Bool -> String -> String
+withinPar True s = "(" ++ s ++ ")"
+withinPar False s = s
 
 -- If v is pretty, then so is a HashMap with String keys and v values (used for typing contexts)
 instance (Pretty v) => Pretty (HashMap.HashMap String v) where

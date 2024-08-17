@@ -39,9 +39,9 @@ data Type
   | TCirc (Maybe Index) Type Type               -- Circuit type     : Circ[i](t1, t2)
   | TArrow Type Type (Maybe Index) (Maybe Index)-- Function type    : t1 -o[i,j] t2
   | TBang (Maybe Index) Type                    -- Bang type        : ![i]t
-  | TList IndexVariableId Index Type            -- List type        : TList[id < i] t
+  | TList IVarId Index Type            -- List type        : TList[id < i] t
   | TVar TVarId                                 -- Type variable    : 
-  | TIForall IndexVariableId Type (Maybe Index) (Maybe Index) -- Dep. fun. type   : i ->[i,j] t
+  | TIForall IVarId Type (Maybe Index) (Maybe Index) -- Dep. fun. type   : i ->[i,j] t
   deriving (Show, Eq)
 
 prettyGlobalAnnotation :: Maybe Index -> String
@@ -58,15 +58,15 @@ prettyLocalAnnotation Nothing = ""
 prettyLocalAnnotation (Just i) = "{" ++ pretty i ++ "}"
 
 instance Pretty Type where
-  pretty TUnit = "()"
-  pretty (TWire wt i) = pretty wt ++ prettyLocalAnnotation i
-  pretty (TTensor ts) = "(" ++ intercalate ", " (map pretty ts) ++ ")"
-  pretty (TCirc i inBtype outBtype) = "Circ" ++ prettyGlobalAnnotation i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
-  pretty (TArrow typ1 typ2 i j) = "(" ++ pretty typ1 ++ " -o" ++ prettyGlobalAnnotations i j ++ " " ++ pretty typ2 ++ ")"
-  pretty (TBang i typ) = "!" ++ prettyGlobalAnnotation i  ++ pretty typ
-  pretty (TList id i typ) = "(List[" ++ id ++ "<" ++ pretty i ++ "] " ++ pretty typ ++ ")"
-  pretty (TVar id) = id
-  pretty (TIForall id typ i j) = "(forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ pretty typ ++ ")"
+  prettyPrec _ TUnit = "()"
+  prettyPrec _ (TWire wt i) = pretty wt ++ prettyLocalAnnotation i
+  prettyPrec _ (TTensor ts) = "(" ++ intercalate ", " (map pretty ts) ++ ")"
+  prettyPrec _ (TCirc i inBtype outBtype) = "Circ" ++ prettyGlobalAnnotation i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
+  prettyPrec prec (TArrow typ1 typ2 i j) = withinPar (prec > 5) $ prettyPrec 5 typ1 ++ " -o" ++ prettyGlobalAnnotations i j ++ " " ++ prettyPrec 5 typ2
+  prettyPrec prec (TBang i typ) = withinPar (prec > 6) $ "!" ++ prettyGlobalAnnotation i  ++ prettyPrec 6 typ
+  prettyPrec prec (TList id i typ) = withinPar (prec > 6) "List[" ++ id ++ "<" ++ pretty i ++ "] " ++ prettyPrec 6 typ
+  prettyPrec _ (TVar id) = id
+  prettyPrec prec (TIForall id typ i j) = withinPar (prec > 4) $ "forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ prettyPrec 4 typ
 
 -- Def. 2 (Wire Count)
 -- PQR types are amenable to wire counting
@@ -87,7 +87,7 @@ instance HasSize Type where
 
 -- PQR types are amenable to the notion of well-formedness with respect to an index context
 instance HasIndex Type where
-  iv :: Type -> Set.HashSet IndexVariableId
+  iv :: Type -> Set.HashSet IVarId
   iv TUnit = Set.empty
   iv (TWire _ i) = iv i
   iv (TTensor ts) = foldr (Set.union . iv) Set.empty ts
@@ -97,7 +97,7 @@ instance HasIndex Type where
   iv (TList id i typ) = Set.insert id $ iv i `Set.union` iv typ
   iv (TVar _) = Set.empty
   iv (TIForall id typ i j) = Set.insert id (iv typ `Set.union` iv i `Set.union` iv j)
-  ifv :: Type -> Set.HashSet IndexVariableId
+  ifv :: Type -> Set.HashSet IVarId
   ifv TUnit = Set.empty
   ifv (TWire _ i) = ifv i
   ifv (TTensor ts) = foldr (Set.union . ifv) Set.empty ts
@@ -115,13 +115,13 @@ instance HasIndex Type where
   isub sub (TArrow typ1 typ2 j k) = TArrow (isub sub typ1) (isub sub typ2) (isub sub j) (isub sub k)
   isub sub (TBang j typ) = TBang (isub sub j) (isub sub typ)
   isub sub (TList id j typ) = --TODO check
-    let id' = fresh (fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub)) [typ]
-        renaming = isubSingleton id (IndexVariable id')  
+    let id' = fresh (fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)) [typ]
+        renaming = isubSingleton id (IVar id')  
         in TList id' (isub sub . isub renaming $ j) (isub sub . isub renaming $ typ)
   isub _ (TVar a) = TVar a
   isub sub (TIForall id typ j k) =
-    let id' = fresh (fresh (fresh id ((IndexVariable <$> isubDomain sub) ++ isubCodomain sub)) [j,k]) [typ]
-        renaming = isubSingleton id (IndexVariable id')  
+    let id' = fresh (fresh (fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)) [j,k]) [typ]
+        renaming = isubSingleton id (IVar id')  
      in TIForall id' (isub sub . isub renaming $ typ) (isub sub . isub renaming $ j) (isub sub . isub renaming $ k)
 
 -- | @isLinear t@ returns 'True' @t@ is a linear type, and 'False' otherwise

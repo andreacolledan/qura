@@ -7,7 +7,7 @@ let rotate = forall i. forall m. lift forall k.\((ctrls, trg), ctrl)::((List[j<k
     let (ctrl, trg) = (force cR @(m+1-k) @(i+m+k) @(i+m+k)) ctrl trg in -- (Qubit{i+m+k+1}, Qubit{i+m+k+1})
     (ctrls:ctrl, trg) -- (List[j<k+1] Qubit{i+m+j+1}, Qubit{i+m+k+1})
 in
-let qft = forall n. forall i.\reg :: List[j<n] Qubit{i}.
+let qft = lift forall n. forall i.\reg :: List[j<n] Qubit{i}.
   let qftStep = lift forall m.\(ctrls, trg)::(List[j<m] Qubit{i+m+j}, Qubit{i}).
       let revctrls = (force qrev @m @i) ctrls in -- List[j<m] Qubit{i+2m-(j+1)}
       let (ctrls, trg) = fold(rotate @i @m, ([], trg), revctrls) in

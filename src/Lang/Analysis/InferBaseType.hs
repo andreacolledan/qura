@@ -22,7 +22,7 @@ import Lang.Library.Constant
 
 -- | @irr@ is a placeholder index variable used for the length of lists.
 irr :: Index
-irr = IndexVariable "irr"
+irr = IVar "irr"
 
 
 -- | @ annotate e @ infers the type of expression @e@, without indices, annotating intermediate expressions as necessary.

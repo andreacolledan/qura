@@ -1,12 +1,13 @@
-module Index.Semantics.TCount (tCountResourceSemantics) where
-import Index.Semantics.Resource
+module Index.Semantics.Global.TCount (tCountResourceSemantics) where
+import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
 tCountResourceSemantics :: GlobalResourceSemantics
 tCountResourceSemantics =
   GlobalResourceSemantics
-    { desugarIdentity = Number 0,
+    { name = "T-count",
+      desugarIdentity = Number 0,
       desugarWire = const (Number 0),
       desugarOperation = Number . opTCount,
       desugarSequence = Plus,

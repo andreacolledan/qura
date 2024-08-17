@@ -41,7 +41,7 @@ embedConstraint (Leq i j) = do
 -- that must precede the main query in the smtlib file and @i'@ is an appropriate encoding of i as an SMTLIB term, where
 -- every occurrence of a bounded operation is replaced by the corresponding newly introduced variable.
 embedIndex :: Index -> State Int (String, String)
-embedIndex (IndexVariable id) = return ("", id)
+embedIndex (IVar id) = return ("", id)
 embedIndex (Number n) = return ("", show n)
 embedIndex (Plus i j) = do
   (di, i') <- embedIndex i
@@ -67,7 +67,7 @@ embedIndex (BoundedSum id i j) = do
   return (d, "(* " ++ i' ++ " " ++ maxName ++ ")")
 embedIndex i = error $ "Internal error: resource operator was not desugared (embedIndex):" ++ pretty i
 
-smtBoundedMaxGeneric :: IndexVariableId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String, String)
+smtBoundedMaxGeneric :: IVarId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String, String)
 smtBoundedMaxGeneric id i j embed = do
   count <- get
   put $ count + 1
@@ -75,9 +75,9 @@ smtBoundedMaxGeneric id i j embed = do
   let argMaxName = "_argmax" ++ show count
   (di, i') <- embed i
   s <- get
-  (dj, j') <- embed (isub (isubSingleton id (IndexVariable argMaxName)) j)
+  (dj, j') <- embed (isub (isubSingleton id (IVar argMaxName)) j)
   put s
-  (_, j'') <- embed (isub (isubSingleton id (IndexVariable "_w")) j)
+  (_, j'') <- embed (isub (isubSingleton id (IVar "_w")) j)
   -- the following declarations must occur before the constraints of the sub-terms
   let d0 =
         "; the following variables stand for the max value and argmax of " ++ pretty (BoundedMax id i j) ++ "\n"
@@ -99,7 +99,7 @@ smtBoundedMaxGeneric id i j embed = do
 
 containsBoundedSum :: Index -> Bool
 containsBoundedSum (BoundedSum {}) = True
-containsBoundedSum (IndexVariable _) = False
+containsBoundedSum (IVar _) = False
 containsBoundedSum (Number _) = False
 containsBoundedSum (Plus i j) = containsBoundedSum i || containsBoundedSum j
 containsBoundedSum (Max i j) = containsBoundedSum i || containsBoundedSum j

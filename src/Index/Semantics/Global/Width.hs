@@ -1,16 +1,16 @@
-module Index.Semantics.Width (
+module Index.Semantics.Global.Width (
   widthResourceSemantics
 ) where
 
 
-import Index.Semantics.Resource
+import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
 widthResourceSemantics :: GlobalResourceSemantics
 widthResourceSemantics =
   GlobalResourceSemantics
-  {
+  { name = "width",
     desugarIdentity = Number 0,
     desugarWire = const (Number 1),
     desugarOperation = Number . opWidths,
