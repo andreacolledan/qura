@@ -48,9 +48,9 @@ cdiscard = ELift $ EIAbs "l" $ EAbs (PVar "c") (TWire Bit (Just $ IVar "l")) (EA
 hadamard :: Expr
 hadamard = ELift $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) (EApply (EConst (Boxed Hadamard) `EIApp` IVar "l") (EVar "q"))
 
--- | @pauliX@ is the function that applies the Pauli-X gate to a qubit.
-pauliX :: Expr
-pauliX = ELift $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) (EApply (EConst (Boxed PauliX) `EIApp` IVar "l") (EVar "q"))
+-- | @qnot@ is the function that applies the Pauli-X gate to a qubit.
+qnot :: Expr
+qnot = ELift $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) (EApply (EConst (Boxed PauliX) `EIApp` IVar "l") (EVar "q"))
 
 -- | @pauliY@ is the function that applies the Pauli-Y gate to a qubit.
 pauliY :: Expr
@@ -84,100 +84,14 @@ ccz = ELift $ EIAbs "lctrl" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl") (TWire Bit (Jus
 toffoli :: Expr
 toffoli = ELift $ EIAbs "lctrl1" $ EIAbs "lctrl2" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl1") (TWire Qubit (Just $ IVar "lctrl1")) $ EAbs (PVar "ctrl2") (TWire Qubit (Just $ IVar "lctrl2")) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst (Boxed Toffoli) `EIApp` IVar "lctrl1" `EIApp` IVar "lctrl2" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrl1", EVar "ctrl2", EVar "trgt"])
 
+-- | @mcnot@ is the function that applies the multi-controlled NOT gate to a list of control qubits and a target qubit.
+mcnot :: Expr
+mcnot = ELift $ EIAbs "n" $ EIAbs "lctrls" $ EIAbs "ltrgt" $ EAbs (PVar "ctrls") (TList "_" (IVar "n") (TWire Qubit (Just $ IVar "lctrls"))) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeMCNot `EIApp` IVar "n" `EIApp` IVar "lctrls" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrls", EVar "trgt"])
+
 -- | @cR@ is the function that returns the controlled-R gate of angle 2π/2^n to a pair of qubits.
 cR :: Expr
 cR = ELift $ EIAbs "n" $ EIAbs "lctrl" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl") (TWire Qubit (Just $ IVar "lctrl")) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeCRGate `EIApp` IVar "n" `EIApp` IVar "lctrl" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrl", EVar "trgt"])
 
------ LIST FUNCTIONS --------------------------------------------------------------------------------------------
---
----- | @qrev@ is the function that reverses a list of qubits.
---qrev :: Expr
---qrev = ELift $ EIAbs "n" $ EAbs (PVar "qs") (TList (IVar "n") (TWire Qubit)) $ EFold (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "q"]) (TTensor [TList (IVar "i") (TWire Qubit), TWire Qubit]) (ECons (EVar "q") (EVar "acc"))) (ENil $ Just $ TWire Qubit) (EVar "qs")
---
----- | @crev@ is the function that reverses a list of bits.
---crev :: Expr
---crev = ELift $ EIAbs "n" $ EAbs (PVar "cs") (TList (IVar "n") (TWire Bit)) $ EFold (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "c"]) (TTensor [TList (IVar "i") (TWire Bit), TWire Bit]) (ECons (EVar "c") (EVar "acc"))) (ENil $ Just $ TWire Bit) (EVar "cs")
---
----- | @qmap@ is the function that maps a signle-qubit circuit-building function over a list of qubits.
---qmap :: Expr
---qmap = ELift $
---  EIAbs "n" $ EAbs (PVar "f") (TBang $ TArrow (TWire Qubit) (TWire Qubit) (IVar "n") (Number 0)) $
---  EIAbs "m" $ EAbs (PVar "list") (TList (IVar "m") (TWire Qubit)) $
---    EFold (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "q"]) (TTensor [TList (IVar "i") (TWire Qubit), TWire Qubit])  (ECons (EApp (EForce $ EVar "f") (EVar "q")) (EVar "acc")))
---    (ENil $ Just $ TWire Qubit)
---    (EApp (EIApp (EForce $ EVar "qrev") (IVar "m")) (EVar "list"))
---
----- | @cmap@ is the function that maps a signle-qubit circuit-building function over a list of bits.
---cmap :: Expr
---cmap = ELift $
---  EIAbs "n" $ EAbs (PVar "f") (TBang $ TArrow (TWire Bit) (TWire Bit) (IVar "n") (Number 0)) $
---  EIAbs "m" $ EAbs (PVar "list") (TList (IVar "m") (TWire Bit)) $
---    EFold (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "c"]) (TTensor [TList (IVar "i") (TWire Bit), TWire Bit]) (ECons (EApp (EForce $ EVar "f") (EVar "c")) (EVar "acc"))) (ENil $ Just $ TWire Bit) (EApp (EIApp (EForce $ EVar "crev") (IVar "m")) (EVar "list"))
---
----- | @qconcat@ is the function that concatenates two lists of qubits.
---qconcat :: Expr
---qconcat = ELift $ -- lift
---  EIAbs "n" $ EAbs (PVar "list1") (TList (IVar "n") (TWire Qubit)) $ -- @i. \list1 :: List[n] Qubit.
---  EIAbs "m" $ EAbs (PVar "list2") (TList (IVar "m") (TWire Qubit)) $ -- @j. \list2 :: List[m] Qubit.
---    EFold -- fold (
---    (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "qs", PVar "q"]) (TTensor [TList (Plus (IVar "i") (IVar "m")) (TWire Qubit), TWire Qubit]) -- @k. \(qs,q) :: (List[i+m] Qubit, Qubit).
---      (ECons (EVar "q") (EVar "qs"))) -- (q:qs),
---    (EVar "list2")  -- list2,
---    (EApp (EIApp (EForce $ EVar "qrev") (IVar "n")) (EVar "list1")) -- (force qrev @ n) list1)
---
----- | @cconcat@ is the function that concatenates two lists of bits.
---cconcat :: Expr
---cconcat = ELift $ -- lift
---  EIAbs "n" $ EAbs (PVar "list1") (TList (IVar "n") (TWire Bit)) $ -- @i. \list1 :: List[n] Bit.
---  EIAbs "m" $ EAbs (PVar "list2") (TList (IVar "m") (TWire Bit)) $ -- @j. \list2 :: List[m] Bit.
---    EFold -- fold (
---    (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "qs", PVar "q"]) (TTensor [TList (Plus (IVar "i") (IVar "m")) (TWire Bit), TWire Bit]) -- @k. \(qs,q) :: (List[i+m] Bit, Bit).
---      (ECons (EVar "q") (EVar "qs"))) -- (q:qs),
---    (EVar "list2")  -- list2,
---    (EApp (EIApp (EForce $ EVar "crev") (IVar "n")) (EVar "list1")) -- (force qrev @ n) list1)
---
---
------ MULTI-QUBIT GATES -----------------------------------------------------------------------------------------
---
----- | @mqinit0@ is the function that initializes a list of qubits to the |0⟩ state.
---mQinit0 :: Expr
---mQinit0 = ELift $ EIAbs "n" $ EFold
---  (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "_"]) (TTensor [TList (IVar "i") (TWire Qubit), TUnit])
---    (ECons (EApply (EConst QInit0) EUnit) (EVar "acc")))
---  (ENil $ Just TUnit)
---  (EIApp (EConst MakeUnitList) (IVar "n"))
---
----- | @mqinit1@ is the function that initializes a list of qubits to the |1⟩ state.
---mQinit1 :: Expr
---mQinit1 = ELift $ EIAbs "n" $ EFold
---  (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "_"]) (TTensor [TList (IVar "i") (TWire Qubit), TUnit])
---    (ECons (EApply (EConst QInit1) EUnit) (EVar "acc")))
---  (ENil $ Just TUnit)
---  (EIApp (EConst MakeUnitList) (IVar "n"))
---
----- | @mcinit0@ is the function that initializes a list of bits to the 0 state.
---mCinit0 :: Expr
---mCinit0 = ELift $ EIAbs "n" $ EFold
---  (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "_"]) (TTensor [TList (IVar "i") (TWire Bit), TUnit])
---    (ECons (EApply (EConst CInit0) EUnit) (EVar "acc")))
---  (ENil $ Just TUnit)
---  (EIApp (EConst MakeUnitList) (IVar "n"))
---
----- | @mcinit1@ is the function that initializes a list of bits to the 1 state.
---mCinit1 :: Expr
---mCinit1 = ELift $ EIAbs "n" $ EFold
---  (ELift $ EIAbs "i" $ EAbs (PTuple [PVar "acc", PVar "_"]) (TTensor [TList (IVar "i") (TWire Bit), TUnit])
---    (ECons (EApply (EConst CInit1) EUnit) (EVar "acc")))
---  (ENil $ Just TUnit)
---  (EIApp (EConst MakeUnitList) (IVar "n"))
---
----- | @mHadamard@ is the function that applies the Hadamard gate to a list of qubits.
---mHadamard :: Expr
---mHadamard = ELift $ EApp (EIApp (EForce (EVar "qmap")) (Number 1)) hadamard
---
----- | @mX@ is the function that applies the Pauli-X gate to a list of qubits.
---mX :: Expr
---mX = ELift $ EApp (EIApp (EForce (EVar "qmap")) (Number 1)) pauliX
 
 --- MISC -----------------------------------------------------------------------------------------------------
 
@@ -197,7 +111,7 @@ libraryBindings = [
   ("cinit1", cinit1),
   ("cdiscard", cdiscard),
   ("hadamard", hadamard),
-  ("pauliX", pauliX),
+  ("qnot", qnot),
   ("pauliY", pauliY),
   ("pauliZ", pauliZ),
   ("tgate", tgate),
@@ -206,20 +120,9 @@ libraryBindings = [
   ("ccnot", ccnot),
   ("ccz", ccz),
   ("toffoli", toffoli),
+  ("mcnot", mcnot),
   ("cR", cR),
-  ("range", range){-,
-  ("qrev", qrev),
-  ("crev", crev),
-  ("qmap", qmap),
-  ("cmap", cmap),
-  ("mHadamard", mHadamard),
-  ("mX", mX),
-  ("mQinit0", mQinit0),
-  ("mQinit1", mQinit1),
-  ("mCinit0", mCinit0),
-  ("mCinit1", mCinit1),
-  ("qconcat", qconcat),
-  ("cconcat", cconcat)-}
+  ("range", range)
   ]
 
 library :: Expr -> Expr

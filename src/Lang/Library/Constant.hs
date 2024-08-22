@@ -18,6 +18,7 @@ data Constant
   = Boxed QuantumOperation
   -- Functions
   | MakeCRGate
+  | MakeMCNot
   | MakeUnitList
   deriving (Eq, Show)
 
@@ -39,6 +40,7 @@ instance Pretty Constant where
   pretty (Boxed CCNot) = "CCNot"
   pretty (Boxed CCZ) = "CCZ"
   pretty (Boxed Toffoli) = "Toffoli"
+  pretty MakeMCNot = "MakeMCNot"
   pretty MakeCRGate = "MakeCRGate"
   pretty MakeUnitList = "MakeUnitList"
 
@@ -64,6 +66,7 @@ typeOf (Boxed CCZ) = TIForall "i0" ( TIForall "i1" (TCirc (Just $ Operation CCZ)
 
 typeOf (Boxed Toffoli) = TIForall "i0" ( TIForall "i1" ( TIForall "i2" (TCirc (Just $ Operation Toffoli) (TTensor [TWire Qubit (Just $ IVar "i0"), TWire Qubit (Just $ IVar "i1"), TWire Qubit (Just $ IVar "i2")]) (TTensor [TWire Qubit (Just $ Output Toffoli 0 [IVar "i0", IVar "i1", IVar "i2"]), TWire Qubit (Just $ Output Toffoli 1 [IVar "i0", IVar "i1", IVar "i2"]), TWire Qubit (Just $ Output Toffoli 2 [IVar "i0", IVar "i1", IVar "i2"])])) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
 
+typeOf MakeMCNot = TIForall "n" (TIForall "i0" (TIForall "i1" (TCirc (Just $ Operation PauliX `Parallel` BoundedParallel "i" (IVar "n") (Wire Qubit)) (TTensor [TList "i" (IVar "n") (TWire Qubit (Just $ IVar "i0")), TWire Qubit (Just $ IVar "i1")]) (TTensor [TList "i" (IVar "n") (TWire Qubit (Just $ Output CNot 0 [IVar "i0", IVar "i1"])), TWire Qubit (Just $ Output CNot 1 [IVar "i0", IVar "i1"])])) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0) --TODO this is just a workaround
 -- single-qubit single-controlled R gate family
 typeOf MakeCRGate = TIForall "i" (TIForall "i0" (TIForall "i1" (TCirc (Just $ Operation (CR 0)) (TTensor [TWire Qubit (Just $ IVar "i0"), TWire Qubit (Just $ IVar "i1")]) (TTensor [TWire Qubit (Just $ Output (CR 0) 0 [IVar "i0", IVar "i1"]), TWire Qubit (Just $ Output (CR 0) 1 [IVar "i0", IVar "i1"])])) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
 -- list of unit of length n
