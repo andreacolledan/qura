@@ -66,12 +66,10 @@ let grover = lift forall n. forall w. forall od.
     let iteration = lift forall step. \((wqs, a), _) :: ((List[_<n] Qubit{1+step*(od+5)}, Qubit{1+step*(od+5)}), ()).
       (force groverIteration @ n @ 1+step*(od+5) @ w @ od) oracle wqs a
     in
-    let (wqs, a) = fold(iteration, (wqs, a), range @ 3) in
-    -- ^^ 3 is a placeholder, should be floor(pi/4 * sqrt(2^(i+1))), but our arithmetic is not this rich yet
-    let _ = (force qdiscard @ 1 + 3 * (od + 5)) a in
-    ((force measureMany @ n @ 1 + 3 * (od + 5)) wqs :: List[_<n] Bit{2 + 3 * (od + 5)})
-    -- the above type signature proves that the depth of grover's algorithm does NOT depend on the input size n
-    -- it only depends on the depth of the oracle od and the number of iterations (which is fixed at 3 in this case)
+    let (wqs, a) = fold(iteration, (wqs, a), range @ n) in
+    -- ^^ n is an approximation, should be floor(pi/4 * sqrt(2^(n))), but our arithmetic is not this rich yet
+    let _ = (force qdiscard @ 1 + n * (od + 5)) a in
+    ((force measureMany @ n @ 1 + n * (od + 5)) wqs :: List[_<n] Bit{2 + n * (od + 5)})
 in
 
 -- The oracle f : {0,1}^3 -> {0,1} such that f(x) = 1 iff x = 111
