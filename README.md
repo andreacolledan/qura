@@ -109,6 +109,7 @@ You can install QuRA using [stack](https://docs.haskellstack.org/en/stable/) by 
 ```
 $ git clone https://github.com/andreacolledan/qura
 $ cd qura
+$ git checkout multimetric-analysis
 $ stack install
 ```
 
@@ -143,6 +144,3 @@ General usage of qura is thus
 qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-resource-analysis RESOURCE] [-l | --local-resource-analysis RESOURCE]
 ```
 For more information, refer to `qura --help`.
-
-## Tests
-To execute unit tests, run `stack test`
