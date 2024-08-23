@@ -101,11 +101,6 @@ test-suite qura-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Index.ASTSpec
-      Index.ParseSpec
-      Index.SemanticsSpec
-      Lang.Analysis.AnalyzeSpec
-      Lang.Expr.ParseSpec
       Paths_qura
   hs-source-dirs:
       test
