@@ -46,7 +46,7 @@ in
 -- using an ancilla a at depth d
 -- and an oracle of width w and depth od
 let groverIteration = lift forall n. forall d. forall w. forall od.
-  \oracle :: forall d. Circ[w]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
+  \oracle :: forall[0,0] d. Circ[w]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
   \reg :: List[_<n] Qubit{d}.
   \a :: Qubit{d}.
     let (reg, a) = apply(oracle @ d, (reg, a)) in
@@ -55,7 +55,7 @@ in
 
 -- run Grover's algorithm on an oracle of input size n, width w and depth od
 let grover = lift forall n. forall w. forall od.
-  \oracle :: forall d. Circ[w]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
+  \oracle :: forall[0,0] d. Circ[w]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
     -- prepare working qubits
     let wqs = force qinit0Many @ n in
     let wqs = (force hadamardMany @ n @ 0) wqs in
@@ -78,4 +78,4 @@ let oracleOne = forall d.
     (force mcnot @ 3 @ d @ d) reg a -- Ancilla is flipped iff reg is 111
 in
 
-(force grover @ 3 @ 5 @ 1) oracleOne
+(force grover @ 3 @ 4 @ 1) oracleOne

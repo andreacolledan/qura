@@ -1,1 +1,0 @@
-\x :: (forall i. Qubit{i}) . x
