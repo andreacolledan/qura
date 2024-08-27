@@ -105,20 +105,21 @@ $ cd qura
 $ git checkout multimetric-analysis
 $ stack install
 ```
+**Disclaimer:** support for metrics other than circuit width is still experimental.
 
 ## Usage
-To run QuRA on program file `FILE`, run
+To run QuRA on the PQR file `FILE`, run
 ```
 $ qura FILE
 ```
-This runs standard type inference for the program in `FILE`, without any resource estimation. To also perform global metric estimation, use the `-g RESOURCE` option. For example, to perform width estimation, run
+This runs standard type inference for the program in `FILE`, without any resource estimation. To also perform global metric estimation, use the `-g METRIC` option. For example, to perform width estimation, run
 
 ```
 $ qura FILE -g width
 ```
-To perform local metric estimation, use the `-l RESOURCE` option instead. Note that at most one global metric and on local metric can be analyzed at a time.
+To perform local metric estimation, use the `-l METRIC` option instead. Note that at most one global metric and on local metric can be analyzed at a time.
 
-Currently, qura supports the analysis of the following resource metrics:
+Currently, qura supports the analysis of the following circuit size metrics:
 
 | Flag | Type | Description |
 |-|-|-|
@@ -134,6 +135,6 @@ Use option `--debug DEBUG` to dump a copy of all SMT queries performed during ty
 
 General usage of qura is thus
 ```
-qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-resource-analysis RESOURCE] [-l | --local-resource-analysis RESOURCE]
+qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-resource-analysis METRIC] [-l | --local-resource-analysis METRIC]
 ```
 For more information, refer to `qura --help`.

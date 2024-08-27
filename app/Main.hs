@@ -55,7 +55,7 @@ interface =
   info
     (arguments <**> helper)
     ( fullDesc
-        <> progDesc "Verify the resource consumption of the program in FILE according to RESOURCE."
+        <> progDesc "Verify the resource consumption of the program in FILE according to the chosen METRIC."
         <> header "QuRA: a static analysis tool for the resource verification of quantum circuit description programs"
     )
   where
@@ -64,7 +64,7 @@ interface =
       CommandLineArguments
         <$> strArgument
           ( metavar "FILE"
-              <> help "The file to type-check"
+              <> help "The file to type-check and analyze"
           )
         <*> switch
           ( long "verbose"
@@ -82,16 +82,16 @@ interface =
               <> help "Do not include the prelude"
           )
         <*> optional (option globalResourceArgParser
-          ( long "global-resource-analysis"
+          ( long "global-metric-analysis"
               <> short 'g'
-              <> metavar "RESOURCE"
-              <> help "Analyse global RESOURCE"
+              <> metavar "METRIC"
+              <> help "Analyse global METRIC"
               ))
         <*> optional (option localResourceArgParser
-          ( long "local-resource-analysis"
+          ( long "local-metric-analysis"
               <> short 'l'
-              <> metavar "RESOURCE"
-              <> help "Analyse local RESOURCE"
+              <> metavar "METRIC"
+              <> help "Analyse local METRIC"
               ))
 
 main :: IO ()
