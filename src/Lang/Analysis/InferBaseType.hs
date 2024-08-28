@@ -45,7 +45,7 @@ inferBaseType e@(ETuple es) = withScope e $ do
 -- NIL
 inferBaseType e@(ENil _) = withScope e $ do
   typ <- TVar <$> makeFreshVariable "a"
-  return (ENil (Just typ), TList "_" irr typ, mempty)
+  return (ENil (Just typ), TList "_" (Number 0) typ, mempty)
 -- ABSTRACTION
 inferBaseType e@(EAbs p annotyp e1) = withScope e $ do
   (ids, annotyps) <- makePatternBindings p annotyp UnsizedLists

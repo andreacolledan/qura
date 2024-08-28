@@ -28,6 +28,9 @@ QuRA takes as input programs written in a variant of Quipper called PQR (short f
       - [Applying boxed circuits](#applying-boxed-circuits)
   - [Annotation polymorphism](#annotation-polymorphism)
   - [Sized dependent lists](#sized-dependent-lists)
+    - [Examples](#examples-2)
+      - [Size](#size)
+      - [Dependency](#dependency)
   - [Fold](#fold)
 - [Primitive Operations](#primitive-operations)
   - [Qubit and Bit meta-operations](#qubit-and-bit-meta-operations)
@@ -234,6 +237,36 @@ $ qura examples/snippets/box.pqr -g width -l depth
 
 
 ### Sized dependent lists
+
+Unlike lists in most functional programming languages, PQR lists grow to the right. The empty list is `[]`, whereas `xs:x` denotes the append of `x` to the list `xs`. List literals are also supported.
+
+PQR lists are *sized* and *dependent*, meaning that their exact size is reflected in the type, and that the type of an element might depend on its position within the list. A *sized dependent list type* of the form
+```
+List[i<n] type
+```
+describes lists of length `n` in which the `i`-th element has a type `type` which may depend on `i`.
+
+#### Examples
+##### Size
+```
+[(),(),()]
+```
+```
+$ qura examples/snippets/lists.pqr
+* Inferred type: List[i<3] ()
+* Inferred width upper bound: 0
+```
+##### Dependency
+```
+let empty = [] :: List[i<0](List[j<i+1] ()) in
+empty:[()]:[(),()]:[(),(),()]
+```
+```
+$ qura examples/snippets/lists.pqr -l depth
+* Inferred type: List[i<3] List[j<i+1] ()
+```
+
+
 
 ### Fold
 
