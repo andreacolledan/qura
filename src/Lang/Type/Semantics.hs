@@ -18,7 +18,7 @@ simplifyType qfh grs lrs (TTensor ts) = TTensor <$> mapM (simplifyType qfh grs l
 simplifyType qfh grs lrs (TArrow t1 t2 i j) = TArrow <$> simplifyType qfh grs lrs t1 <*> simplifyType qfh grs lrs t2 <*> maybeSimplifyIndex qfh grs lrs i <*> maybeSimplifyIndex qfh grs lrs j
 simplifyType qfh grs lrs (TBang i t) = TBang <$> maybeSimplifyIndex qfh grs lrs i <*> simplifyType qfh grs lrs t
 simplifyType qfh grs lrs (TList id i t) = TList id <$> simplifyIndex qfh grs lrs i <*> simplifyType qfh grs lrs t
-simplifyType qfh grs lrs (TCirc i inBtype outBtype) = TCirc <$> maybeSimplifyIndex qfh grs lrs i <*> pure inBtype <*> pure outBtype
+simplifyType qfh grs lrs (TCirc i inBtype outBtype) = TCirc <$> maybeSimplifyIndex qfh grs lrs i <*> simplifyType qfh grs lrs inBtype <*> simplifyType qfh grs lrs outBtype
 simplifyType qfh grs lrs (TIForall id t i j) = TIForall id <$> simplifyType qfh grs lrs t <*> maybeSimplifyIndex qfh grs lrs i <*> maybeSimplifyIndex qfh grs lrs j
 simplifyType _ _ _ t = return t
 

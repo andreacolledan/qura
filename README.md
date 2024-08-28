@@ -2,7 +2,7 @@
 
 **Disclaimer:** support for metrics other than circuit width is still experimental.
 
-QuRA is a static analysis tool for the verification of the resource consumption of quantum circuit description programs. QuRA takes as input a program written in a variant of Quipper called [PQR](src/Lang/Unified/README.md). and outputs two things: a type for the program and an upper bound to the size of the circuit it will build.
+QuRA is a static analysis tool for the verification of the resource consumption of quantum circuit description programs. QuRA takes as input a program written in a variant of Quipper called [PQR](src/Lang/README.md). and outputs two things: a type for the program and an upper bound to the size of the circuit it will build.
 
 ## Getting started
 
@@ -135,6 +135,6 @@ Use option `--debug DEBUG` to dump a copy of all SMT queries performed during ty
 
 General usage of qura is thus
 ```
-qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-resource-analysis METRIC] [-l | --local-resource-analysis METRIC]
+qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-metric-analysis METRIC] [-l | --local-metric-analysis METRIC]
 ```
 For more information, refer to `qura --help`.

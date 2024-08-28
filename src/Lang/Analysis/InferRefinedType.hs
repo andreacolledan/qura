@@ -19,6 +19,7 @@ import Index.Semantics.Local.Resource
 import Data.Maybe
 import Index.Unify
 import Lang.Library.Constant
+import Control.Monad.State
 
 --- TYPE SYNTHESIS MODULE ---------------------------------------------------------------
 ---
@@ -184,7 +185,12 @@ inferRefinedType e@(EIApp e1 g) = withScope e $ do
 -- CONSTANTS
 inferRefinedType e@(EConst c) = withScope e $ do
   k <- ifGlobalResources Identity
-  return (typeOf c, k)
+  grs <- gets grs
+  lrs <- gets lrs
+  let typ = typeOf c
+  let typ' = if isNothing grs then stripGlobalAnnotations typ else typ
+  let typ'' = if isNothing lrs then stripLocalAnnotations typ' else typ'
+  return (typ'', k)
 -- ASSUMPTION (unsafe)
 inferRefinedType e@(EAssume e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp

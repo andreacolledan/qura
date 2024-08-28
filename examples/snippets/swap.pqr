@@ -1,0 +1,5 @@
+-- Swap two qubits at depth 0
+let q = apply(QInit0, ()) in
+let p = apply(QInit0, ()) in
+let swap = \(x,y) :: (Qubit{0}, Qubit{0}) . (y,x) in
+swap (q,p)

@@ -1,0 +1,2 @@
+let qinit = lift apply(QInit0, ()) in
+force qinit
