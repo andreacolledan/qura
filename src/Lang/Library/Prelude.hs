@@ -88,9 +88,13 @@ toffoli = ELift $ EIAbs "lctrl1" $ EIAbs "lctrl2" $ EIAbs "ltrgt" $ EAbs (PVar "
 mcnot :: Expr
 mcnot = ELift $ EIAbs "n" $ EIAbs "lctrls" $ EIAbs "ltrgt" $ EAbs (PVar "ctrls") (TList "_" (IVar "n") (TWire Qubit (Just $ IVar "lctrls"))) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeMCNot `EIApp` IVar "n" `EIApp` IVar "lctrls" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrls", EVar "trgt"])
 
--- | @cR@ is the function that returns the controlled-R gate of angle 2π/2^n to a pair of qubits.
-cR :: Expr
-cR = ELift $ EIAbs "n" $ EIAbs "lctrl" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl") (TWire Qubit (Just $ IVar "lctrl")) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeCRGate `EIApp` IVar "n" `EIApp` IVar "lctrl" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrl", EVar "trgt"])
+-- | @rgate@ is the function that returns the R gate of angle 2π/2^n to a qubit.
+rgate :: Expr
+rgate = ELift $ EIAbs "n" $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) $ EApply (EConst MakeRGate `EIApp` IVar "n" `EIApp` IVar "l") (EVar "q")
+
+-- | @cr@ is the function that returns the controlled-R gate of angle 2π/2^n to a pair of qubits.
+cr :: Expr
+cr = ELift $ EIAbs "n" $ EIAbs "lctrl" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl") (TWire Qubit (Just $ IVar "lctrl")) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeCRGate `EIApp` IVar "n" `EIApp` IVar "lctrl" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrl", EVar "trgt"])
 
 
 --- MISC -----------------------------------------------------------------------------------------------------
@@ -121,7 +125,8 @@ libraryBindings = [
   ("ccz", ccz),
   ("toffoli", toffoli),
   ("mcnot", mcnot),
-  ("cR", cR),
+  ("rgate", rgate),
+  ("cr", cr),
   ("range", range)
   ]
 

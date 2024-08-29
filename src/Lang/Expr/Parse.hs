@@ -114,13 +114,12 @@ constant = try $ do
     "PauliX" -> return $ EConst (Boxed PauliX)
     "PauliY" -> return $ EConst (Boxed PauliY)
     "PauliZ" -> return $ EConst (Boxed PauliZ)
+    "T" -> return $ EConst (Boxed T)
     "CNot" -> return $ EConst (Boxed CNot)
     "CZ" -> return $ EConst (Boxed CZ)
     "CCNot" -> return $ EConst (Boxed CCNot)
     "CCZ" -> return $ EConst (Boxed CCZ)
     "Toffoli" -> return $ EConst (Boxed Toffoli)
-    "MakeCRGate" -> return $ EConst MakeCRGate
-    "MakeUnitList" -> return $ EConst MakeUnitList
     _ -> fail $ "Unrecognized constant \"" ++ name ++ "\""
     <?> "constant"
 

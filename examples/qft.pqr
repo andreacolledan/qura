@@ -4,7 +4,7 @@ let qrev = lift forall m. forall i.\reg :: List[j<m] Qubit{i+m+j}.
 in
 
 let rotate = forall i. forall m. lift forall k.\((ctrls, trg), ctrl)::((List[j<k] Qubit{i+m+j+1}, Qubit{i+m+k}), Qubit{i+m+k}).
-    let (ctrl, trg) = (force cR @(m+1-k) @(i+m+k) @(i+m+k)) ctrl trg in -- (Qubit{i+m+k+1}, Qubit{i+m+k+1})
+    let (ctrl, trg) = (force cr @(m+1-k) @(i+m+k) @(i+m+k)) ctrl trg in -- (Qubit{i+m+k+1}, Qubit{i+m+k+1})
     (ctrls:ctrl, trg) -- (List[j<k+1] Qubit{i+m+j+1}, Qubit{i+m+k+1})
 in
 let qft = lift forall n. forall i.\reg :: List[j<n] Qubit{i}.

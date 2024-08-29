@@ -10,6 +10,7 @@ QuRA takes as input programs written in a variant of Quipper called PQR (short f
   - [Effect typing](#effect-typing)
   - [Linear types](#linear-types)
   - [Refinement types](#refinement-types)
+  - [Index terms](#index-terms)
 - [Language Features](#language-features)
   - [Qubits and bits](#qubits-and-bits)
   - [Applying operations to wires](#applying-operations-to-wires)
@@ -26,7 +27,10 @@ QuRA takes as input programs written in a variant of Quipper called PQR (short f
     - [Examples](#examples-1)
       - [Boxing circuits](#boxing-circuits)
       - [Applying boxed circuits](#applying-boxed-circuits)
-  - [Annotation polymorphism](#annotation-polymorphism)
+  - [Dependent functions](#dependent-functions)
+    - [Example](#example-2)
+      - [Polymorphism in local metrics](#polymorphism-in-local-metrics)
+      - [Polymorphism in list length](#polymorphism-in-list-length)
   - [Sized dependent lists](#sized-dependent-lists)
     - [Examples](#examples-2)
       - [Size](#size)
@@ -35,13 +39,17 @@ QuRA takes as input programs written in a variant of Quipper called PQR (short f
     - [Examples](#examples-3)
       - [Iterate on range](#iterate-on-range)
       - [Fold over list](#fold-over-list)
-- [Primitive Operations](#primitive-operations)
+- [Primitive Circuit Operations](#primitive-circuit-operations)
   - [Qubit and Bit meta-operations](#qubit-and-bit-meta-operations)
   - [Single-qubit gates](#single-qubit-gates)
   - [Controlled gates](#controlled-gates)
   - [Classically controlled gates](#classically-controlled-gates)
-  - [Convenience gates](#convenience-gates)
-  - [Other primitives](#other-primitives)
+- [Standard Library](#standard-library)
+  - [Qubit and Bit meta-operations](#qubit-and-bit-meta-operations-1)
+  - [Single-qubit gates](#single-qubit-gates-1)
+  - [Controlled gates](#controlled-gates-1)
+  - [Parametric gates](#parametric-gates)
+  - [Other](#other)
 
 ## PQR Basics
 
@@ -79,6 +87,13 @@ All other values are not linear. They are called *parameters* and are freely dup
 
 In QuRA, refinement types work together with effects in order to achieve precise size analysis, as base types are annotated with additional information regarding the size of the values they represent: qubit and bit types are annotated with their depth, lists are annotated with their length, boxed circuits are annotated with their size, and so on.
 
+### Index terms
+Both refinements and effect annotations are essentially arithmetic expressions over natural numbers and variables. We call these expressions and variables *indices* and *index variables*, respectively.
+
+**Note**: Indices are the *only* language terms that are allowed to appear in type refinement annotations.
+
+Index operations include simple arithmetic (addition, natural subtraction, multiplication, maximum) as well as bounded sums and maxima: `sum[i<n] expr` is the sum for `i` going from 0 (included) to `n` (excluded) of index `expr`, which might depend on `i`. Similarly, `max[i<n] expr` is the maximum for `i` going from 0 to `n` of index `expr`.
+
 ## Language Features
 
 ### Qubits and bits
@@ -102,7 +117,7 @@ Circ[n](inType, outType)
 ```
 represents an operation that has input type `inType`, output type `outType` and size `n` within the circuit. 
 
-All the primitive circuit operations available in PQR are described [here](#primitive-operations).
+All the primitive circuit operations available in PQR are described [here](#primitive-circuit-operations).
 
 **Note:**
 *All* operations that affect the underlying circuit are performed via `apply`. This includes the initialization of new bits and qubits, measurements, discardings, etc. When an operation has no inputs (e.g. qubit initialization), it is applied to the unit value `()`.
@@ -182,7 +197,7 @@ let qinit = lift apply(QInit0, ()) in
 qinit
 ```
 ```
-qura examples/snippets/lift.pqr -g width -l depth
+$ qura examples/snippets/lift.pqr -g width -l depth
 * Inferred type: ![1]Qubit{0}
 * Inferred width upper bound: 0
 ```
@@ -234,8 +249,57 @@ $ qura examples/snippets/box.pqr -g width -l depth
 * Inferred width upper bound: 2
 ```
 
-### Annotation polymorphism
+### Dependent functions
 
+While abstracting over regular variables gives rise to (linear) functions, abstracting over index variables gives rise to *dependent functions*:
+```
+forall i. body
+```
+abstracts `i` within `body`. Dependent functions are applied to indices using the `@` binary operator:
+```
+function @ index
+```
+
+Although the syntax is fairly different from that of regular functions, it helps to think of dependent functions as such. A dependent function type of the form
+```
+forall[n,m] i. type
+```
+thus represents a function that takes as input an index `index` and returns a value of type `type` which can also depend on `index`. The role of `n` and `m` is the same as in linear functions.
+Note that because indices can appear in types, dependent functions are the mechanism through which parametric polymorphism is achieved in PQR.
+
+Dependent functions are essential when dealing with [list functions](#fold).
+
+#### Example
+##### Polymorphism in local metrics
+
+```
+-- apply the Hadamard gate to a qubit at depth d
+let hadamard = forall d.
+  \q :: Qubit{d}. apply(Hadamard @ d, q)
+in
+hadamard
+```
+```
+$ qura examples/snippets/dependency.pqr -g width -l depth
+* Inferred type: forall[0,0] d. Qubit{d} -o[1,0] Qubit{d+1}
+* Inferred width upper bound: 0
+```
+##### Polymorphism in list length
+```
+-- negate the fist qubit in a list of n+1 qubits at depth d
+let negateFirst = lift forall n. forall d.
+  \list :: List[_<n+1] Qubit{d}.
+    let (qs:q) = list in
+    let q = (force qnot @ d) q in
+    (qs, q)
+in
+negateFirst
+```
+```
+qura examples/snippets/dependency.pqr -g width -l depth            
+* Inferred type: ![0](forall[0,0] n. forall[0,0] d. List[_ < n+1] Qubit{d} -o[n+1, 0] (List[_<n] Qubit{d}, Qubit{d+1}))
+* Inferred width upper bound: 0
+```
 
 
 
@@ -314,45 +378,74 @@ in
 (force hadamardMany @ 8 @ 0) qubits
 ```
 ```
-qura examples/snippets/fold.pqr -g width -l depth
+$ qura examples/snippets/fold.pqr -g width -l depth
 * Inferred type: List[_<8] Qubit{1}
 * Inferred width upper bound: 8
 ```
 
-## Primitive Operations
+## Primitive Circuit Operations
 
-At the time of writing, the following are the primitive operations that can be used for circuit-building in PQR
+At the time of writing, the following are the primitives that can be used for circuit-building in PQR. 
+
+**Note**: Although it is possible to build circuits by directly `apply`ing the following operations to the underlying circuit, it is strongly recommended to use the [corresponding wrapper library functions](#standard-library) instead.
 
 ### Qubit and Bit meta-operations
 
-- `QInit0` and `QInit1` initialize a new `Qubit` to the states $|0\rangle$ and $|1\rangle$, respectively. Also available through library functions `qinit0` and `qinit1`.
-- `QDiscard` discards a `Qubit`. Also available through library function `qdiscard`.
-- `CInit0` and `CInit1` initialize a new `Bit` to the states $0$ and $1$, respectively. Also available through library functions `cinit0` and `cinit1`.
-- `CDiscard` discards a `Bit`. Also available through library function `cdiscard`.
-- `Meas` measures a `Qubit`, returning a `Bit`. Also available through library function `meas`.
+- `QInit0` and `QInit1` initialize a new `Qubit` to the states $|0\rangle$ and $|1\rangle$, respectively.
+- `QDiscard @ i` discards a `Qubit` with local metric `i`.
+- `CInit0` and `CInit1` initialize a new `Bit` to the states $0$ and $1$, respectively.
+- `CDiscard @ i` discards a `Bit` with local metric `i`.
+- `Meas @ i` measures a `Qubit` with local metric `i`, returning a `Bit`.
   
 ### Single-qubit gates
 
-- `Hadamard` performs the Hadamard transform on a single `Qubit`. Also available as library function `hadamard`.
-- `PauliX` flips a single `Qubit` over the x-axis, i.e. it negates its input. Also available as library function `pauliX`.
-- `PauliY` flips a single `Qubit` over the y-axis. Also available as library function `pauliY`.
-- `PauliZ` flips a single `Qubit` over the z-axis. Also available as library function `pauliZ`.
-- `T` rotates a single `Qubit` by π/4 radians around the z-axis. Also available as library function `tgate`.
+- `Hadamard @ i` applies the Hadamard transform to a single `Qubit` with local metric `i`.
+- `PauliX @ i` flips a single `Qubit` with local metric `i` over the x-axis, i.e. it negates its input.
+- `PauliY @ i` flips a single `Qubit` with local metric `i` over the y-axis.
+- `PauliZ @ i` flips a single `Qubit` with local metric `i` over the z-axis.
+- `T @ i` rotates a single `Qubit` with local metric `i` by π/4 radians around the z-axis.
 
 ### Controlled gates
 
-- `CNot` takes as input a pair of `Qubit`s and negates the second (the *target*) if the first (the *control*) is $|1\rangle$. The control qubit is also returned. Also available as library function `cnot`.
-- `CZ` takes as input a pair of `Qubit`s and applies `PauliZ` to the second (the *target*) if the first (the *control*) is $|1\rangle$. The control qubit is also returned. Also available as library function `cz`.
-- `Toffoli` takes as input three `Qubit`s and negates the third (the *target*) if the first two (the *controls*) are $|1\rangle$. The control qubits are returned unchanged. Also available as library function `toffoli`.
-- `MakeCRGate @i`, where `i` is a natural number, takes as input a pair of `Qubit`s and shifts the phase of the second (the *target*) by $2π/2^i$ radians if the first (the *control*) is $|1\rangle$. The control qubit is returned unchanged. Also available as library function `cR`.
+- `CNot @i0 @i1` takes as input a *control* `Qubit` with local metric `i0` and a *target* `Qubit` with local metric `i1` and negates the target if the control is $|1\rangle$.
+- `CZ` takes as input a *control* `Qubit` with local metric `i0` and a *target* `Qubit` with local metric `i1` and applies the `PauliZ` gate to the target if the control is $|1\rangle$.
+- `Toffoli @i0 @i1 @i2` takes as input two *control* `Qubit`s with local metrics `i0` and `i1`, and a *target* `Qubit` with local metric `i2`. It negates the target if both controls are $|1\rangle$.
 
 ### Classically controlled gates
-- `CCNot`: like `CNot`, but the control is a classical `Bit`. Also available as library function `ccnot`.
-- `CCZ`: like `CZ`, but the control is a classical `Bit`. Also available as library function `ccz`.
-  
-### Convenience gates
-- `MakeNToffoli @n`, where `n` is a natural number, takes as input a list of `n` control `Qubit`s and a target `Qubit` and applies the `n`-controlled Toffoli gate to them. Also available as library function `mcnot`.
-- `MakeNCZ @n`, where `n` is a natural number, takes as input a list of `n` control `Qubit`s and a target `Qubit` and applies the `n`-controlled Pauli-Z gate to them. Also available as library function `mcZ`.
+- `CCNot`: like `CNot`, but the control is a classical `Bit`.
+- `CCZ`: like `CZ`, but the control is a classical `Bit`.
 
-### Other primitives
-- `MakeUnitList @n`, where `n` is a natural number, retuns a list of `()` of length `n`. Useful to simulate iteration using fold. Also available as library function `range`.
+## Standard Library
+
+**Note**: For simplicity, the types of the following library functions are annotated according to a width/depth analysis. Please note that annotations may change when analysing other metrics (e.g. gate count).
+
+### Qubit and Bit meta-operations
+- `qinit0 :: ![1]Qubit{0}` wrapper for `QInit0`.
+- `qinit1 :: ![1]Qubit{0}` wrapper for `QInit1`.
+- `qdiscard :: ![0](forall[0,0] l. Qubit{l} -o[1,0] ())` wrapper for `QDiscard`.
+- `cinit0 :: ![1]Bit{0}` wrapper for `CInit0`.
+- `cinit1 :: ![1]Bit{0}` wrapper for `CInit0`.
+- `cdiscard :: ![0](forall[0,0] l. Bit{l} -o[1,0] ())` wrapper for `CDiscard`.
+- `meas :: ![0](forall[0,0] l. Qubit{l} -o[1,0] Bit{l+1})` wrapper for `Meas`.
+
+### Single-qubit gates
+- `hadamard :: ![0](forall[0,0] l. Qubit{l} -o[1,0] Qubit{l+1})` wrapper for `Hadamard`.
+- `qnot :: ![0](forall[0,0] l. Qubit{l} -o[1,0] Qubit{l+1})` wrapper for `PauliX`.
+- `pauliY :: ![0](forall[0,0] l. Qubit{l} -o[1,0] Qubit{l+1})` wrapper for `PauliY`.
+- `pauliZ :: ![0](forall[0,0] l. Qubit{l} -o[1,0] Qubit{l+1})` wrapper for `PauliZ`.
+- `tgate :: ![0](forall[0,0] l. Qubit{l} -o[1,0] Qubit{l+1})` wrapper for `T`.
+
+### Controlled gates
+- `cnot :: ![0](forall[0,0] lctrl. forall[0,0] ltrgt. Qubit{lctrl} -o[1,0] Qubit{ltrgt} -o[2,1] (Qubit{max(lctrl, ltrgt) + 1}, Qubit{max(lctrl, ltrgt) + 1}))` wrapper around `CNot`
+- `cz :: ![0](forall[0,0] lctrl. forall[0,0] ltrgt. Qubit{lctrl} -o[1,0] Qubit{ltrgt} -o[2,1] (Qubit{max(lctrl, ltrgt) + 1}, Qubit{max(lctrl, ltrgt) + 1}))` wrapper around `CZ`
+- `toffoli :: ![0](forall[0,0] lctrl1. forall[0,0] lctrl2. forall[0,0] ltrgt. Qubit{lctrl1} -o[1,0] Qubit{lctrl2} -o[2,1] Qubit{ltrgt} -o[3,2] (Qubit{max(lctrl1, lctrl2, ltrgt) + 1}, Qubit{max(lctrl1, lctrl2, ltrgt) + 1}, Qubit{max(lctrl1, lctrl2, ltrgt) + 1}))` wrapper around `Toffoli`
+- `ccnot :: ![0](forall[0,0] lctrl. forall[0,0] ltrgt. Bit{lctrl} -o[1,0] Qubit{ltrgt} -o[2,1] (Bit{max(lctrl, ltrgt) + 1}, Qubit{max(lctrl, ltrgt) + 1}))` wrapper around `CCNot`
+- `ccz :: ![0](forall[0,0] lctrl. forall[0,0] ltrgt. Bit{lctrl} -o[1,0] Qubit{ltrgt} -o[2,1] (Bit{max(lctrl, ltrgt) + 1}, Qubit{max(lctrl, ltrgt) + 1}))` wrapper around `CCZ`
+
+### Parametric gates
+- `rgate :: ![0](forall[0,0] n. forall[0,0] l. Qubit{l} -o[1,0] Qubit{l+1})` parametric rotation gate. Applies a rotation of 2π/2^n radians around the Z-axis to a single `Qubit` with local metric `l`.
+- `cr :: ![0](forall[0,0] n. forall[0,0] lctrl. forall[0,0] ltrgt. Qubit{lctrl} -o[1,0] Qubit{ltrgt} -o[2,1] (Qubit{max(lctrl, ltrgt) + 1}, Qubit{max(lctrl, ltrgt) + 1}))` controlled parametric rotation gate. Takes as input a *control* `Qubit` with local metric `lctrl` and a *target* `Qubit` with local metric `ltrgt` and applies a rotation of 2π/2^n radians around the Z-axis to the target if the control is $|1\rangle$. Note that this operation is symmetrical.
+- `mcnot :: ![0](forall[0,0] n. forall[0,0] lctrls. forall[0,0] ltrgt. List[_<n] Qubit{lctrls} -o[n,0] Qubit{ltrgt} -o[n+1, n] (List[i<n] Qubit{max(lctrls, ltrgt) + 1}, Qubit{max(lctrls, ltrgt) + 1}))` multiply-controlled negation. Takes as input a list of n *control* `Qubit`s with local metric `lctrls` and a *target* `Qubit` with local metric `ltrgt`. Negates the target if all controls are $|1\rangle$. **Note:** although each gate in this family counts as a single elementary gate, a physical implementation is not guaranteed to exist. Take this into account when reading the results of the analysis, especially if you are interested in the circuit's gate count.
+
+### Other
+- `range :: forall[0,0] n. List[i<n] ()` returns a list containing exactly `n` unit values.
