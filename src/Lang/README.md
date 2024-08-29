@@ -32,6 +32,9 @@ QuRA takes as input programs written in a variant of Quipper called PQR (short f
       - [Size](#size)
       - [Dependency](#dependency)
   - [Fold](#fold)
+    - [Examples](#examples-3)
+      - [Iterate on range](#iterate-on-range)
+      - [Fold over list](#fold-over-list)
 - [Primitive Operations](#primitive-operations)
   - [Qubit and Bit meta-operations](#qubit-and-bit-meta-operations)
   - [Single-qubit gates](#single-qubit-gates)
@@ -266,9 +269,55 @@ $ qura examples/snippets/lists.pqr -l depth
 * Inferred type: List[i<3] List[j<i+1] ()
 ```
 
-
-
 ### Fold
+PQR does not support full-fledged recursion. However, you can iterate over lists using the built-in `fold` construct:
+```
+fold f acc list
+```
+folds a duplicable step function `f` over `list`, starting with accumulator `acc`. The step function is supposed to be polymorphic in an index variable that represents the iteration of the fold. If the accumulator's type depends on this variable, the step function must increase it by exactly 1 at each iteration.
+
+More techically, let `{expr/i}` denote the substitution of arithmetic expression `expr` for index variable `i`. Whenever
+  -  `list` has type `List[i<n] elemTyp`,
+  -  `f` has type `![0] (forall step. (accType, elemType{n-(step+1)/i}) -o[m,0] accType{step+1/step})`,
+  -  `acc` has type `accType{0/step}`,
+
+`fold f acc list` has type `accType{n/step}`.
+
+**Note:** Sometimes there is no list to fold over, but it is still necessary to iterate some function `n` times. In these cases, iteration can be simulated by folding the step function over a list of unit values of length `n`. Such a list can be generated using the `range` library function, of type `forall n. List[_<n] ()`.
+
+#### Examples
+##### Iterate on range
+```
+-- initialize 8 qubits to |0>
+let qinitStep = lift forall step.
+  \(qs,_) :: (List[_<step] Qubit{0}, ()).
+    qs:(force qinit0)
+in
+let qubits = fold(qinitStep, [], range @ 8) in
+qubits
+```
+```
+$ qura examples/snippets/fold.pqr -g width -l depth
+* Inferred type: List[_<8] Qubit{0}
+* Inferred width upper bound: 8
+```
+##### Fold over list
+```
+-- apply the Hadamard gate to n qubits at depth d
+let hadamardMany = lift forall n. forall d.
+  \x :: List[_<n] Qubit{d}.
+    let hadamardStep = lift forall step.
+      \(qs,q) :: (List[_<step] Qubit{d+1}, Qubit{d}).
+        qs:((force hadamard @ d) q)
+  in fold(hadamardStep, [], x)
+in
+(force hadamardMany @ 8 @ 0) qubits
+```
+```
+qura examples/snippets/fold.pqr -g width -l depth
+* Inferred type: List[_<8] Qubit{1}
+* Inferred width upper bound: 8
+```
 
 ## Primitive Operations
 
