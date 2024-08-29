@@ -286,7 +286,7 @@ $ qura examples/snippets/dependency.pqr -g width -l depth
 ```
 ##### Polymorphism in list length
 ```
--- negate the fist qubit in a list of n+1 qubits at depth d
+-- negate the last qubit in a list of n+1 qubits at depth d
 let negateFirst = lift forall n. forall d.
   \list :: List[_<n+1] Qubit{d}.
     let (qs:q) = list in

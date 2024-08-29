@@ -4,7 +4,7 @@ let hadamard = lift forall d.
     apply(Hadamard @ d, q)
 in
 
--- negate the fist qubit in a list of n+1 qubits at depth d
+-- negate the last qubit in a list of n+1 qubits at depth d
 let negateFirst = lift forall n. forall d.
   \list :: List[_<n+1] Qubit{d}.
     let (qs:q) = list in
