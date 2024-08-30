@@ -1,12 +1,12 @@
-module Index.Semantics.Global.GateCount (gateCountResourceSemantics) where
+module Index.Semantics.Global.GateCount (gateCountMetric) where
 import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
-gateCountResourceSemantics :: GlobalResourceSemantics
+gateCountMetric :: GlobalMetricModule
 
-gateCountResourceSemantics =
-  GlobalResourceSemantics
+gateCountMetric =
+  GlobalMetricModule
     { name = "gate count",
       desugarIdentity = Number 0,
       desugarWire = const (Number 0),
@@ -14,8 +14,7 @@ gateCountResourceSemantics =
       desugarSequence = Plus,
       desugarParallel = Plus,
       desugarBoundedSequence = BoundedSum,
-      desugarBoundedParallel = BoundedSum,
-      opGroundTruth = opGateCount
+      desugarBoundedParallel = BoundedSum
   }
 
 opGateCount :: QuantumOperation -> Int

@@ -60,8 +60,8 @@ data TypingEnvironment = TypingEnvironment
     liftedExpression :: Bool,             -- whether the current expression is in a nonlinear context
     freshCounter :: Int,                  -- a counter for generating fresh index variables
     solverHandle :: SolverHandle,         -- the handle to the SMT solver
-    grs :: Maybe GlobalResourceSemantics, -- the global resource semantics
-    lrs :: Maybe LocalResourceSemantics   -- the local resource semantics
+    grs :: Maybe GlobalMetricModule, -- the global resource semantics
+    lrs :: Maybe LocalMetricModule   -- the local resource semantics
   }
 
 instance HasSize TypingEnvironment where
@@ -69,18 +69,18 @@ instance HasSize TypingEnvironment where
 
 -- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- The index variables in @theta@ are considered to be in scope.
-makeEnvForall :: [IVarId] -> [(VariableId, Type)] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> TypingEnvironment
+makeEnvForall :: [IVarId] -> [(VariableId, Type)] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> TypingEnvironment
 makeEnvForall theta gamma sh =
   let gamma' = Map.fromList [(id, [BindingInfo typ False]) | (id, typ) <- gamma]
    in TypingEnvironment gamma' (Set.fromList theta) [] True 0 sh
 
 -- | @makeEnv gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
 -- No index variables are considered to be in scope.
-makeEnv :: [(VariableId, Type)] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> TypingEnvironment
+makeEnv :: [(VariableId, Type)] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> TypingEnvironment
 makeEnv = makeEnvForall []
 
 -- | The empty typing environment. No variables are in scope.
-emptyEnv ::  SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> TypingEnvironment
+emptyEnv ::  SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> TypingEnvironment
 emptyEnv = makeEnv []
 
 -- | @envIsLinear env@ returns 'True' if the environment @env@ contains any linear variables or labels.

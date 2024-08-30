@@ -212,5 +212,5 @@ runRefinedTypeInferenceWith env e = runExceptT $ do
 
 -- | @runAnalysis e sh@ runs the whole type inference pipeline on expression @e@,
 -- using the handle @sh@ to communicate with the SMT solver.
-runRefinedTypeInference :: Expr -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> IO (Either TypeError (Type, Maybe Index))
+runRefinedTypeInference :: Expr -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> IO (Either TypeError (Type, Maybe Index))
 runRefinedTypeInference e sh grs lrs = runRefinedTypeInferenceWith (emptyEnv sh grs lrs) e

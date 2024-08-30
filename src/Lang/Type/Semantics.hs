@@ -12,7 +12,7 @@ import Index.Unify
 -- | @simplifyType t@ returns type @t@ in which all index annotations have been simplified
 -- to a normal form according to 'simplifyIndexStrong'.
 -- SolverHandle @qfh@ is used to interact with the SMT solver.
-simplifyType :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Type -> IO Type
+simplifyType :: SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> Type -> IO Type
 simplifyType qfh grs lrs (TWire wtype i) = TWire wtype <$> maybeSimplifyIndex qfh grs lrs i
 simplifyType qfh grs lrs (TTensor ts) = TTensor <$> mapM (simplifyType qfh grs lrs) ts
 simplifyType qfh grs lrs (TArrow t1 t2 i j) = TArrow <$> simplifyType qfh grs lrs t1 <*> simplifyType qfh grs lrs t2 <*> maybeSimplifyIndex qfh grs lrs i <*> maybeSimplifyIndex qfh grs lrs j
@@ -25,7 +25,7 @@ simplifyType _ _ _ t = return t
 -- Θ ⊢ t1 <: t2 (Figure 15)
 -- | @checkSubtypeAssuming cs qfh grs lrs t1 t2@ checks if type @t1@ is a subtype of type @t2@.
 -- SolverHandle @qfh@ is used to interact with the SMT solver.
-checkSubtype :: [Constraint] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Type -> Type -> IO Bool
+checkSubtype :: [Constraint] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> Type -> Type -> IO Bool
 checkSubtype _ _ _ _ TUnit TUnit = return True
 checkSubtype cs qfh _ lrs (TWire wtype1 i) (TWire wtype2 j) = do
   c <- checkLRLeq cs qfh lrs i j

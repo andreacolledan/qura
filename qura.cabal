@@ -37,6 +37,7 @@ library
       Index.Semantics.Global.Width
       Index.Semantics.Local.Depth
       Index.Semantics.Local.Resource
+      Index.Semantics.Local.TDepth
       Index.Unify
       Lang.Analysis.Derivation
       Lang.Analysis.Environment

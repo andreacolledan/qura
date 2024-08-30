@@ -1,5 +1,5 @@
 module Index.Semantics.Global.Width (
-  widthResourceSemantics
+  widthMetric
 ) where
 
 
@@ -7,9 +7,9 @@ import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
-widthResourceSemantics :: GlobalResourceSemantics
-widthResourceSemantics =
-  GlobalResourceSemantics
+widthMetric :: GlobalMetricModule
+widthMetric =
+  GlobalMetricModule
   { name = "width",
     desugarIdentity = Number 0,
     desugarWire = const (Number 1),
@@ -17,8 +17,7 @@ widthResourceSemantics =
     desugarSequence = Max,
     desugarParallel = Plus,
     desugarBoundedSequence = BoundedMax,
-    desugarBoundedParallel = BoundedSum,
-    opGroundTruth = opWidths
+    desugarBoundedParallel = BoundedSum
   }
 
 opWidths :: QuantumOperation -> Int

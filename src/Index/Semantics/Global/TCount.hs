@@ -1,11 +1,11 @@
-module Index.Semantics.Global.TCount (tCountResourceSemantics) where
+module Index.Semantics.Global.TCount (tCountMetric) where
 import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
-tCountResourceSemantics :: GlobalResourceSemantics
-tCountResourceSemantics =
-  GlobalResourceSemantics
+tCountMetric :: GlobalMetricModule
+tCountMetric =
+  GlobalMetricModule
     { name = "T-count",
       desugarIdentity = Number 0,
       desugarWire = const (Number 0),
@@ -13,8 +13,7 @@ tCountResourceSemantics =
       desugarSequence = Plus,
       desugarParallel = Plus,
       desugarBoundedSequence = BoundedSum,
-      desugarBoundedParallel = BoundedSum,
-      opGroundTruth = opTCount
+      desugarBoundedParallel = BoundedSum
   }
 
 opTCount :: QuantumOperation -> Int

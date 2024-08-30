@@ -3,11 +3,11 @@ import Circuit
 import Index.AST ( Index )
 import PrettyPrinter
 
-data LocalResourceSemantics = LocalResourceSemantics
+data LocalMetricModule = LocalMetricModule
   {
     name :: String,
     desugarOutput :: QuantumOperation -> Int -> [Index] -> Index
   }
 
-instance Pretty LocalResourceSemantics where
+instance Pretty LocalMetricModule where
   pretty = name

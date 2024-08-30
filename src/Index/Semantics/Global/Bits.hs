@@ -1,13 +1,13 @@
 {-# LANGUAGE LambdaCase #-}
-module Index.Semantics.Global.Bits (bitsResourceSemantics) where
+module Index.Semantics.Global.Bits (bitsMetric) where
 
 import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
-bitsResourceSemantics :: GlobalResourceSemantics
-bitsResourceSemantics =
-  GlobalResourceSemantics
+bitsMetric :: GlobalMetricModule
+bitsMetric =
+  GlobalMetricModule
   { name = "bits",
     desugarIdentity = Number 0,
     desugarWire = \case Qubit -> Number 0; Bit -> Number 1,
@@ -15,8 +15,7 @@ bitsResourceSemantics =
     desugarSequence = Max,
     desugarParallel = Plus,
     desugarBoundedSequence = BoundedMax,
-    desugarBoundedParallel = BoundedSum,
-    opGroundTruth = opBits
+    desugarBoundedParallel = BoundedSum
   }
 
 opBits :: QuantumOperation -> Int

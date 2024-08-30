@@ -23,10 +23,10 @@ toNumber :: Index -> Maybe Int
 toNumber (Number n) = Just n
 toNumber _ = Nothing
 
-simplifyIndex :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Index -> IO Index
+simplifyIndex :: SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> Index -> IO Index
 simplifyIndex qfh grs lrs i = evalIndex qfh (desugarIndex grs lrs i)
 
-desugarIndex :: Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Index -> Index
+desugarIndex :: Maybe GlobalMetricModule -> Maybe LocalMetricModule -> Index -> Index
 desugarIndex _ _ (Number n) = Number n
 desugarIndex _ _ (IVar id) = IVar id
 desugarIndex mgrs lrs (Plus i j) = Plus (desugarIndex mgrs lrs i) (desugarIndex mgrs lrs j)
@@ -151,29 +151,29 @@ checkEq cs qfh i j = do
     (i', j') | Set.null (ifv i') && Set.null (ifv j') -> return False -- if both indices are closed and not equal, they are not equal
     (i', j') -> querySMT qfh cs $ Eq i' j' -- in all other cases, query the solver
 
-checkGRLeq :: [Constraint] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkGRLeq :: [Constraint] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkGRLeq _ _ Nothing _ _ = return True
 checkGRLeq cs qfh (Just grs) (Just i) (Just j) = checkLeq cs qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
 checkGRLeq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGRLeq)."
 
-checkGREq :: [Constraint] -> SolverHandle -> Maybe GlobalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkGREq :: [Constraint] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkGREq _ _ Nothing _ _ = return True
 checkGREq cs qfh (Just grs) (Just i) (Just j) = checkEq cs qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
 checkGREq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGREq)."
 
-checkLRLeq :: [Constraint] -> SolverHandle -> Maybe LocalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkLRLeq :: [Constraint] -> SolverHandle -> Maybe LocalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkLRLeq _ _ Nothing _ _ = return True
 checkLRLeq cs qfh (Just lrs) (Just i) (Just j) = checkLeq cs qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
 checkLRLeq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLRLeq)."
 
-checkLREq :: [Constraint] -> SolverHandle -> Maybe LocalResourceSemantics -> Maybe Index -> Maybe Index -> IO Bool
+checkLREq :: [Constraint] -> SolverHandle -> Maybe LocalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkLREq _ _ Nothing _ _ = return True
 checkLREq cs qfh (Just lrs) (Just i) (Just j) = checkEq cs qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
 checkLREq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLREq)."
 
 -- MAYBE variants
 
-maybeSimplifyIndex :: SolverHandle -> Maybe GlobalResourceSemantics -> Maybe LocalResourceSemantics -> Maybe Index -> IO (Maybe Index)
+maybeSimplifyIndex :: SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> Maybe Index -> IO (Maybe Index)
 maybeSimplifyIndex _ _ _ Nothing = return Nothing
 maybeSimplifyIndex qfh grs lrs (Just i) = Just <$> simplifyIndex qfh grs lrs i
 

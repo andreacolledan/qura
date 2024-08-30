@@ -138,3 +138,7 @@ General usage of qura is thus
 qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-metric-analysis METRIC] [-l | --local-metric-analysis METRIC]
 ```
 For more information, refer to `qura --help`.
+
+## Contributing
+
+If you are interested in extending QuRA with new kinds of metric analysis, consult [this guide](src/Index/Semantics/README.md).

@@ -14,40 +14,42 @@ import Text.Parsec (runParser)
 import Lang.Library.Prelude
 import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
-import Index.Semantics.Global.Width (widthResourceSemantics)
-import Index.Semantics.Global.Qubits (qubitsResourceSemantics)
-import Index.Semantics.Global.TCount (tCountResourceSemantics)
-import Index.Semantics.Global.Bits (bitsResourceSemantics)
-import Index.Semantics.Global.GateCount (gateCountResourceSemantics)
+import Index.Semantics.Global.Width
+import Index.Semantics.Global.Qubits
+import Index.Semantics.Global.TCount
+import Index.Semantics.Global.Bits
+import Index.Semantics.Global.GateCount
 import Data.Maybe (isJust, fromJust)
 import qualified Index.Parse as IP
 import Index.Semantics.Local.Depth
+import Index.Semantics.Local.TDepth
 
-globalResourceArgParser :: ReadM GlobalResourceSemantics
-globalResourceArgParser = do
+globalMetricArgParser :: ReadM GlobalMetricModule
+globalMetricArgParser = do
   s <- str 
   case s of
-    "width" -> return widthResourceSemantics
-    "qubits" -> return qubitsResourceSemantics
-    "bits" -> return bitsResourceSemantics
-    "gatecount" -> return gateCountResourceSemantics
-    "tcount" -> return tCountResourceSemantics
+    "width" -> return widthMetric
+    "qubits" -> return qubitsMetric
+    "bits" -> return bitsMetric
+    "gatecount" -> return gateCountMetric
+    "tcount" -> return tCountMetric
     _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
 
-localResourceArgParser :: ReadM LocalResourceSemantics
-localResourceArgParser = do
+localMetricArgParser :: ReadM LocalMetricModule
+localMetricArgParser = do
   s <- str
   case s of
-    "depth" -> return depthResourceSemantics
-    _ -> readerError "Supported local resources are 'depth'."
+    "depth" -> return depthMetric
+    "tdepth" -> return tDepthMetric
+    _ -> readerError "Supported local resources are 'depth', `tdepth`."
 
 data Arguments = CommandLineArguments
   { filepath :: String,
     verbose :: Bool,
     debug :: Maybe String,
     noprelude :: Bool,
-    grs :: Maybe GlobalResourceSemantics,
-    lrs :: Maybe LocalResourceSemantics
+    grs :: Maybe GlobalMetricModule,
+    lrs :: Maybe LocalMetricModule
   }
 
 interface :: ParserInfo Arguments
@@ -81,13 +83,13 @@ interface =
           ( long "noprelude"
               <> help "Do not include the prelude"
           )
-        <*> optional (option globalResourceArgParser
+        <*> optional (option globalMetricArgParser
           ( long "global-metric-analysis"
               <> short 'g'
               <> metavar "METRIC"
               <> help "Analyse global METRIC"
               ))
-        <*> optional (option localResourceArgParser
+        <*> optional (option localMetricArgParser
           ( long "local-metric-analysis"
               <> short 'l'
               <> metavar "METRIC"

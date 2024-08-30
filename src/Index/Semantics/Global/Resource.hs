@@ -3,7 +3,7 @@ import Circuit
 import Index.AST
 import PrettyPrinter
 
-data GlobalResourceSemantics = GlobalResourceSemantics
+data GlobalMetricModule = GlobalMetricModule
   { name :: String,
     desugarIdentity :: Index,
     desugarWire :: WireType -> Index,
@@ -11,9 +11,8 @@ data GlobalResourceSemantics = GlobalResourceSemantics
     desugarSequence :: Index -> Index -> Index,
     desugarParallel :: Index -> Index -> Index,
     desugarBoundedSequence :: IVarId -> Index -> Index -> Index,
-    desugarBoundedParallel :: IVarId -> Index -> Index -> Index,
-    opGroundTruth :: QuantumOperation -> Int
+    desugarBoundedParallel :: IVarId -> Index -> Index -> Index
   }
 
-instance Pretty GlobalResourceSemantics where
+instance Pretty GlobalMetricModule where
   pretty = name
