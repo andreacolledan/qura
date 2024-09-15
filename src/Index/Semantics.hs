@@ -67,9 +67,11 @@ evalIndex qfh (Max i j) = do
     (i', Number 0) -> return i' -- zero is right identity
     (Number 0, j') -> return j' -- zero is left identity
     (i', j') -> do
-      c <- checkEq [] qfh i' j'
-      return $ if c
-        then i'          -- idemptotent
+      c1 <- querySMT qfh [] $ Leq i' j'
+      c2 <- querySMT qfh [] $ Leq j' i'
+      return $ if c1
+        then i'
+        else if c2 then j'
         else Max i' j'   -- do not reduce further
 evalIndex qfh (Mult i j) = do
   i' <- evalIndex qfh i
