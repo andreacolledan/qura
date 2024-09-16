@@ -81,4 +81,5 @@ let oracleOne = forall d.
     (force mcnot @ 3 @ d @ d) reg a -- Ancilla is flipped iff reg is 111
 in
 
-(force grover @ 3 @ 4 @ 1) oracleOne
+(force grover @ 3 @ 4 @ 1) oracleOne -- uncomment for instance bounds
+-- grover -- uncomment for generic, parametric bound

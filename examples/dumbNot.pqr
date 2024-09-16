@@ -1,4 +1,4 @@
--- dumbNot implements negation of a qubit q in a dumb way
+-- negate a qubit q at depth d in a dumb way,
 -- by initializing an ancillary qubit a to 1 and
 -- applying a cnot with target q and control a
 let dumbNot = lift forall d. \q :: Qubit{d} .
@@ -8,11 +8,10 @@ let dumbNot = lift forall d. \q :: Qubit{d} .
   q
 in
 
+-- negate twice a qubit q at depth d, using dumbNot
+-- this is useless, but highlights qubit reuse
 let doubleNegation = lift forall d. \q :: Qubit{d}.
   (force dumbNot @(d+1)) ((force dumbNot @d) q)
 in
 
 doubleNegation
-
--- let q = force qinit0 () in
--- force doubleNegation q

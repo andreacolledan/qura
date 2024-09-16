@@ -2,7 +2,7 @@
 
 --- Parameters:
 --- n     : size of the input to the QFT
---- d     : depth of the input qubits
+--- d     : initial depth of the input qubits
 --- iter  : current iteration of the QFT
 
 
@@ -38,4 +38,7 @@ let qft = lift forall n. forall d.
         let trg = (force hadamard @(d+2*iter)) trg in
         ctrls:trg -- List[i<iter+1] Qubit{d+iter+1+i}
     in fold(qftIter, [], reg) -- List[i<n] Qubit{d+n+i}
-in qft
+in
+
+qft -- uncomment for generic, parametric bound
+--(force qft @4 @0) [(force qinit0), (force qinit0), (force qinit0), (force qinit0)] -- uncomment for instance bounds
