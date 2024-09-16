@@ -3,20 +3,22 @@ import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
+-- | The global metric module for gate count.
+-- Gate count is defined informally as the total number of gates in a circuit.
 gateCountMetric :: GlobalMetricModule
-
 gateCountMetric =
   GlobalMetricModule
     { name = "gate count",
-      desugarIdentity = Number 0,
-      desugarWire = const (Number 0),
-      desugarOperation = Number . opGateCount,
-      desugarSequence = Plus,
-      desugarParallel = Plus,
+      desugarIdentity = Number 0,             -- no gates is 0
+      desugarWire = const (Number 0),         -- wires naturally count as 0 gates
+      desugarSequence = Plus,                 -- gate count of sequence comp. is sum of gate counts   
+      desugarParallel = Plus,                 -- gate count of parallel comp. is sum of gate counts
       desugarBoundedSequence = BoundedSum,
-      desugarBoundedParallel = BoundedSum
+      desugarBoundedParallel = BoundedSum,
+      desugarOperation = Number . opGateCount
   }
 
+-- | @opGateCount op@ returns the number of gates in operation @op@.
 opGateCount :: QuantumOperation -> Int
 opGateCount Hadamard = 1
 opGateCount PauliX = 1

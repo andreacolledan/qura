@@ -21,15 +21,15 @@ import Index.Unify
 import Lang.Library.Constant
 import Control.Monad.State
 
---- TYPE SYNTHESIS MODULE ---------------------------------------------------------------
+--- REFINED TYPE INFERENCE MODULE -------------------------------------------------------
 ---
---- This module contains the main logic to synthesize the full type of a PQR expression
---- after it has been preprocessed. Type synthesis assumes that the structure of a type
---- is already correct and focuses instead on the indices that annotate types.
+--- This module contains the main logic to infer the refined type of a PQR expression,
+--- after it has been preprocessed. Refined type inference assumes that the structure
+--- of a type is already correct and focuses instead on the indices that annotate types.
 --- At this stage, there should be no type variables left.
 -----------------------------------------------------------------------------------------
 
--- | @analyze e@ infers the indexed type and width upper-bound of expression @e@.
+-- | @inferRefinedType e@ infers the refined type and width upper-bound of expression @e@.
 -- If successful, it returns a pair @(t, i)@, where @t@ is the inferred type of @e@ 
 -- and @i@ is the upper bound on the width of the circuit built by @e@.
 -- Otherwise, it throws a 'TypeError'.
@@ -46,9 +46,9 @@ inferRefinedType e@(EVar id) = withScope e $ do
 -- TUPLE
 inferRefinedType e@(ETuple es) = withScope e $ do
   when (length es < 2) $ error "Internal error: tuple with less than 2 elements escaped parser."
-  (infrs, wcs) <- mapAndUnzipM (withWireCount . inferRefinedType) es
+  (infrs, wcs) <- mapAndUnzipM (withEnvSize . inferRefinedType) es
   let (typs, is) = unzip infrs
-  k <- ifGlobalResources $ foldAnno Sequence Identity [Parallel <$> i <*> (Parallel <$> subsequentwc step wcs <*> previouswc step typs) | (i, step) <- zip is [0 ..]] --todo check
+  k <- ifGlobalResources $ foldAnno Sequence Identity [Parallel <$> i <*> (Parallel <$> subsequentwc step wcs <*> previouswc step typs) | (i, step) <- zip is [0 ..]]
   return (TTensor typs, join k)
     where
       subsequentwc :: Int -> [Maybe Index] -> Maybe Index
@@ -71,7 +71,7 @@ inferRefinedType e@(ENil anno) = withScope e $ case anno of
 inferRefinedType e@(EAbs p annotyp e1) = withScope e $ do
   checkWellFormedness annotyp
   (ids, annotyps) <- makePatternBindings p annotyp SizedLists
-  ((typ, i), wc) <- withWireCount $ withBoundVariables ids annotyps $ inferRefinedType e1
+  ((typ, i), wc) <- withEnvSize $ withBoundVariables ids annotyps $ inferRefinedType e1
   k <- ifGlobalResources wc
   return (TArrow annotyp typ i (join k), join k)
 -- LIFT
@@ -80,9 +80,9 @@ inferRefinedType e@(ELift e1) = withScope e $ do
   k <- ifGlobalResources Identity
   return (TBang i typ, k)
 -- CONS
-inferRefinedType e@(ECons e1 e2) = withScope e $ do --TODO check
+inferRefinedType e@(ECons e1 e2) = withScope e $ do
   (TList id j typ1, i1) <- inferRefinedType e1
-  ((typ1', i2), wc) <- withWireCount $ inferRefinedType e2
+  ((typ1', i2), wc) <- withEnvSize $ inferRefinedType e2
   unlessSubtype typ1' (isub (isubSingleton id j) typ1) $ do
     expected <- runSimplifyType typ1
     actual <- runSimplifyType typ1'
@@ -92,11 +92,10 @@ inferRefinedType e@(ECons e1 e2) = withScope e $ do --TODO check
   return (TList id (Plus j (Number 1)) typ1, join k)
 -- FOLD
 inferRefinedType e@(EFold e1 e2 e3) = withScope e $ do
-  -- naming conventions are not satisfied here because the rule is HARD to parse
   -- Step Function --
   (steptyp@(TBang o0 (TIForall step (TArrow (TTensor [acctyp, elemtyp]) incacctyp stepres o1) o2 o3)), i1) <- inferRefinedType e1
   -- the following 4 checks force all perceivable circuit-building to happen in the function and not before
-  -- this is not really necessary, but it is a simplification for now
+  -- this is not really necessary, but it massively simplifies inference and does not affect expressivity.
   unlessIdentity o0 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o0)
   unlessIdentity o1 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o1)
   unlessIdentity o2 $ throwLocalError $ UnexpectedIndex (Number 0) (fromJust o2)
@@ -104,13 +103,13 @@ inferRefinedType e@(EFold e1 e2 e3) = withScope e $ do
   -- acctyp' <: acctyp{id+1/id}
   unlessSubtype incacctyp (isub (isubSingleton step (IVar step `Plus` Number 1)) acctyp) $ throwLocalError $ UnfoldableStepfunction e1 steptyp
   -- List Argument --
-  ((argtyp@(TList id' arglen elemtyp'), i3), wc2) <- withWireCount $ inferRefinedType e3
+  ((argtyp@(TList id' arglen elemtyp'), i3), wc2) <- withEnvSize $ inferRefinedType e3
   let invariant = [Leq (IVar step `Plus` Number 1) arglen] -- step index is bounded by the length of the list
   -- elemtyp'{arglen-(id+1)/id'} <: elemtyp
   let flippedelemtyp' = isub (isubSingleton id' (arglen `Minus` (IVar step `Plus` Number 1))) elemtyp'
   unlessSubtypeAssuming invariant flippedelemtyp' elemtyp $ throwLocalError $ UnfoldableArg e3 argtyp
   -- Accumulator --
-  ((acctyp'', i2), wc1) <- withWireCount $ inferRefinedType e2
+  ((acctyp'', i2), wc1) <- withEnvSize $ inferRefinedType e2
   -- acctyp'' <: acctyp{0/id}
   let baseacctyp = isub (isubSingleton step (Number 0)) acctyp
   unlessSubtypeAssuming invariant acctyp'' baseacctyp $ throwLocalError $ UnexpectedType e2 baseacctyp acctyp'' 
@@ -123,7 +122,7 @@ inferRefinedType e@(EFold e1 e2 e3) = withScope e $ do
 -- APPLICATION (FUNCTIONS)
 inferRefinedType e@(EApp e1 e2) = withScope e $ do
   (TArrow annotyp typ3 j1 j2, i1) <- inferRefinedType e1
-  ((typ2, i2), wc) <- withWireCount $ inferRefinedType e2
+  ((typ2, i2), wc) <- withEnvSize $ inferRefinedType e2
   unlessSubtype typ2 annotyp $ do
     actual <- runSimplifyType typ2
     throwLocalError $ UnexpectedType e2 annotyp actual
@@ -133,7 +132,7 @@ inferRefinedType e@(EApp e1 e2) = withScope e $ do
 -- APPLY (CIRCUITS)
 inferRefinedType e@(EApply e1 e2) = withScope e $ do
   (TCirc j intyp outtyp, i1) <- inferRefinedType e1
-  ((typ2, i2), wc) <- withWireCount $ inferRefinedType e2
+  ((typ2, i2), wc) <- withEnvSize $ inferRefinedType e2
   unlessSubtype typ2 intyp $ do
     actual <- runSimplifyType typ2
     throwLocalError $ UnexpectedType e2 intyp actual
@@ -152,7 +151,7 @@ inferRefinedType e@(EBox anno e1) = withScope e $ case anno of
 inferRefinedType e@(ELet p e1 e2) = withScope e $ do
   (typ1, i1) <- inferRefinedType e1
   (ids, typs) <- makePatternBindings p typ1 SizedLists
-  ((typ2, i2), wc) <- withWireCount $ withBoundVariables ids typs $ inferRefinedType e2
+  ((typ2, i2), wc) <- withEnvSize $ withBoundVariables ids typs $ inferRefinedType e2
   -- (i1 || wires in e2) >> i2):
   k <- ifGlobalResources $ Sequence <$> (Parallel <$> i1 <*> wc) <*> i2
   return (typ2, join k)
@@ -172,7 +171,7 @@ inferRefinedType e@(EForce e1) = withScope e $ do
   return (typ', join k)
 -- INDEX ABSTRACTION
 inferRefinedType e@(EIAbs id e1) = withScope e $ do
-  ((typ, i), wc) <- withWireCount $ withBoundIndexVariable id $ inferRefinedType e1
+  ((typ, i), wc) <- withEnvSize $ withBoundIndexVariable id $ inferRefinedType e1
   k <- ifGlobalResources wc
   return (TIForall id typ i (join k), join k)
 -- INDEX APPLICATION
@@ -197,9 +196,10 @@ inferRefinedType e@(EAssume e1 annotyp) = withScope e $ do
   (_, i) <- inferRefinedType e1
   return (annotyp, i)
 
+
 --- EXPORTED WRAPPER FUNCTIONS ---------------------------------------------------------------
 
--- | @runAnalysisWith env e@ runs the whole type inference pipeline on expression @e@,
+-- | @runRefinedTypeInferenceWith env e@ runs the whole type inference pipeline on expression @e@,
 -- using the typing environment @env@.
 runRefinedTypeInferenceWith :: TypingEnvironment -> Expr -> IO (Either TypeError (Type, Maybe Index))
 runRefinedTypeInferenceWith env e = runExceptT $ do
@@ -210,7 +210,7 @@ runRefinedTypeInferenceWith env e = runExceptT $ do
     throwError $ UnusedLinearVariable (head remainingNames) [e]
   return (typ, i)
 
--- | @runAnalysis e sh@ runs the whole type inference pipeline on expression @e@,
+-- | @runRefinedTypeInference e sh@ runs the whole type inference pipeline on expression @e@,
 -- using the handle @sh@ to communicate with the SMT solver.
 runRefinedTypeInference :: Expr -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> IO (Either TypeError (Type, Maybe Index))
 runRefinedTypeInference e sh grs lrs = runRefinedTypeInferenceWith (emptyEnv sh grs lrs) e

@@ -12,7 +12,7 @@ import Index.Semantics.Local.Resource
 
 --- TYPE ENVIRONMENT MODULE ------------------------------------------------------------
 ---
---- This module defines the typing environment used by the analysis procedures.Constant
+--- This module defines the typing environment used by the analysis procedures.
 --- It defines bindings, typing contexts, and their encasing environments.
 ----------------------------------------------------------------------------------------
 
@@ -21,7 +21,6 @@ import Index.Semantics.Local.Resource
 -- | The datatype of bindings (carries the type of a variable and whether it has been used yet)
 data BindingInfo = BindingInfo {getType :: Type, isUsed :: Bool} deriving (Eq, Show)
 
--- 
 instance HasSize BindingInfo where
   typeSize binding = if isUsed binding then Just Identity else typeSize (getType binding)
 
@@ -41,7 +40,7 @@ mustBeUsed (BindingInfo typ used) = not used && isLinear typ
 
 --- TYPING CONTEXTS -----------------------------------------------------------
 
--- | The datatype of typing contexts (Corresponds to Γ or Φ in the paper)
+-- | The datatype of typing contexts
 type TypingContext = Map.HashMap VariableId [BindingInfo]
 
 -- | The empty typing context
@@ -60,30 +59,31 @@ data TypingEnvironment = TypingEnvironment
     liftedExpression :: Bool,             -- whether the current expression is in a nonlinear context
     freshCounter :: Int,                  -- a counter for generating fresh index variables
     solverHandle :: SolverHandle,         -- the handle to the SMT solver
-    grs :: Maybe GlobalMetricModule, -- the global resource semantics
-    lrs :: Maybe LocalMetricModule   -- the local resource semantics
+    grs :: Maybe GlobalMetricModule,      -- the global resource semantics (if any)
+    lrs :: Maybe LocalMetricModule        -- the local resource semantics (if any)
   }
 
 instance HasSize TypingEnvironment where
   typeSize TypingEnvironment {typingContext = gamma} = typeSize gamma
 
--- | @makeEnvForall theta gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
--- The index variables in @theta@ are considered to be in scope.
+-- | @makeEnvForall ictx tctx qfh mgrs mlrs@ initializes a typing environment with index context @ictx@,
+-- typing context @tctx@, solver handle @qfh@, and global/local resource semantics @mgrs@/@mlrs@.
 makeEnvForall :: [IVarId] -> [(VariableId, Type)] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> TypingEnvironment
-makeEnvForall theta gamma sh =
+makeEnvForall theta gamma qfh =
   let gamma' = Map.fromList [(id, [BindingInfo typ False]) | (id, typ) <- gamma]
-   in TypingEnvironment gamma' (Set.fromList theta) [] True 0 sh
+   in TypingEnvironment gamma' (Set.fromList theta) [] True 0 qfh
 
--- | @makeEnv gamma q@ initializes a typing environment from the dictionary-like definitions of @gamma@ and @q@.
--- No index variables are considered to be in scope.
+-- | @makeEnv tctx qfh mgrs mlrs@ initializes a typing environment with empty index context typing context @tctx@,
+-- solver handle @qfh@, and global/local resource semantics @mgrs@/@mlrs@.
 makeEnv :: [(VariableId, Type)] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> TypingEnvironment
 makeEnv = makeEnvForall []
 
--- | The empty typing environment. No variables are in scope.
+-- | @emptyEnv qfh mgrs mlrs@ initializes an empty typing environment with solver handle @qfh@,
+-- and global/local resource semantics @mgrs@/@mlrs@.
 emptyEnv ::  SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> TypingEnvironment
 emptyEnv = makeEnv []
 
--- | @envIsLinear env@ returns 'True' if the environment @env@ contains any linear variables or labels.
+-- | @envIsLinear env@ returns 'True' if the environment @env@ contains any linear variables.
 envIsLinear :: TypingEnvironment -> Bool
 envIsLinear TypingEnvironment {typingContext = gamma} =
   let remainingVars = [id | (id, bs) <- Map.toList gamma, any mustBeUsed bs] -- remaining linear variables

@@ -5,19 +5,22 @@ import Index.Semantics.Global.Resource
 import Index.AST
 import Circuit
 
+-- | The global metric module for qubits.
+-- Qubits is defined informally as the maximum number of qubits that are active at the same time.
 qubitsMetric :: GlobalMetricModule
 qubitsMetric =
   GlobalMetricModule
   { name = "qubits",
-    desugarIdentity = Number 0,
-    desugarWire = \case Qubit -> Number 1; Bit -> Number 0,
-    desugarOperation = Number . opQubits,
-    desugarSequence = Max,
-    desugarParallel = Plus,
+    desugarIdentity = Number 0,                             -- no qubits is 0
+    desugarWire = \case Qubit -> Number 1; Bit -> Number 0, -- qubits count as 1, bits count as 0
+    desugarSequence = Max,                                  -- qubits of sequence comp. is max of qubits
+    desugarParallel = Plus,                                 -- qubits of parallel comp. is sum of qubits
     desugarBoundedSequence = BoundedMax,
-    desugarBoundedParallel = BoundedSum
+    desugarBoundedParallel = BoundedSum,
+    desugarOperation = Number . opQubits
   }
 
+-- | @opQubits op@ returns the number of qubits involved operation @op@.
 opQubits :: QuantumOperation -> Int
 opQubits (QInit _) = 1
 opQubits QDiscard = 1

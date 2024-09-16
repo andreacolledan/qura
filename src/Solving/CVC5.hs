@@ -16,16 +16,16 @@ import System.IO
 import Control.Concurrent
 import Control.Exception
 import Index.Unify
-import Data.List
+import Data.List (intercalate)
 
 --- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
 ---
 --- This module contains the logic to communicate with the CVC5 SMT solver.
---- SMT queries from the same program are all written to the same file, which is then
---- passed to the solver. The solver's response is then read from the same file.
 -----------------------------------------------------------------------------------------
 
-
+-- | @embedConstraint c@ turns a `Constraint` @c@ into a pair of strings @(d, ec)@
+-- where @d@ is a string containing the SMTLIB declarations and constraints that must precede
+-- the main query and @ec@ is an appropriate encoding of @c@ as an SMTLIB term.
 embedConstraint :: Constraint -> State Int (String, String)
 embedConstraint (Eq i j) = do
   (di, ei) <- embedIndex i
@@ -36,10 +36,11 @@ embedConstraint (Leq i j) = do
   (dj, ej) <- embedIndex j
   return (di ++ dj, "(<= " ++ ei ++ " " ++ ej ++ ")")
 
--- | @embedIndex grs lrs grs lrs i@ desugars all bounded operations in index @i@ into fresh, appropriately constrained variables.
--- It returns a pair @(d, i')@ where @d@ is a string containing the applicable SMTLIB declarations and constraints
--- that must precede the main query in the smtlib file and @i'@ is an appropriate encoding of i as an SMTLIB term, where
--- every occurrence of a bounded operation is replaced by the corresponding newly introduced variable.
+-- | @embedIndex i@ turns index @i@ into a pair of strings @(d, ei)@
+-- where @ei@ is an appropriate encoding of @i@ as an SMTLIB term and @d@ is a string containing
+-- the SMTLIB declarations and constraints that must precede the encoding of @i@.
+-- Note: bounded sums and maxima are handled by `smtBoundedMaxGeneric`: they
+-- are desugared into fresh variables subject to appropriate constraints.
 embedIndex :: Index -> State Int (String, String)
 embedIndex (IVar id) = return ("", id)
 embedIndex (Number n) = return ("", show n)
@@ -64,10 +65,15 @@ embedIndex (BoundedMax id i j) = do
   return (d, maxName)
 embedIndex (BoundedSum id i j) = do
   (d, i', maxName) <- smtBoundedMaxGeneric id i j embedIndex
-  return (d, "(* " ++ i' ++ " " ++ maxName ++ ")")
+  return (d, "(* " ++ i' ++ " " ++ maxName ++ ")") -- note: sum is overapproximated as i * max[id<i] j
 embedIndex i = error $ "Internal error: resource operator was not desugared (embedIndex):" ++ pretty i
 
-smtBoundedMaxGeneric :: IVarId -> Index -> Index -> (Index -> State Int (String, String)) -> State Int (String, String, String)
+-- | @smtBoundedMaxGeneric id i j embed@ turns a bounded maximum @max[id < i] j@ into a triple
+-- of strings @(d, i', maxName)@ where @maxName@ is a fresh variable representing the maximum of @j@ for @id@
+-- going from 0 to @i@, @i'@ is the encoding of @i@ as an SMTLIB term, and @d@ is a string containing
+-- the SMTLIB declarations and constraints that ensure @maxName = max[id < i] j@.
+smtBoundedMaxGeneric :: IVarId -> Index -> Index
+  -> (Index -> State Int (String, String)) -> State Int (String, String, String)
 smtBoundedMaxGeneric id i j embed = do
   count <- get
   put $ count + 1
@@ -96,7 +102,7 @@ smtBoundedMaxGeneric id i j embed = do
             ++ "(<= " ++ j'' ++ " " ++ j' ++ "))))\n"
   return (d0 ++ di ++ dj ++ d, i', maxName)
 
-
+-- | @containsBoundedSum i@ checks whether the index expression @i@ contains a bounded sum.
 containsBoundedSum :: Index -> Bool
 containsBoundedSum (BoundedSum {}) = True
 containsBoundedSum (IVar _) = False
@@ -109,7 +115,7 @@ containsBoundedSum (BoundedMax _ i j) = containsBoundedSum i || containsBoundedS
 containsBoundedSum i = error $ "Internal error: resource operator was not desugared (containsBoundedSum):" ++ pretty i
 
 
--- | @querySMTWithContext qfh c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables.
+-- | @querySMTWithContext qfh cs c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables, assuming that the constraints @cs@ hold.
 -- It returns @True@ if the constraint holds, @False@ otherwise or if an error occurs in the interaction with the solver.
 -- The handle @qfh@ is used to communicate with the SMT solver.
 querySMT :: SolverHandle -> [Constraint] -> Constraint -> IO Bool
@@ -122,22 +128,22 @@ querySMT :: SolverHandle -> [Constraint] -> Constraint -> IO Bool
 querySMT _ _ (Eq i j) | containsBoundedSum i || containsBoundedSum j = return False
 querySMT _ _ (Leq _ j) | containsBoundedSum j = return False
 -- if bounded sums are not a problem, proceed:
-querySMT (sin, sout) hypotheses thesis = do
-  hPutStrLn sin $ "\n; PROVE " ++ pretty thesis
-  unless (null hypotheses) $ hPutStrLn sin $ "; ASSUMING" ++ intercalate ", " (pretty <$> hypotheses)
+querySMT (sin, sout) assumptions query = do
+  hPutStrLn sin $ "\n; PROVE " ++ pretty query
+  unless (null assumptions) $ hPutStrLn sin $ "; ASSUMING " ++ intercalate ", " (pretty <$> assumptions)
   hPutStrLn sin "(push 1)"
-  forM_ (ifv thesis `Set.union` ifv hypotheses) $ \id -> do
-    -- for each free index variable in c, initialize an unknown natural variable:
+  forM_ (ifv query `Set.union` ifv assumptions) $ \id -> do
+    -- for each free index variable in c, initialize an unknown natural SMT variable:
     hPutStrLn sin $ "(declare-const " ++ id ++ " Int)"
     hPutStrLn sin $ "(assert (<= 0 " ++ id ++ "))"
-  forM_ hypotheses $ \h -> do
-    -- for each hypothesis, embed it as an SMTLIB term and assert it:
+  forM_ assumptions $ \h -> do
+    -- embed each assumption as an SMTLIB term and assert it:
     let (d, eh) = evalState (embedConstraint h) 0
     hPutStr sin d
     hPutStrLn sin $ "(assert " ++ eh ++ ")"
-  -- embed the thesis as an SMTLIB term:
-  let (d, ethesis) = evalState (embedConstraint thesis) 0
-  hPutStr sin d -- dump the constraints that desugar bounded maxima
+  -- embed the query as an SMTLIB term:
+  let (d, ethesis) = evalState (embedConstraint query) 0
+  hPutStr sin d
   -- try to find a counterexample to c:
   hPutStrLn sin "; assert the negation of the constraint to check if it is valid"
   hPutStrLn sin $ "(assert (not " ++ ethesis ++ "))"
@@ -157,11 +163,11 @@ querySMT (sin, sout) hypotheses thesis = do
     [] -> do
       -- empty response is considered an error
       hPutStrLn sin "; got empty response"
-      error $ "CVC5 empty response while solving " ++ pretty thesis
+      error $ "CVC5 empty response while solving " ++ pretty query
     other -> do
       -- any other response is considered an error
       hPutStrLn sin $ "; got response: " ++ other
-      error $ "CVC5 unknown response: " ++ other ++ " while solving " ++ pretty thesis
+      error $ "CVC5 unknown response: " ++ other ++ " while solving " ++ pretty query
   hPutStrLn sin "(pop 1)"
   return result
 
@@ -169,11 +175,12 @@ querySMT (sin, sout) hypotheses thesis = do
 -- The first handle is used to send queries to the solver, the second handle is used to read the solver's responses.
 type SolverHandle = (Handle, Handle)
 
--- | @withSolver filepath deb action@ initializes a new SMT solver process and runs the action @action@ with the solver handle.
--- The file @filepath@ is used to store the queries and responses of the solver. If @deb@ is @Just debfile@, the queries are also written to the file @debfile@.
+-- | @withSolver mdebug action@ initializes a new SMT solver process
+-- and runs the action @action@ with the solver handle.
+-- If @mdebug@ is @Just debugfile@, the queries are also written to the file @debugfile@ for debugging.
 withSolver :: Maybe FilePath -> (SolverHandle -> IO r) -> IO r
-withSolver deb action = do
-  let teePrefix = maybe "" (\debfile -> " tee " ++ debfile ++ " | ") deb
+withSolver mdebug action = do
+  let teePrefix = maybe "" (\debugfile -> " tee " ++ debugfile ++ " | ") mdebug
   p@(Just sIn, Just sOut, Just sErr, _) <- createProcess $ (shell $ teePrefix ++ "cvc5 -q --incremental --interactive"){
     std_in = CreatePipe,
     std_out = CreatePipe,

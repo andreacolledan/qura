@@ -21,7 +21,7 @@ module Lang.Analysis.Derivation
     makeFreshVariable,
     unifyTypes,
     withBoundVariables,
-    withWireCount,
+    withEnvSize,
     withNonLinearContext,
     withBoundIndexVariable,
     withScope,
@@ -70,7 +70,7 @@ import Index.Unify
 type DerivationResult = ExceptT TypeError IO
 
 -- The datatype of type derivations
--- Stateful computations with a typing environment, which may throw a type error
+-- Stateful computations with a typing environment that may throw a type error
 type TypeDerivation = StateT TypingEnvironment DerivationResult
 
 runTypeDerivation :: TypeDerivation a -> TypingEnvironment -> DerivationResult (a, TypingEnvironment)
@@ -82,16 +82,17 @@ evalTypeDerivation = evalStateT
 execTypeDerivation :: TypeDerivation a -> TypingEnvironment -> DerivationResult TypingEnvironment
 execTypeDerivation = execStateT
 
--- Basic derivation operators:
+--- BASIC DERIVATION OPERATIONS ------------------------------------------------------
 
+-- | @throwLocalError err@ throws a type error passing the current scope to the error constructor
 throwLocalError :: ([Expr] -> TypeError) -> TypeDerivation a
 throwLocalError err = do
   exprs <- gets scopes
   throwError $ err exprs
 
--- typingContextLookup x looks up variable x in the typing context
--- It removes it if its type is linear
--- throws UnboundVariable if the variable is absent
+-- | @typingContextLookup id@ looks up the type of variable @id@ in the typing context.
+-- If the variable is linear, it is marked as used.
+-- If the variable is not found, it throws 'UnboundVariable'.
 typingContextLookup :: VariableId -> TypeDerivation Type
 typingContextLookup id = do
   env@TypingEnvironment {typingContext = gamma} <- get
@@ -122,7 +123,6 @@ checkWellFormedness x = do
         | otherwise ->  throwLocalError $ UnboundIndexVariable (head . Set.toList $ fv) -- some free variables are not in scope, bad
 
 -- | @makeFreshVariable prefix@ returns a fresh variable name with the given prefix.
--- TODO: using 'scopes', this function could also return a variable that is fresh in the current scope.
 makeFreshVariable :: String -> TypeDerivation VariableId
 makeFreshVariable prefix = do
   env@TypingEnvironment {freshCounter = c} <- get
@@ -140,8 +140,11 @@ unifyTypes e t1 t2 = case mgtu t1 t2 of
     return sub
   Nothing -> throwLocalError $ UnexpectedType e t2 t1
 
+-- | Flag to determine whether lists must be checked for non-emptiness
 data SizeDiscipline = SizedLists | UnsizedLists deriving (Eq, Show)
-
+-- | @makePatternBindings pat typ sl@ returns a list of pairs of variable names and types
+-- obtained by matching pattern @pat@ with type @typ@. The size discipline @sl@ determines
+-- whether lists must be checked for non-emptiness.
 makePatternBindings :: Pattern -> Type -> SizeDiscipline -> TypeDerivation ([VariableId], [Type])
 makePatternBindings pat typ sl = do
   sh <- gets solverHandle
@@ -158,6 +161,8 @@ makePatternBindings pat typ sl = do
       return $ bindings1 ++ bindings2
     go _ _ p t = throwLocalError $ PatternMismatch p t
 
+-- | @runSimplifyType t@ simplifies type @t@ using the environment's SMT solver,
+-- global resource semantics, and local resource semantics.
 runSimplifyType :: Type -> TypeDerivation Type
 runSimplifyType t = do
   sh <- gets solverHandle
@@ -165,8 +170,11 @@ runSimplifyType t = do
   lrs <- gets lrs
   liftIO $ simplifyType sh grs lrs t
 
+
 --- DERIVATION COMBINATORS ------------------------------------------------------
 
+-- | @withBoundVariables ids typs der@ is derivation @der@ in which
+-- the variables in @ids@ are bound to the corresponding types in @typs@.
 withBoundVariables :: [VariableId] -> [Type] -> TypeDerivation a -> TypeDerivation a
 withBoundVariables ids typs der = do
   zipWithM_ bindVariable ids typs
@@ -190,20 +198,19 @@ withBoundVariables ids typs der = do
           when (mustBeUsed b) (throwLocalError $ UnusedLinearVariable id)
           put env {typingContext = if null bs then Map.delete id gamma else Map.insert id bs gamma}
 
--- | @withWireCount der@ is derivation @der@ in which the result of the computation is paired with an index describing
--- how many wires have been consumed during @der@.
-withWireCount :: TypeDerivation a -> TypeDerivation (a, Maybe Index)
-withWireCount der = do
+-- | @withEnvSize der@ is derivation @der@ in which the result of the computation is paired with an index describing
+-- the size of the portion of the environment that has been consumed during @der@.
+withEnvSize :: TypeDerivation a -> TypeDerivation (a, Maybe Index)
+withEnvSize der = do
   TypingEnvironment {typingContext = gamma} <- get
   outcome <- der
   TypingEnvironment {typingContext = gamma'} <- get
-  -- count how many linear resources have disappeared from the contexts
-  let gammaDiff = diffcount  gamma gamma'
-  let resourceCount = gammaDiff
-  return (outcome, resourceCount)
+  -- check the size of the linear resources that have disappeared from the environment
+  let consumedSize = diffSize gamma gamma'
+  return (outcome, consumedSize)
   where
-    diffcount :: TypingContext -> TypingContext -> Maybe Index
-    diffcount  gamma1 gamma2 =
+    diffSize :: TypingContext -> TypingContext -> Maybe Index
+    diffSize  gamma1 gamma2 =
       typeSize  $
         Map.elems $
           Map.differenceWith
@@ -215,8 +222,9 @@ withWireCount der = do
             gamma1
             gamma2
 
--- | @withNonLinearContext der@ is derivation @der@ in which a 'LiftedLinearVariable' error is thrown if any linear resource from the
--- existing typing context is consumed. This is useful to ensure that a computation is not consuming linear resources.
+-- | @withNonLinearContext der@ is derivation @der@ in which a 'LiftedLinearVariable' error
+-- is thrown if any linear resource from the existing typing context is consumed.
+-- This is useful to ensure that a computation is not consuming linear resources.
 withNonLinearContext :: TypeDerivation a -> TypeDerivation a
 withNonLinearContext der = do
   TypingEnvironment {typingContext = gamma} <- get
@@ -249,7 +257,7 @@ withBoundIndexVariable id der = do
   return outcome
 
 -- | @withScope e der@ is derivation @der@ in which expression the enclosing expression @e@ is visible.
--- This is only used to provide good error messages in case of failure and it has no effect on the contexts.
+-- This is only used to provide good error messages in case of failure and it has no effect on the environment.
 withScope :: Expr -> TypeDerivation a -> TypeDerivation a
 withScope e der = do
   env@TypingEnvironment {scopes = es} <- get
@@ -259,9 +267,8 @@ withScope e der = do
   put env {scopes = tail es}
   return outcome
 
-unlessSubtype :: Type -> Type -> TypeDerivation () -> TypeDerivation ()
-unlessSubtype = unlessSubtypeAssuming []
-
+-- | @unlessSubtypeAssuming cs t1 t2 der@ is a derivation that behaves like @der@ if @t1@ is not a subtype of @t2@,
+-- assuming that the constraints @cs@ hold. If @t1@ is a subtype of @t2@, it does nothing.
 unlessSubtypeAssuming :: [Constraint] -> Type -> Type -> TypeDerivation () -> TypeDerivation ()
 unlessSubtypeAssuming cs t1 t2 der = do
   sh <- gets solverHandle
@@ -270,6 +277,11 @@ unlessSubtypeAssuming cs t1 t2 der = do
   c <- liftIO $ checkSubtype cs sh grs lrs t1 t2
   unless c der
 
+-- | @unlessSubtype t1 t2 der@ is shorthand for @unlessSubtypeAssuming [] t1 t2 der@.
+unlessSubtype :: Type -> Type -> TypeDerivation () -> TypeDerivation ()
+unlessSubtype = unlessSubtypeAssuming []
+
+-- | @ifGlobalResources x@ is a derivation that returns @Just x@ if global resources are enabled, and @Nothing@ otherwise.
 ifGlobalResources :: a -> TypeDerivation (Maybe a)
 ifGlobalResources x = do
   grs <- gets grs
@@ -277,22 +289,29 @@ ifGlobalResources x = do
     Nothing -> return Nothing
     Just _ -> return $ Just x
 
--- Arithmetic index checking
 
+--- Arithmetic index checking ---
+
+-- | @unlessLeq i j der@ is a derivation that behaves like @der@ if @i@ is not less than or equal to @j@.
+-- If @i@ is less than or equal to @j@, it does nothing.
 unlessLeq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
 unlessLeq i j der = do
   sh <- gets solverHandle
   c <- liftIO $ checkLeq [] sh i j
   unless c der
 
+-- | @unlessEq i j der@ is a derivation that behaves like @der@ if @i@ is not equal to @j@.
+-- If @i@ is equal to @j@, it does nothing.
 unlessEq :: Index -> Index -> TypeDerivation () -> TypeDerivation ()
 unlessEq i j der = do
   sh <- gets solverHandle
   c <- liftIO $ checkEq [] sh i j
   unless c der
 
--- Global resource index checking
 
+--- Global resource index checking ---
+
+-- | @unlessGRLeq@ is like @unlessLeq@ but specialized to global metric annotations.
 unlessGRLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessGRLeq i j der = do
   qfh <- gets solverHandle
@@ -300,6 +319,7 @@ unlessGRLeq i j der = do
   c <- liftIO $ checkGRLeq [] qfh grs i j
   unless c der
 
+-- | @unlessGREq@ is like @unlessEq@ but specialized to global metric annotations.
 unlessGREq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessGREq i j der = do
   qfh <- gets solverHandle
@@ -307,8 +327,9 @@ unlessGREq i j der = do
   c <- liftIO $ checkGREq [] qfh grs i j
   unless c der
 
--- Local resource index checking
+--- Local resource index checking ---
 
+-- | @unlessLRLeq@ is like @unlessLeq@ but specialized to local metric annotations.
 unlessLRLeq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessLRLeq i j der = do
   qfh <- gets solverHandle
@@ -316,6 +337,7 @@ unlessLRLeq i j der = do
   c <- liftIO $ checkLRLeq [] qfh lrs i j
   unless c der
 
+-- | @unlessLREq@ is like @unlessEq@ but specialized to local metric annotations.
 unlessLREq :: Maybe Index -> Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessLREq i j der = do
   qfh <- gets solverHandle
@@ -323,8 +345,12 @@ unlessLREq i j der = do
   c <- liftIO $ checkLREq [] qfh lrs i j
   unless c der
 
+-- | @unlessIdentity i der@ is a derivation that behaves like @der@ if @i@ is not equal to the identity index.
+-- If @i@ is equal to the identity index, it does nothing.
 unlessIdentity :: Maybe Index -> TypeDerivation () -> TypeDerivation ()
 unlessIdentity i = unlessGREq i (Just Index.AST.Identity)
+
+
 
 --- OTHER STUFF ----------------------------------------------------------------
 

@@ -15,8 +15,7 @@ import Data.List (intercalate)
 
 --- PQR SYNTAX MODULE ---------------------------------------------------------------------------------------
 ---
---- This module defines the abstract syntax of PQR expressions. This syntax is based on the one in the paper,
---- but it exhibits significant differences and additional constructs which make it more usable.
+--- This module defines the abstract syntax of PQR expressions.
 -------------------------------------------------------------------------------------------------------------
 
 -- | The datatype of PQR expressions
@@ -35,7 +34,7 @@ data Expr =
   | EForce Expr                               -- Force                    : force e
   | ELet Pattern Expr Expr                    -- Let                      : let p = e1 in e2
   | EAnno Expr Type                           -- Type annotation          : e :: t
-  | EIAbs IVarId Expr                -- Index Abstraction        : @i . e
+  | EIAbs IVarId Expr                         -- Index Abstraction        : forall id . e
   | EIApp Expr Index                          -- Index Application        : e @ i
   | EConst Constant                           -- Constant                 : QInit0, Hadamard, ...
   | EAssume Expr Type                         -- Type assumption          : e !:: t
@@ -75,13 +74,11 @@ instance HasType Expr where
   tfv (EFold e1 e2 e3) = tfv e1 `Set.union` tfv e2 `Set.union` tfv e3
   tfv (EAnno e t) = tfv e `Set.union` tfv t
   tfv (EApply e1 e2) = tfv e1 `Set.union` tfv e2
-  tfv (EBox bt e) = tfv e -- TODO check if bt should be included
+  tfv (EBox _ e) = tfv e
   tfv (ELet _ e1 e2) = tfv e1 `Set.union` tfv e2
-  -- tfv (EDest _ e1 e2) = tfv e1 `Set.union` tfv e2
   tfv (EIAbs _ e) = tfv e
   tfv (EIApp e _) = tfv e
   tfv (EConst _) = Set.empty
-  -- tfv (ELetCons _ _ e1 e2) = tfv e1 `Set.union` tfv e2
   tfv (EAssume e t) = tfv e `Set.union` tfv t
   tsub :: TypeSubstitution -> Expr -> Expr
   tsub _ EUnit = EUnit

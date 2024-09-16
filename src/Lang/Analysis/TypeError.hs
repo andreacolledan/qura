@@ -69,18 +69,6 @@ printSurroundings (e : es) = "\n* While typing " ++ pretty e ++ go es 3
     go _ 0 = "\n..."
     go (e : es) n = "\n  In " ++ trnc 80 (pretty e) ++ go es (n - 1)
 
--- | @printConstructor t@ returns a string describing the top-level constructor of type @t@
-printConstructor :: Type -> String
-printConstructor TUnit = "unit type"
-printConstructor (TWire {}) = "wire type"
-printConstructor (TTensor {}) = "tensor type"
-printConstructor (TCirc {}) = "circuit type"
-printConstructor (TArrow {}) = "arrow type"
-printConstructor (TBang {}) = "bang type"
-printConstructor (TList {}) = "list type"
-printConstructor (TVar {}) = "type variable"
-printConstructor (TIForall {}) = "forall type"
-
 -- | @trnc n s@ returns the first @n@ characters of @s@, followed by "..." if @s@ is longer than @n@
 trnc :: Int -> String -> String
 trnc n s = if length s > n then take n s ++ "..." else s

@@ -11,13 +11,6 @@ import qualified Data.HashMap.Strict as Map
 import Control.Monad (zipWithM)
 import Data.Foldable
 import Control.Monad.Extra (when)
-import Index.AST
-import Index.Unify
-
---- TYPE UNIFICATION MODULE ---------------------------------------------------------------------------------
----
---- This module defines the unification algorithm for PQR types. Indices are ignored at this stage.
--------------------------------------------------------------------------------------------------------------
 
 --- TYPE SUBSTITUTION ----------------------------------------------------------------------------------------
 

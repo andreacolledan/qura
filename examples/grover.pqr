@@ -1,9 +1,10 @@
 --- Grover search algorithm with depth and width analysis ---
---- following https://cnot.io/quantum_algorithms/grover/grovers_algorithm.html
+--- Following the circuit description at:
+--- https://cnot.io/quantum_algorithms/grover/grovers_algorithm.html
 
---- HELPER FUNCTIONS
+--- HELPER FUNCTIONS ---
 
--- initialize n qubits to |0)
+-- initialize n qubits to |0>
 let qinit0Many = lift forall n.
   let qinitStep = lift forall step. \(qs,u) :: (List[_<step] Qubit{0}, ()). qs:(force qinit0)
   in fold(qinitStep, [], range @ n)
@@ -28,23 +29,25 @@ let measureMany = lift forall n. forall d. \x :: List[_<n] Qubit{d}.
 in
 
 
---- GROVER'S ALGORITHM
+--- GROVER'S ALGORITHM ---
 
--- the diffusion operator on n qubits at depth d, with ancilla a also at depth d
+-- the diffusion operator on n qubits with ancilla a (all qubits at depth d)
 let diffusion = lift forall n. forall d. 
   \reg :: List[_<n] Qubit{d}.
   \a :: Qubit{d}.
     let reg = (force hadamardMany @ n @ d) reg in
+    -- begin negatively controlled not
     let reg = (force qnotMany @ n @ d+1) reg in
     let (reg,a) = (force mcnot @ n @ d+2 @ d) reg a in
     let reg = (force qnotMany @ n @ d+3) reg in
+    -- end negatively controlled not
     let reg = (force hadamardMany @ n @ d+4) reg in
     (reg, a)
 in
 
 -- perform a single grover iteration on n qubits at depth d,
 -- using an ancilla a at depth d
--- and an oracle of width w and depth od
+-- and an oracle of width ow and depth od
 let groverIteration = lift forall n. forall d. forall w. forall od.
   \oracle :: forall[0,0] d. Circ[w]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
   \reg :: List[_<n] Qubit{d}.
@@ -53,9 +56,9 @@ let groverIteration = lift forall n. forall d. forall w. forall od.
     (force diffusion @ n @ d + od) reg a
 in
 
--- run Grover's algorithm on an oracle of input size n, width w and depth od
-let grover = lift forall n. forall w. forall od.
-  \oracle :: forall[0,0] d. Circ[w]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
+-- run Grover's algorithm on an oracle of input size n, width ow and depth od
+let grover = lift forall n. forall ow. forall od.
+  \oracle :: forall[0,0] d. Circ[ow]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
     -- prepare working qubits
     let wqs = force qinit0Many @ n in
     let wqs = (force hadamardMany @ n @ 0) wqs in
@@ -64,7 +67,7 @@ let grover = lift forall n. forall w. forall od.
     let a = (force hadamard @ 0) a in
     -- iterate Grover's algorithm
     let iteration = lift forall step. \((wqs, a), _) :: ((List[_<n] Qubit{1+step*(od+5)}, Qubit{1+step*(od+5)}), ()).
-      (force groverIteration @ n @ 1+step*(od+5) @ w @ od) oracle wqs a
+      (force groverIteration @ n @ 1+step*(od+5) @ ow @ od) oracle wqs a
     in
     let (wqs, a) = fold(iteration, (wqs, a), range @ n) in
     -- ^^ n is an approximation, should be floor(pi/4 * sqrt(2^(n))), but our arithmetic is not this rich yet
@@ -72,10 +75,10 @@ let grover = lift forall n. forall w. forall od.
     ((force measureMany @ n @ 1 + n * (od + 5)) wqs :: List[_<n] Bit{2 + n * (od + 5)})
 in
 
--- The oracle f : {0,1}^3 -> {0,1} such that f(x) = 1 iff x = 111
+-- The oracle f : {0,1}^3 -> {0,1} such that f(x) = 1 <==> x = 111
 let oracleOne = forall d.
   box $ lift \(reg, a) :: (List[_<3] Qubit{d}, Qubit{d}).
     (force mcnot @ 3 @ d @ d) reg a -- Ancilla is flipped iff reg is 111
 in
-grover
--- (force grover @ 3 @ 4 @ 1) oracleOne
+
+(force grover @ 3 @ 4 @ 1) oracleOne

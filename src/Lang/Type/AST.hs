@@ -30,29 +30,34 @@ import Index.Unify
 
 type TVarId = String
 
--- Fig. 8
 -- | The datatype of PQR types
 data Type
-  = TUnit                                       -- Unit type        : ()
-  | TWire WireType (Maybe Index)                -- Wire type        : Bit{i} | Qubit{i}
-  | TTensor [Type]                              -- Tensor type      : (t1, t2, ...)
-  | TCirc (Maybe Index) Type Type               -- Circuit type     : Circ[i](t1, t2)
-  | TArrow Type Type (Maybe Index) (Maybe Index)-- Function type    : t1 -o[i,j] t2
-  | TBang (Maybe Index) Type                    -- Bang type        : ![i]t
-  | TList IVarId Index Type            -- List type        : TList[id < i] t
-  | TVar TVarId                                 -- Type variable    : 
-  | TIForall IVarId Type (Maybe Index) (Maybe Index) -- Dep. fun. type   : i ->[i,j] t
+  = TUnit                                             -- Unit type        : ()
+  | TWire WireType (Maybe Index)                      -- Wire type        : Bit{i} | Qubit{i}
+  | TTensor [Type]                                    -- Tensor type      : (t1, t2, ...)
+  | TCirc (Maybe Index) Type Type                     -- Circuit type     : Circ[i](t1, t2)
+  | TArrow Type Type (Maybe Index) (Maybe Index)      -- Function type    : t1 -o[i, j] t2
+  | TBang (Maybe Index) Type                          -- Bang type        : ![i]t
+  | TList IVarId Index Type                           -- List type        : TList[id < i] t
+  | TVar TVarId                                       -- Type variable    : 
+  | TIForall IVarId Type (Maybe Index) (Maybe Index)  -- Dep. fun. type   : forall[i, j] id. t
   deriving (Show, Eq)
 
+-- | @prettyGlobalAnnotation i@ returns a pretty-printed version of annotation @i@
+-- within square brackets, or the empty string if @i@ is 'Nothing'
 prettyGlobalAnnotation :: Maybe Index -> String
 prettyGlobalAnnotation Nothing = ""
 prettyGlobalAnnotation (Just i) = "[" ++ pretty i ++ "]"
 
+-- | @prettyGlobalAnnotations i j@ returns a pretty-printed version of annotations @i@ and @j@
+-- within square brackets, or the empty string if both are 'Nothing'
 prettyGlobalAnnotations :: Maybe Index -> Maybe Index -> String
 prettyGlobalAnnotations Nothing Nothing = ""
 prettyGlobalAnnotations (Just i) (Just j) = "[" ++ pretty i ++ ", " ++ pretty j ++ "]"
 prettyGlobalAnnotations _ _ = error "Internal: inconsistent annotations (prettyAnnos)"
 
+-- | @prettyLocalAnnotation i@ returns a pretty-printed version of annotation @i@
+-- within curly brackets, or the empty string if @i@ is 'Nothing'
 prettyLocalAnnotation :: Maybe Index -> String
 prettyLocalAnnotation Nothing = ""
 prettyLocalAnnotation (Just i) = "{" ++ pretty i ++ "}"
@@ -68,8 +73,6 @@ instance Pretty Type where
   prettyPrec _ (TVar id) = id
   prettyPrec prec (TIForall id typ i j) = withinPar (prec > 4) $ "forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ prettyPrec 4 typ
 
--- Def. 2 (Wire Count)
--- PQR types are amenable to wire counting
 instance HasSize Type where
   typeSize TUnit = return Identity
   typeSize (TWire wt _) = return $ Wire wt
@@ -85,7 +88,6 @@ instance HasSize Type where
   typeSize (TIForall _ _ _ i) = i
   typeSize (TVar _) = error "Cannot count wires of a type variable"
 
--- PQR types are amenable to the notion of well-formedness with respect to an index context
 instance HasIndex Type where
   iv :: Type -> Set.HashSet IVarId
   iv TUnit = Set.empty
@@ -124,7 +126,7 @@ instance HasIndex Type where
         renaming = isubSingleton id (IVar id')  
      in TIForall id' (isub sub . isub renaming $ typ) (isub sub . isub renaming $ j) (isub sub . isub renaming $ k)
 
--- | @isLinear t@ returns 'True' @t@ is a linear type, and 'False' otherwise
+-- | @isLinear t@ checks whether type @t@ is a linear type
 isLinear :: Type -> Bool
 isLinear TUnit = False
 isLinear (TWire _ _) = True
@@ -137,14 +139,16 @@ isLinear (TList _ _ typ) = isLinear typ
 isLinear (TVar _) = False -- Variables are only used in the pre-processing stage, so we are permissive here
 isLinear (TIForall _ typ _ _) = isLinear typ
 
+-- | @isBundleType t@ checks whether type @t@ is a bundle type,
+-- that is, a wire type or a tuple/list of bundle types
 isBundleType :: Type -> Bool
 isBundleType TUnit = True
 isBundleType (TWire _ _) = True
 isBundleType (TTensor ts) = all isBundleType ts
 isBundleType (TList _ _ typ) = isBundleType typ
--- isBundleType (TVar _) = True -- TODO check
 isBundleType _ = False
 
+-- | @stripGlobalAnnotations t@ removes all global metric annotations from type @t@
 stripGlobalAnnotations :: Type -> Type
 stripGlobalAnnotations TUnit = TUnit
 stripGlobalAnnotations (TVar id) = TVar id
@@ -156,6 +160,7 @@ stripGlobalAnnotations (TCirc _ t1 t2) = TCirc Nothing (stripGlobalAnnotations t
 stripGlobalAnnotations (TTensor ts) = TTensor (map stripGlobalAnnotations ts)
 stripGlobalAnnotations (TWire wt i) = TWire wt i
 
+-- | @stripLocalAnnotations t@ removes all local metric annotations from type @t@
 stripLocalAnnotations :: Type -> Type
 stripLocalAnnotations TUnit = TUnit
 stripLocalAnnotations (TVar id) = TVar id
@@ -167,22 +172,21 @@ stripLocalAnnotations (TCirc i t1 t2) = TCirc i (stripLocalAnnotations t1) (stri
 stripLocalAnnotations (TTensor ts) = TTensor (map stripLocalAnnotations ts)
 stripLocalAnnotations (TWire wt _) = TWire wt Nothing
 
---- WIRE COUNTING ---------------------------------------------------------------------------------
 
--- The class of datatypes that can contain wires and are thus amenable to wire counting
--- Def. 2 (Wire Count)
+--- TYPE SIZE ---------------------------------------------------------------------------------
+
+-- The class of datatypes that are amenable to a notion of "circuit size"
 class HasSize a where
   typeSize :: a -> Maybe Index -- #(•) in the paper
 
 instance HasSize WireType where
   typeSize wt = Just (Wire wt)
 
--- Any traversable structure of elements with wire counts can be wire counted
--- Its wire count is the sum of the wire counts of its elements
+-- Any traversable structure of sized elements is itself sized
 instance (Traversable t, HasSize a) => HasSize (t a) where
   typeSize x = do
     wirecounts <- mapM typeSize x
-    return $ foldr Parallel Identity wirecounts
+    return $ foldr Parallel Identity wirecounts -- disjoint pieces of data move "in parallel"
 
 instance HasSize a => HasSize (Maybe a) where
   typeSize Nothing = Nothing

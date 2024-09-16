@@ -12,7 +12,7 @@ import Data.Foldable
 import Control.Monad.Extra
 import Lang.Library.Constant
 
---- ANNOTATING PASS MODULE ------------------------------------------------------------------------------------
+--- BASE TYPE INFERENCE MODULE ------------------------------------------------------------------------------
 ---
 --- This module defines the preprocessing stage of type inference.
 --- Actual inference (i.e. unification) is only carried out at this stage.
@@ -25,7 +25,7 @@ irr :: Index
 irr = IVar "irr"
 
 
--- | @ annotate e @ infers the type of expression @e@, without indices, annotating intermediate expressions as necessary.
+-- | @ inferBaseType e @ infers the type of expression @e@, without indices, annotating intermediate expressions as necessary.
 -- The result is a triple @(e', t, s)@, where @e'@ is the annotated expression, @t@ is its type, and @s@ is the compound
 -- type substitution that was applied to the expression.
 -- TODO: many unnecessary substitutions are happening, their application could be better tailored to the specific typing case
@@ -143,9 +143,10 @@ inferBaseType e@(EAssume e1 annotyp) = withScope e $ do
   (e1', _, sub1) <- inferBaseType e1
   return (EAssume e1' annotyp, annotyp, sub1)
 
+
 --- TOP-LEVEL EXPORTED FUNCTIONS -------------------------------------------------------
 
--- | @ runAnnotation env e @ annotates all the empty lists in expression @e@ with the correct parameter type under environment @env@.
+-- | @ runAnnotation env e @ performs base type inference on @e@ under environment @env@.
 -- If successful, returns the annotated expression. Otherwise, returns the error.
 runBaseTypeInference :: TypingEnvironment -> Expr -> DerivationResult Expr
 runBaseTypeInference env e = extractFirst <$> evalTypeDerivation (inferBaseType e) env
