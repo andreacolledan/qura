@@ -2,11 +2,11 @@
 
 **Disclaimer:** support for metrics other than circuit width is still experimental.
 
-QuRA is a static analysis tool for the verification of the resource consumption of quantum circuit description programs. QuRA takes as input a program written in a variant of Quipper called [PQR](src/Lang/README.md). and outputs two things: a type for the program and an upper bound to the size of the circuit it will build.
+QuRA is a static analysis tool for the verification of the resource consumption of quantum circuit description programs. QuRA takes as input a program written in a variant of Quipper called [PQ](src/Lang/README.md). and outputs two things: a type for the program and an upper bound to the size of the circuit it will build.
 
 ## Getting started
 
-Consider a PQR program that implements a function `dumbNot` defined as:
+Consider a PQ program that implements a function `dumbNot` defined as:
 ```
 let dumbNot = \q :: Qubit .
   let a = force qinit1 in         -- initialize a temporary qubit to |1>
@@ -27,7 +27,7 @@ As the name suggests, `dumbNot` implements the negation of a qubit in a dumb, ne
 
 In terms of width, this circuit has size 2. In terms of gate count, it has size 1. QuRA is able to automatically infer this information from the definition of `dumbNot`, without having to run the program, by giving `dumbNot` one of the following function types, depending on the chosen size metric:
 ```
-$ qura examples/dumbNot.pqr -g width
+$ qura examples/dumbNot.PQ -g width
 Inferred type: Qubit -o[2,0] Qubit
 
 $ qura examples/dumbNot.pqr -g gatecount
@@ -35,9 +35,9 @@ Inferred type: Qubit -o[1,0] Qubit
 ```
 The linear arrow type is indexed with two numbers: the first one gives us an upper bound to the size of the circuit built by `dumbNot` according to the chosen metric, while the second one tells us the size of the circuit wires that are captured inside the function's closure (in this case, no wires are captured). The latter annotation, although technical in nature, is essential to correctly estimate circuit size in many cases.
 
-In such a simple example, there is no incentive to *verify* this porperty, as opposed to *test* it: `dumbNot` always builds the same circuit, regardless of its input. We might as well have executed `dumbNot`, checked the resulting circuit and obtained the same information about its size, without the need for a type system at all.
+In such a simple example, there is no incentive to *verify* this property, as opposed to *test* it: `dumbNot` always builds the same circuit, regardless of its input. We might as well have executed `dumbNot`, checked the resulting circuit and obtained the same information about its size, without the need for a type system at all.
 Where QuRA really excels is in the verification of *circuit families*, that is, functions that build different circuits depending on some input parameter.
-PQR supports a limited form of depdendency, which is restricted to the numerical indices used to annotate types. This allows to verify entire circuit families at once, obtaining generic, parametric upper bounds that hold for *any* choice of parameters. E.g. the `qft` circuit family is implemented in PQR as follows:
+PQ supports a limited form of dependency, which is restricted to the numerical indices used to annotate types. This allows to verify entire circuit families at once, obtaining generic, parametric upper bounds that hold for *any* choice of parameters. E.g. the `qft` circuit family is implemented in PQ as follows:
 ```
 let rotate = forall m. lift forall k.\((ctrls, trg), ctrl)::((List[j<k] Qubit, Qubit), Qubit).
     let (ctrl, trg) = (force cR @ m+1-k @ 0 @ 0) ctrl trg in
@@ -53,7 +53,7 @@ let qft = forall n. \reg :: List[j<n] Qubit.
   in fold(qftStep, [], reg)
 in qft
 ```
-Abstractions over index variables is achieved through the `forall` binder. Indices are arithmetic expressions over natural numbers and index variables and are the only kind of term that's allowed to appear in types. Note also that general recursion is not available in PQR. Instead, a limited form of recursion is made available via the primitive `fold` construct. QuRA infers the following types for `qft`:
+Abstractions over index variables is achieved through the `forall` binder. Indices are arithmetic expressions over natural numbers and index variables and are the only kind of term that's allowed to appear in types. Note also that general recursion is not available in PQ. Instead, a limited form of recursion is made available via the primitive `fold` construct. QuRA infers the following types for `qft`:
 ```
 qura examples/qft.pqr -g width
 Inferred type: forall[0, 0] n. List[j<n] Qubit -o[n, 0] List[j<n] Qubit
@@ -108,7 +108,7 @@ $ stack install
 **Disclaimer:** support for metrics other than circuit width is still experimental.
 
 ## Usage
-To run QuRA on the PQR file `FILE`, run
+To run QuRA on the PQ file `FILE`, run
 ```
 $ qura FILE
 ```

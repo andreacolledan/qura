@@ -1,12 +1,12 @@
-## PQR Documentation (WIP)
+## PQ Documentation (WIP)
 
-QuRA takes as input programs written in a variant of Quipper called PQR (short for Proto-Quipper-R). This language is based on the Proto-Quipper family of theoretical programming languages. As such, PQR is, at its core, a lambda calculus with bespoke constructs to describe and manipulate quantum circuits, dressed in a Haskell-like syntax.
+QuRA takes as input programs written in a variant of Quipper called PQ (short for Proto-Quipper-R). This language is based on the Proto-Quipper family of theoretical programming languages. As such, PQ is, at its core, a lambda calculus with bespoke constructs to describe and manipulate quantum circuits, dressed in a Haskell-like syntax.
 
 ## Table of contents
 
-- [PQR Documentation (WIP)](#pqr-documentation-wip)
+- [PQ Documentation (WIP)](#pq-documentation-wip)
 - [Table of contents](#table-of-contents)
-- [PQR Basics](#pqr-basics)
+- [PQ Basics](#pq-basics)
   - [Effect typing](#effect-typing)
   - [Linear types](#linear-types)
   - [Refinement types](#refinement-types)
@@ -51,16 +51,16 @@ QuRA takes as input programs written in a variant of Quipper called PQR (short f
   - [Parametric gates](#parametric-gates)
   - [Other](#other)
 
-## PQR Basics
+## PQ Basics
 
-In PQR, programs contain both classical and quantum operations. However, only classical operations are actually executed, while quantum operations are buffered to a *quantum circuit*, with the idea that the latter can then be further manipulated as a whole, or sent to quantum hardware for execution.
-When we talk of the resource requirements of a PQR program, we are really just talking about the size of this quantum circuit, which might depend on the classical inputs to the program.
+In PQ, programs contain both classical and quantum operations. However, only classical operations are actually executed, while quantum operations are buffered to a *quantum circuit*, with the idea that the latter can then be further manipulated as a whole, or sent to quantum hardware for execution.
+When we talk of the resource requirements of a PQ program, we are really just talking about the size of this quantum circuit, which might depend on the classical inputs to the program.
 
-PQR obeys an effectful, linear-nonlinear, refinement typing discipline. Let us break this down.
+PQ obeys an effectful, linear-nonlinear, refinement typing discipline. Let us break this down.
 
 ### Effect typing
 
-PQR builds a circuit as a side-effect of a computation. When dealing with effectful functional programming languages, in addition to giving types to programs, we can also give them *[effect annotations](https://en.wikipedia.org/wiki/Effect_system)*, which describe the side-effect they produce.
+PQ builds a circuit as a side-effect of a computation. When dealing with effectful functional programming languages, in addition to giving types to programs, we can also give them *[effect annotations](https://en.wikipedia.org/wiki/Effect_system)*, which describe the side-effect they produce.
 
 In the case of QuRA, effect annotations are used to describe the size of the circuits built by a program. When QuRA is run, two outputs are generally produced:
 
@@ -77,7 +77,7 @@ Where "inferred width upper bound" is precisely the effect annotation, which tel
 
 In the context of quantum programming languages, this is particularly desirable when handling qubits: due to the no-cloning properties of quantum states, qubits cannot generally be duplicated. Furthermore, qubits might be entangled, meaning that losing acces to a qubit might cause a loss of information about the quantum system as a whole. As such, qubits must be explicitly (and properly) discarded, they cannot just go out of scope.
 
-In PQR, qubit and bit references are treated linearly. Functions are also treated linearly by default. Any piece of data containing linear values is itself treated linearly.
+In PQ, qubit and bit references are treated linearly. Functions are also treated linearly by default. Any piece of data containing linear values is itself treated linearly.
 
 All other values are not linear. They are called *parameters* and are freely duplicable and discardable.
 
@@ -98,7 +98,7 @@ Index operations include simple arithmetic (addition, natural subtraction, multi
 
 ### Qubits and bits
 
-The fundamental objects of circuit-building are qubits and bits. Because PQR is a *circuit description language*, these have to be interpreted as references to available wires in a global underlying circuit that is built incrementally as the program executes.
+The fundamental objects of circuit-building are qubits and bits. Because PQ is a *circuit description language*, these have to be interpreted as references to available wires in a global underlying circuit that is built incrementally as the program executes.
 
 A qubit reference has type `Qubit{n}`, where `n` is the local metric information (e.g. depth) associated to the qubit in the circuit.
 Similarly, a bit reference has type `Bit{n}`.
@@ -117,7 +117,7 @@ Circ[n](inType, outType)
 ```
 represents an operation that has input type `inType`, output type `outType` and size `n` within the circuit. 
 
-All the primitive circuit operations available in PQR are described [here](#primitive-circuit-operations).
+All the primitive circuit operations available in PQ are described [here](#primitive-circuit-operations).
 
 **Note:**
 *All* operations that affect the underlying circuit are performed via `apply`. This includes the initialization of new bits and qubits, measurements, discardings, etc. When an operation has no inputs (e.g. qubit initialization), it is applied to the unit value `()`.
@@ -138,7 +138,7 @@ $ qura examples/snippets/apply.pqr -g width -l depth
 
 
 ### Linear functions
-Functions in PQR are defined through lambdas. The argument of a lambda must be annotated with its type: 
+Functions in PQ are defined through lambdas. The argument of a lambda must be annotated with its type: 
 ```
 \arg :: type . body
 ```
@@ -146,9 +146,9 @@ is a function whose argument is `arg` of type `type` and whose body is `body`. A
 ```
 inType -o[n,m] outType
 ```
-describes a function that takes an input of type `inType`, builds a circuit of size at most `n`, and returns a value of type `outType`. Annotation `m` represents the size of the wires captured within the function's closure. Although technical in nature, this annotation is essential to accurately estimate the size of the circuits described in PQR.
+describes a function that takes an input of type `inType`, builds a circuit of size at most `n`, and returns a value of type `outType`. Annotation `m` represents the size of the wires captured within the function's closure. Although technical in nature, this annotation is essential to accurately estimate the size of the circuits described in PQ.
 
-Functions in PQR are by default linear meaning that, without [further devices](#lifting-and-forcing), they must be applied exactly once. PQR also supports higher-order functions.
+Functions in PQ are by default linear meaning that, without [further devices](#lifting-and-forcing), they must be applied exactly once. PQ also supports higher-order functions.
 
 #### Examples
 ##### Defining functions
@@ -265,7 +265,7 @@ Although the syntax is fairly different from that of regular functions, it helps
 forall[n,m] i. type
 ```
 thus represents a function that takes as input an index `index` and returns a value of type `type` which can also depend on `index`. The role of `n` and `m` is the same as in linear functions.
-Note that because indices can appear in types, dependent functions are the mechanism through which parametric polymorphism is achieved in PQR.
+Note that because indices can appear in types, dependent functions are the mechanism through which parametric polymorphism is achieved in PQ.
 
 Dependent functions are essential when dealing with [list functions](#fold).
 
@@ -305,9 +305,9 @@ qura examples/snippets/dependency.pqr -g width -l depth
 
 ### Sized dependent lists
 
-Unlike lists in most functional programming languages, PQR lists grow to the right. The empty list is `[]`, whereas `xs:x` denotes the append of `x` to the list `xs`. List literals are also supported.
+Unlike lists in most functional programming languages, PQ lists grow to the right. The empty list is `[]`, whereas `xs:x` denotes the append of `x` to the list `xs`. List literals are also supported.
 
-PQR lists are *sized* and *dependent*, meaning that their exact size is reflected in the type, and that the type of an element might depend on its position within the list. A *sized dependent list type* of the form
+PQ lists are *sized* and *dependent*, meaning that their exact size is reflected in the type, and that the type of an element might depend on its position within the list. A *sized dependent list type* of the form
 ```
 List[i<n] type
 ```
@@ -334,7 +334,7 @@ $ qura examples/snippets/lists.pqr -l depth
 ```
 
 ### Fold
-PQR does not support full-fledged recursion. However, you can iterate over lists using the built-in `fold` construct:
+PQ does not support full-fledged recursion. However, you can iterate over lists using the built-in `fold` construct:
 ```
 fold f acc list
 ```
@@ -385,7 +385,7 @@ $ qura examples/snippets/fold.pqr -g width -l depth
 
 ## Primitive Circuit Operations
 
-At the time of writing, the following are the primitives that can be used for circuit-building in PQR. 
+At the time of writing, the following are the primitives that can be used for circuit-building in PQ. 
 
 **Note**: Although it is possible to build circuits by directly `apply`ing the following operations to the underlying circuit, it is strongly recommended to use the [corresponding wrapper library functions](#standard-library) instead.
 
