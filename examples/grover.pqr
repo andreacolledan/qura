@@ -57,7 +57,7 @@ let groverIteration = lift forall n. forall d. forall w. forall od.
 in
 
 -- run Grover's algorithm on an oracle of input size n, width os and depth od
-let grover = forall r. forall n. forall os. forall od.
+let grover = lift forall r. forall n. forall os. forall od.
   \oracle :: forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
     -- prepare working qubits
     let wqs = force qinit0Many @ n in
