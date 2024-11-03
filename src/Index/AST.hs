@@ -26,6 +26,7 @@ data Index
   | Mult Index Index                      -- Product of indices     : i * j
   | Minus Index Index                     -- Natural subtraction    : i - j
   | BoundedMax IVarId Index Index         -- Bounded maximum        : max[id < i] j
+  | BoundedMin IVarId Index Index         -- Bounded minimum        : min[id < i] j
   | BoundedSum IVarId Index Index         -- Bounded sum            : sum[id < i] j
   -- Abstract resource operators 
   | Output QuantumOperation Int [Index]   -- Local resource annotation of op output       : output[g,n](i1,...,in)
@@ -46,6 +47,7 @@ instance Pretty Index where
   prettyPrec prec (Mult i j) = withinPar (prec > 7) $ prettyPrec 7 i ++ " * " ++ prettyPrec 7 j
   prettyPrec prec (Minus i j) = withinPar (prec > 5) $ prettyPrec 5 i ++ " - " ++ prettyPrec 6 j
   prettyPrec _ (BoundedMax id i j) = "max[" ++ id ++ " < " ++ pretty i ++ "]" ++ "(" ++ pretty j ++ ")"
+  prettyPrec _ (BoundedMin id i j) = "min[" ++ id ++ " < " ++ pretty i ++ "]" ++ "(" ++ pretty j ++ ")"
   prettyPrec _ (BoundedSum id i j) = "sum[" ++ id ++ " < " ++ pretty i ++ "]" ++ "(" ++ pretty j ++ ")"
   prettyPrec _ (Output op n is) = "output[" ++ show op ++ "," ++ show n ++ "](" ++ intercalate ", " (pretty <$> is) ++ ")"
   prettyPrec _ Identity = "identity"

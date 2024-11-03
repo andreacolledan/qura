@@ -20,6 +20,7 @@ gateCountMetric =
 
 -- | @opGateCount op@ returns the number of gates in operation @op@.
 opGateCount :: QuantumOperation -> Int
+opGateCount Meas = 1
 opGateCount Hadamard = 1
 opGateCount PauliX = 1
 opGateCount PauliY = 1
@@ -35,6 +36,5 @@ opGateCount Toffoli = 1
 --note: metaoperations do not count as gates
 opGateCount (QInit _) = 0
 opGateCount QDiscard = 0
-opGateCount Meas = 0
 opGateCount (CInit _) = 0
 opGateCount CDiscard = 0
