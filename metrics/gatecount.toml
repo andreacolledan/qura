@@ -1,0 +1,77 @@
+[meta]
+name = "gate count"
+author = "Andrea Colledan"
+type = "global"
+
+[cost-combinators]
+
+# The null size
+identity = 0
+
+# The size of a qubit wire
+qubit_size = 0
+
+# The size of a bit wire
+bit_size = 0
+
+# The size of the circuit obtained by composing in sequence
+# a circuit of size s0 and one of size s1
+#
+# Parameters:
+# - s0, the size of the first circuit
+# - s1, the size of the second circuit
+#
+sequence_combinator = "s0 + s1" 
+
+# The size of the circuit obtained by composing in parallel
+# a circuit of size s0 and one of size s1
+#
+# Parameters:
+# - s0, the size of the first circuit
+# - s1, the size of the second circuit
+#
+parallel_combinator = "s0 + s1"
+
+# The size of the circuit obtained by composing in sequence
+# n circuits, where the i-th circuit has size s
+#
+# Parameters:
+# - n, the number of circuits
+# - i, the iterator variable, which s depends on
+# - s, the size of the i-th circuit, which depends on i
+#
+bounded_sequence_combinator = "sum[i < n] s"
+
+# The size of the circuit obtained by composing in sequence
+# n circuits, where the i-th circuit has size s
+#
+# Parameters:
+# - n, the number of circuits
+# - i, the iterator variable, which s depends on
+# - s, the size of the i-th circuit, which depends on i
+#
+bounded_parallel_combinator = "sum[i < n] s"
+
+[operation-cost]
+
+# The size of each of the elementary circuit operations
+#
+Meas        = 1
+Hadamard    = 1
+PauliX      = 1
+PauliY      = 1
+PauliZ      = 1
+T           = 1
+R           = 1
+CNot        = 1
+CZ          = 1
+CR          = 1
+CCNot       = 1
+CCZ         = 1
+Toffoli     = 1
+
+# metaoperations do not count as gates
+QInit       = 0
+QDiscard    = 0
+CInit       = 0
+CDiscard    = 0

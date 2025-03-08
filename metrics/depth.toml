@@ -1,0 +1,26 @@
+[meta]
+name = "depth"
+author = "Andrea Colledan"
+type = "local"
+
+[operation-effect]
+
+# Parameters:
+# - m0, m1, m2, ..., the metric associated to each of the operation inputs
+#
+Meas        = "1 + m0"
+Hadamard    = "1 + m0"
+PauliX      = "1 + m0"
+PauliY      = "1 + m0"
+PauliZ      = "1 + m0"
+T           = "1 + m0"
+R           = "1 + m0"
+CNot        = "1 + max(m0, m1)"
+CZ          = "1 + max(m0, m1)"
+CR          = "1 + max(m0, m1)"
+CCNot       = "1 + max(m0, m1)"
+CCZ         = "1 + max(m0, m1)"
+Toffoli     = "1 + max(m0, m1, m2)"
+# Qubits and bits are initialized at depth 0
+QInit       = "0"
+CInit       = "0"
