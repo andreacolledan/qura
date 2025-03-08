@@ -107,7 +107,7 @@ main = do
     lrs = mlrs} <- execParser interface
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
   contents <- readFile file
-  case runParser parseProgram IP.ParserConfig{IP.parsegra = isJust mgrs, IP.parselra = isJust mlrs} "" contents of
+  case runParser parseMain IP.ParserConfig{IP.parsegra = isJust mgrs, IP.parselra = isJust mlrs} "" contents of
     Left err -> print err
     Right ast -> do
       when verb $ do

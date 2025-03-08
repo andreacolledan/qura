@@ -4,7 +4,9 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Lang.Expr.Parse
-  ( parseProgram
+  ( parseProgram,
+    parseMain,
+    parseLib
   )
 where
 
@@ -27,8 +29,6 @@ import Text.Parsec.Token
       makeTokenParser )
 import Control.Monad
 import Lang.Expr.Pattern
-import PrettyPrinter
-import Data.List (intercalate)
 import Lang.Type.AST
 import Circuit
 
@@ -48,7 +48,7 @@ unifiedLang =
       commentEnd = "-}",
       identStart = letter <|> char '_',
       identLetter = alphaNum <|> char '_',
-      reservedNames = ["let", "in", "Circ", "apply", "fold", "let", "in", "[]", "()", "forall"],
+      reservedNames = ["let", "in", "Circ", "apply", "fold", "let", "in", "[]", "()", "forall", "def"],
       opStart = oneOf "@:\\.=!$",
       opLetter = char ':',
       reservedOpNames = ["@", "::", "!::", ":", "\\", ".", "=", "$", "->"]
@@ -211,30 +211,6 @@ iabs =
     return $ EIAbs i e
     <?> "index abstraction"
 
---- TOP-LEVEL DECLARATION PARSERS -----------------------------------------------------------------------------------
-
--- parse "f :: A1 -o A2 -o ... -o An -o B \n f p1 p2 ... pn = e"
--- as ELet (PVar f) (EAnno (EAbs p1 A1 (EAbs p2 A2 ... (EAbs pn An e))) (TArrow A1 (TArrow A2 ... (TArrow An B) ...))
-tld :: Parser (Expr -> Expr)
-tld = do
-  decName <- m_identifier
-  m_reservedOp "::"
-  decType <- parseType
-  -- endOfLine
-  defName <- m_identifier
-  unless (decName == defName) $ fail $ "Declaration name '" ++ decName ++ "' does not match definition name '" ++ defName ++ "'"
-  args <- manyTill parsePattern (m_reservedOp "=")
-  let argTypes = stripTypes decType
-  unless (length args <= length argTypes) $ fail $ "Too many arguments in the definition of '" ++ defName ++ "': " ++ intercalate ", " (map pretty $ drop (length argTypes) args)
-  body <- parseExpr
-  -- endOfLine
-  let abstractions = zipWith EAbs args argTypes
-  let function = foldr ($) body abstractions
-  return $ ELet (PVar defName) (EAnno function decType)
-  <?> "top-level declaration"
-  where stripTypes (TArrow int outt _ _) = int : stripTypes outt
-        stripTypes _ = []
-
 --- EXPRESSION OPERATOR PARSERS -----------------------------------------------------------------------------------
 
 -- intercept "lift" and "force" as special cases of EApp
@@ -374,3 +350,59 @@ parseProgram =
     eof
     return e
     <?> "program"
+
+-- TOP-LEVEL-DEFINITION STYLE PARSING
+
+parseTopLevelDefinitions :: Parser (Expr -> Expr)
+parseTopLevelDefinitions =
+  do
+    tldefs <- many1 parseTopLevelDefinition
+    return $ foldr1 (.) tldefs
+
+parseTopLevelDefinition :: Parser (Expr -> Expr)
+parseTopLevelDefinition =
+  do
+    m_reserved "def"
+    (name, signature) <- parseFunctionSignature
+    (name', definition) <- parseFunctionDefinition
+    when (name /= name') $ fail $ "Definition name " ++ name' ++ " does not match signature name " ++ name
+    return $ \expr -> ELet (PVar name) (EAnno definition signature) expr
+  <?> "top-level definition"
+
+parseFunctionSignature :: Parser (String, Type)
+parseFunctionSignature =
+  do
+    functionName <- m_identifier
+    m_reservedOp "::"
+    functionType <- parseType
+    return (functionName, functionType)
+  <?> "function signature"
+
+parseFunctionDefinition :: Parser (String, Expr)
+parseFunctionDefinition =
+  do
+    functionName <- m_identifier
+    m_reservedOp "="
+    functionDef <- parseExpr
+    return (functionName, functionDef)
+  <?> "function definition"
+
+parseLib :: Parser (Expr -> Expr)
+parseLib = 
+  do
+    m_whiteSpace
+    lib <- parseTopLevelDefinitions
+    eof
+    return lib
+  <?> "module"
+
+parseMain :: Parser Expr
+parseMain =
+  do
+    m_whiteSpace
+    tldefs <- parseTopLevelDefinitions
+    eof
+    return $ tldefs (EVar "main")
+  <?> "main"
+
+
