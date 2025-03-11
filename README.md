@@ -102,7 +102,6 @@ You can install QuRA using [stack](https://docs.haskellstack.org/en/stable/) by 
 ```
 $ git clone https://github.com/andreacolledan/qura
 $ cd qura
-$ git checkout multimetric-analysis
 $ stack install
 ```
 **Disclaimer:** support for metrics other than circuit width is still experimental.
