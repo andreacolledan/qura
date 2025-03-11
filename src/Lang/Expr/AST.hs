@@ -55,7 +55,7 @@ instance Pretty Expr where
   pretty (EApply e1 e2) = "apply(" ++ pretty e1 ++ ", " ++ pretty e2 ++ ")"
   pretty (EBox _ e) = "(box" ++ " " ++ pretty e ++ ")"
   pretty (ELet p e1 e2) = "(let " ++ pretty p ++ " = " ++ pretty e1 ++ " in " ++ pretty e2 ++ ")"
-  pretty (EIAbs id e) = "(@" ++ id ++ " . " ++ pretty e ++ ")"
+  pretty (EIAbs id e) = "(forall " ++ id ++ " . " ++ pretty e ++ ")"
   pretty (EIApp e i) = "(" ++ pretty e ++ " @ " ++ pretty i ++ ")"
   pretty (EConst c) = pretty c
   pretty (EAssume e t) = "(" ++ pretty e ++ " !:: " ++ pretty t ++ ")"
