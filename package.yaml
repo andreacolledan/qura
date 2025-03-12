@@ -28,7 +28,8 @@ dependencies:
 - hspec
 - process
 - filepath
-- parsec
+- megaparsec
+- parser-combinators
 - argparser
 - optparse-applicative
 - ansi-terminal

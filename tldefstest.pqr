@@ -5,7 +5,7 @@
 
 -- put q and p into the entangled |+> state
 def bell :: ![0](forall[0,0] d.(Qubit{d}, Qubit{d}) -o[2,0] (Qubit{d+2}, Qubit{d+2})) 
-bell = lift forall d.
+bell = lift $ forall d.
   \(q,p) :: (Qubit{d}, Qubit{d}) .
     let q = (force hadamard @d) q in
     let (q,p) = (force cnot @(d+1) @d) q p in

@@ -15,22 +15,13 @@ import Index.Parse
 import Lang.Type.Parse
 import Lang.Expr.AST
 import Lang.Library.Constant
-import Text.Parsec
-import Text.Parsec.Expr
-import Text.Parsec.Language
-import Text.Parsec.Token
-    ( GenLanguageDef(reservedOpNames, commentLine, commentStart,
-                     commentEnd, identStart, identLetter, reservedNames, opStart,
-                     opLetter),
-      GenTokenParser(TokenParser, braces, parens, identifier, reserved,
-                     comma, commaSep, commaSep1, brackets, reservedOp, operator,
-                     whiteSpace, symbol),
-      TokenParser,
-      makeTokenParser )
+import Text.Megaparsec
+import Parser
 import Control.Monad
 import Lang.Expr.Pattern
 import Lang.Type.AST
 import Circuit
+import Control.Monad.Combinators.Expr
 
 --- UNIFIED LANGUAGE PARSER ---------------------------------------------------------------------------------
 ---
@@ -38,45 +29,13 @@ import Circuit
 --- This is the main parser used in the application. It is implemented using the Parsec library.
 -----------------------------------------------------------------------------------------------------------
 
---- LEXER DEFINITION -----------------------------------------------------------------------------------
-
-unifiedLang :: LanguageDef st
-unifiedLang =
-  emptyDef
-    { commentLine = "--",
-      commentStart = "{-",
-      commentEnd = "-}",
-      identStart = letter <|> char '_',
-      identLetter = alphaNum <|> char '_',
-      reservedNames = ["let", "in", "Circ", "apply", "fold", "let", "in", "[]", "()", "forall", "def"],
-      opStart = oneOf "@:\\.=!$",
-      opLetter = char ':',
-      reservedOpNames = ["@", "::", "!::", ":", "\\", ".", "=", "$", "->"]
-    }
-
-unifiedTokenParser :: TokenParser st
-unifiedTokenParser@TokenParser
-  { parens = m_parens,
-    identifier = m_identifier,
-    reserved = m_reserved,
-    comma = m_comma,
-    commaSep = m_commaSep,
-    commaSep1 = m_commaSep1,
-    brackets = m_brackets,
-    reservedOp = m_reservedOp,
-    operator = m_operator,
-    whiteSpace = m_whiteSpace,
-    symbol = m_symbol,
-    braces = m_braces
-  } = makeTokenParser unifiedLang
-
 --- ELEMENTARY EXPRESSION PARSERS -----------------------------------------------------------------------------------
 
 -- parse "()" as EUnit
 unitValue :: Parser Expr
 unitValue =
   do
-    m_reserved "()"
+    symbol "()"
     return EUnit
     <?> "unit value"
 
@@ -84,14 +43,14 @@ unitValue =
 nil :: Parser Expr
 nil =
   do
-    m_reserved "[]"
+    symbol "[]"
     return $ ENil Nothing
     <?> "empty list"
 
 -- parse a lowercase identifier as a variable
 variable :: Parser Expr
 variable = try $ do
-  name@(first : _) <- m_identifier
+  name@(first : _) <- identifier
   if not (isUpper first) -- accepts "_", unlike isLower
     then return $ EVar name
     else
@@ -101,7 +60,7 @@ variable = try $ do
 -- parse an uppercase identifier as a constant
 constant :: Parser Expr
 constant = try $ do
-  name <- m_identifier
+  name <- identifier
   case name of
     "QInit0" -> return $ EConst (Boxed (QInit False))
     "QInit1" -> return $ EConst (Boxed (QInit True))
@@ -128,11 +87,11 @@ lambda :: Parser Expr
 lambda =
   do
     p <- try $ do
-      m_reservedOp "\\"
+      symbol "\\"
       parsePattern
-    m_reservedOp "::"
+    doubleColon
     typ <- parseType
-    m_reservedOp "."
+    symbol "."
     e <- parseExpr
     return $ EAbs p typ e
     <?> "abstraction"
@@ -143,7 +102,7 @@ tuple :: Parser Expr
 tuple =
   do
     elems <- try $ do
-      elems <- m_parens $ m_commaSep1 parseExpr
+      elems <- parens $ sepBy1 parseExpr comma
       when (length elems < 2) $ fail "Tuples must have at least two elements"
       return elems
     return $ ETuple elems
@@ -152,11 +111,11 @@ tuple =
 -- parse "let p = e1 in e2" as (ELet p e1 e2)
 letIn :: Parser Expr
 letIn = do
-    m_reserved "let"
+    keyword "let"
     p <- parsePattern
-    m_reservedOp "="
+    symbol "="
     e1 <- parseExpr
-    m_reserved "in"
+    keyword "in"
     e2 <- parseExpr
     return $ ELet p e1 e2
     <?> "let-in"
@@ -166,7 +125,7 @@ letIn = do
 list :: Parser Expr
 list =
   do
-    elems <- m_brackets $ m_commaSep parseExpr
+    elems <- brackets $ sepBy1 parseExpr comma
     return $ foldl ECons (ENil Nothing) elems
     <?> "list literal"
 
@@ -174,12 +133,12 @@ list =
 fold :: Parser Expr
 fold =
   do
-    m_reserved "fold"
-    (e1, e2, e3) <- m_parens $ do
+    keyword "fold"
+    (e1, e2, e3) <- parens $ do
       e1 <- parseExpr
-      _ <- m_comma
+      comma
       e2 <- parseExpr
-      _ <- m_comma
+      comma
       e3 <- parseExpr
       return (e1, e2, e3)
     return $ EFold e1 e2 e3
@@ -189,10 +148,10 @@ fold =
 apply :: Parser Expr
 apply =
   do
-    m_reserved "apply"
-    (e1, e2) <- m_parens $ do
+    keyword "apply"
+    (e1, e2) <- parens $ do
       e1 <- parseExpr
-      _ <- m_comma
+      comma
       e2 <- parseExpr
       return (e1, e2)
     return $ EApply e1 e2
@@ -203,9 +162,9 @@ iabs :: Parser Expr
 iabs =
   do
     i <- try $ do
-      m_reserved "forall"
-      i <- m_identifier
-      m_reservedOp "."
+      keyword "forall"
+      i <- identifier
+      symbol "."
       return i
     e <- parseExpr
     return $ EIAbs i e
@@ -222,51 +181,51 @@ makeApp e = EApp e
 
 -- parse spaces as the infix operator EApp
 appOp :: Parser (Expr -> Expr -> Expr)
-appOp = m_whiteSpace >> return makeApp <?> "application"
+appOp = return makeApp <?> "application" -- TODO make sure that we do not need to parse anything before returning the operator
 
 -- parse "$" as the infix operator EApp (lowest precedence)
 dollarOp :: Parser (Expr -> Expr -> Expr)
-dollarOp = m_reservedOp "$" >> return makeApp <?> "application"
+dollarOp = symbol "$" >> return makeApp <?> "application"
 
 -- parse ":: t" as the postfix operator (\e -> EAnno e t), possibly applied multiple times
 manyAnnOp :: Parser (Expr -> Expr)
-manyAnnOp = foldr1 (flip (.)) <$> many1 annOp
+manyAnnOp = foldr1 (flip (.)) <$> some annOp
   where
     annOp :: Parser (Expr -> Expr)
     annOp = do
-      m_reservedOp "::"
+      doubleColon
       t <- parseType
       return $ flip EAnno t
       <?> "type annotation"
 
 -- parse "!:: t" as the postfix operator (\e -> EAssume e t), possibly applied multiple times
 manyAssumeOp :: Parser (Expr -> Expr)
-manyAssumeOp = foldr1 (flip (.)) <$> many1 assumeOp
+manyAssumeOp = foldr1 (flip (.)) <$> some assumeOp
   where
     assumeOp :: Parser (Expr -> Expr)
     assumeOp =
       do
-        m_reservedOp "!::"
+        symbol "!::"
         t <- parseType
         return $ flip EAssume t
         <?> "type assumption"
 
 -- parse "@ i" as the postfix operator (\e -> EIApp e i), possibly applied multiple times
 manyIappOp :: Parser (Expr -> Expr)
-manyIappOp = foldr1 (flip (.)) <$> many1 iappOp
+manyIappOp = foldr1 (flip (.)) <$> some iappOp
   where
     iappOp :: Parser (Expr -> Expr)
     iappOp =
       do
         i <- try $ do
-          m_reservedOp "@"
+          symbol "@"
           parseIndex
         return $ flip EIApp i
         <?> "index application"
 
 -- parse ":" as the infix operator Cons
 consOp :: Parser (Expr -> Expr -> Expr)
-consOp = m_reservedOp ":" >> return ECons <?> "cons operator"
+consOp = colon >> return ECons <?> "cons operator"
 
 
 --- PATTERN AND PATTERN OPERATOR PARSERS -----------------------------------------------------------------------------------
@@ -274,7 +233,7 @@ consOp = m_reservedOp ":" >> return ECons <?> "cons operator"
 -- parse a lowercase identifier as a variable pattern
 pvariable :: Parser Pattern
 pvariable = try $ do
-  name@(first : _) <- m_identifier
+  name@(first : _) <- identifier
   if not (isUpper first) -- accepts "_", unlike isLower
     then return $ PVar name
     else
@@ -286,15 +245,18 @@ ptuple :: Parser Pattern
 ptuple =
   do
     elems <- try $ do
-      elems <- m_parens $ m_commaSep1 parsePattern
+      elems <- parens $ sepBy1 parsePattern comma
       when (length elems < 2) $ fail "Tuple patterns must have at least two elements"
       return elems
     return $ PTuple elems
     <?> "tuple pattern"
 
+phole :: Parser Pattern
+phole = hole >> return PHole
+
 -- parse ":" as the infix operator PCons
 pconsOp :: Parser (Pattern -> Pattern -> Pattern)
-pconsOp = m_reservedOp ":" >> return PCons <?> "cons operator"
+pconsOp = colon >> return PCons <?> "cons operator"
 
 --- TOP-LEVEL PARSERS -----------------------------------------------------------------------------------
 
@@ -302,13 +264,14 @@ pconsOp = m_reservedOp ":" >> return PCons <?> "cons operator"
 parsePattern :: Parser Pattern
 parsePattern = let
   operatorTable =
-    [ [Infix pconsOp AssocLeft]
+    [ [InfixL pconsOp]
     ]
   simplePattern =
     pvariable
     <|> ptuple
-    <|> m_parens parsePattern
-  in buildExpressionParser operatorTable simplePattern <?> "pattern"
+    <|> parens parsePattern
+    <|> phole
+  in makeExprParser simplePattern operatorTable <?> "pattern"
       
 -- parse a PQR expression whose syntactic bounds are unambiguous
 delimitedExpr :: Parser Expr
@@ -317,35 +280,36 @@ delimitedExpr =
     <|> nil
     <|> tuple
     <|> list
-    <|> m_parens parseExpr
+    <|> parens parseExpr
     <|> apply
     <|> fold
     <|> constant
     <|> variable
+    <?> "delimited expression"
 
 -- parse a PQR expression
 parseExpr :: Parser Expr
 parseExpr =
   let operatorTable =
-        [ [Infix appOp AssocLeft],
-          [Infix consOp AssocLeft],
+        [ [InfixL appOp],
+          [InfixL consOp],
           [Postfix manyIappOp],
           [Postfix manyAnnOp],
           [Postfix manyAssumeOp],
-          [Infix dollarOp AssocRight]
+          [InfixR dollarOp]
         ]
       simpleExpr =
         delimitedExpr
           <|> lambda
           <|> iabs
           <|> letIn
-   in buildExpressionParser operatorTable simpleExpr <?> "expression"
+   in makeExprParser simpleExpr operatorTable <?> "expression"
 
 -- parse a PQR program: an expression between optional leading whitespace and EOF
 parseProgram :: Parser Expr
 parseProgram =
   do
-    m_whiteSpace
+    whitespace
     e <- parseExpr
     eof
     return e
@@ -356,13 +320,13 @@ parseProgram =
 parseTopLevelDefinitions :: Parser (Expr -> Expr)
 parseTopLevelDefinitions =
   do
-    tldefs <- many1 parseTopLevelDefinition
+    tldefs <- some parseTopLevelDefinition
     return $ foldr1 (.) tldefs
 
 parseTopLevelDefinition :: Parser (Expr -> Expr)
 parseTopLevelDefinition =
   do
-    m_reserved "def"
+    keyword "def"
     (name, signature) <- parseFunctionSignature
     (name', definition) <- parseFunctionDefinition
     when (name /= name') $ fail $ "Definition name " ++ name' ++ " does not match signature name " ++ name
@@ -372,8 +336,8 @@ parseTopLevelDefinition =
 parseFunctionSignature :: Parser (String, Type)
 parseFunctionSignature =
   do
-    functionName <- m_identifier
-    m_reservedOp "::"
+    functionName <- identifier
+    doubleColon
     functionType <- parseType
     return (functionName, functionType)
   <?> "function signature"
@@ -381,8 +345,8 @@ parseFunctionSignature =
 parseFunctionDefinition :: Parser (String, Expr)
 parseFunctionDefinition =
   do
-    functionName <- m_identifier
-    m_reservedOp "="
+    functionName <- identifier
+    symbol "="
     functionDef <- parseExpr
     return (functionName, functionDef)
   <?> "function definition"
@@ -390,7 +354,7 @@ parseFunctionDefinition =
 parseLib :: Parser (Expr -> Expr)
 parseLib = 
   do
-    m_whiteSpace
+    whitespace
     lib <- parseTopLevelDefinitions
     eof
     return lib
@@ -399,10 +363,8 @@ parseLib =
 parseMain :: Parser Expr
 parseMain =
   do
-    m_whiteSpace
+    whitespace
     tldefs <- parseTopLevelDefinitions
     eof
     return $ tldefs (EVar "main")
   <?> "main"
-
-

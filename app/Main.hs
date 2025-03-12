@@ -10,7 +10,8 @@ import PrettyPrinter
 import Solving.CVC5
 import System.Console.ANSI
 import System.IO.Extra
-import Text.Parsec (runParser)
+import Parser(runParser, ParserConfig(..))
+import Text.Megaparsec.Error
 import Lang.Library.Prelude
 import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
@@ -20,7 +21,6 @@ import Index.Semantics.Global.TCount
 import Index.Semantics.Global.Bits
 import Index.Semantics.Global.GateCount
 import Data.Maybe (isJust, fromJust)
-import qualified Index.Parse as IP
 import Index.Semantics.Local.Depth
 import Index.Semantics.Local.TDepth
 
@@ -107,8 +107,11 @@ main = do
     lrs = mlrs} <- execParser interface
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
   contents <- readFile file
-  case runParser parseMain IP.ParserConfig{IP.parsegra = isJust mgrs, IP.parselra = isJust mlrs} "" contents of
-    Left err -> print err
+  case runParser ParserConfig{parsegra = isJust mgrs, parselra = isJust mlrs} parseMain file contents of
+    Left err -> do
+      hSetSGR stderr [SetColor Foreground Vivid Red]
+      hPutStr stderr $ errorBundlePretty err
+      hSetSGR stderr [Reset]
     Right ast -> do
       when verb $ do
         putStrLn $ "Parsed successfully as \n\t" ++ pretty ast

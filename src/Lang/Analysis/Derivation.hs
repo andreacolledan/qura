@@ -151,6 +151,7 @@ makePatternBindings pat typ sl = do
   unzip <$> go sh sl pat typ
   where
     go :: SolverHandle -> SizeDiscipline -> Pattern -> Type -> TypeDerivation [(VariableId, Type)]
+    go _ _ PHole _ = return []
     go _ _ (PVar id) typ = return [(id, typ)]
     go sh sl (PTuple ps) (TTensor ts) = concat <$> zipWithM (go sh sl) ps ts
     go sh sl p@(PCons p1 p2) typ@(TList id i typ1) = do

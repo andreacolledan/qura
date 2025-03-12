@@ -53,6 +53,7 @@ library
       Lang.Type.Parse
       Lang.Type.Semantics
       Lang.Type.Unify
+      Parser
       PrettyPrinter
       Solving.CVC5
   other-modules:
@@ -67,9 +68,10 @@ library
     , extra
     , filepath
     , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
-    , parsec
+    , parser-combinators
     , process
     , transformers
     , unordered-containers
@@ -89,9 +91,10 @@ executable qura
     , extra
     , filepath
     , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
-    , parsec
+    , parser-combinators
     , process
     , qura
     , transformers
@@ -113,9 +116,10 @@ test-suite qura-test
     , extra
     , filepath
     , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
-    , parsec
+    , parser-combinators
     , process
     , qura
     , transformers
