@@ -10,7 +10,6 @@ import Lang.Type.AST
 import Text.Megaparsec
 import Parser
 import Control.Monad (unless)
-import Control.Monad.Reader
 import Control.Monad.Combinators.Expr
 
 --- TYPE PARSER MODULE -------------------------------------------
@@ -23,14 +22,14 @@ import Control.Monad.Combinators.Expr
 
 parseIfGlobalAnalysis :: Parser a -> Parser (Maybe a)
 parseIfGlobalAnalysis p = do
-  ParserConfig{parsegra = shouldParse} <- ask
+  shouldParse <- isParsingGRA
   if shouldParse
     then Just <$> p
     else optional p >> return Nothing
 
 parseIfLocalAnalysis :: Parser a -> Parser (Maybe a)
 parseIfLocalAnalysis p = do
-  ParserConfig{parselra = shouldParse} <- ask
+  shouldParse <- isParsingLRA
   if shouldParse
     then Just <$> p
     else optional p >> return Nothing

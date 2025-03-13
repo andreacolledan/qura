@@ -326,9 +326,8 @@ parseTopLevelDefinitions =
 parseTopLevelDefinition :: Parser (Expr -> Expr)
 parseTopLevelDefinition =
   do
-    keyword "def"
-    (name, signature) <- parseFunctionSignature
-    (name', definition) <- parseFunctionDefinition
+    (name, signature) <- nonIndented parseFunctionSignature
+    (name', definition) <- nonIndented parseFunctionDefinition
     when (name /= name') $ fail $ "Definition name " ++ name' ++ " does not match signature name " ++ name
     return $ \expr -> ELet (PVar name) (EAnno definition signature) expr
   <?> "top-level definition"
@@ -338,7 +337,7 @@ parseFunctionSignature =
   do
     functionName <- identifier
     doubleColon
-    functionType <- parseType
+    functionType <- indented parseType
     return (functionName, functionType)
   <?> "function signature"
 
@@ -347,7 +346,7 @@ parseFunctionDefinition =
   do
     functionName <- identifier
     symbol "="
-    functionDef <- parseExpr
+    functionDef <- indented parseExpr
     return (functionName, functionDef)
   <?> "function definition"
 

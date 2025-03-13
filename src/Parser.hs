@@ -13,16 +13,20 @@ module Parser (
   colon,
   doubleColon,
   hole,
-  Parser.runParser
+  Parser.runParser,
+  isParsingGRA,
+  isParsingLRA,
+  indented,
+  nonIndented
 )
 where
 
-import Control.Monad.Reader (ReaderT, runReaderT)
 import Text.Megaparsec
 import Data.Void
 import qualified Text.Megaparsec.Char.Lexer as Lex
 import Text.Megaparsec.Char (space1, string, alphaNumChar, letterChar)
 import Control.Monad
+import Control.Monad.State.Strict
 
 --- Custom Parser type
 
@@ -31,25 +35,51 @@ data ParserConfig = ParserConfig {
   parselra :: Bool
 }
 
-type Parser = ReaderT ParserConfig (Parsec Void String)
+data ParserState = ParserState {
+  baseIndent :: Pos,
+  config :: ParserConfig
+}
+
+type Parser = StateT ParserState (Parsec Void String)
+
+indented :: Parser a -> Parser a
+indented p = do
+  ParserState{baseIndent = bi, config = cfg} <- get
+  put ParserState{baseIndent = mkPos . (+1) . unPos $ bi , config = cfg}
+  res <- p
+  put ParserState{baseIndent = bi , config = cfg}
+  return res
+
+isParsingGRA :: Parser Bool
+isParsingGRA = gets (parsegra . config)
+
+isParsingLRA :: Parser Bool
+isParsingLRA = gets (parselra . config)
 
 --- Fundamental lexing functions
 
--- | Space consumer for lexing
+-- | Space consumer for lexing, consumes all whitespace, including newlines
 sc :: Parser ()
 sc = Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
 
--- | Wrapper, consumes trailing whitespace
+-- | Parse 'p' consuming all trailing whitespace.
 lexeme :: Parser a -> Parser a
-lexeme = Lex.lexeme sc
+lexeme p = do
+  baseIndent <- gets baseIndent
+  currentIndent <- Lex.indentLevel
+  unless (currentIndent >= baseIndent) $ fail $ "Indentation error: expected input at level " ++ show (unPos baseIndent) ++ " or greater, got level " ++ show (unPos currentIndent)
+  Lex.lexeme sc p
 
--- | Shorthand for parsing verbatim strings as lexemes
-symbol :: String -> Parser String
-symbol = Lex.symbol sc
+-- | Parse a verbatim string as a lexeme
+symbol :: String -> Parser ()
+symbol = void <$> lexeme . string
 
+-- | Consume all whitespace, including newlines
 whitespace :: Parser ()
 whitespace = sc
 
+nonIndented :: Parser a -> Parser a
+nonIndented = Lex.nonIndented sc
 
 --- Numbers
 
@@ -69,16 +99,16 @@ brackets = between (symbol "[") (symbol "]")
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
 
-comma :: Parser String
+comma :: Parser ()
 comma = symbol "," <?> "comma"
 
-colon :: Parser String
+colon :: Parser ()
 colon = try $ symbol ":" <* notFollowedBy (symbol ":")
 
-doubleColon :: Parser String
+doubleColon :: Parser ()
 doubleColon = symbol "::"
 
-hole :: Parser String
+hole :: Parser ()
 hole = try $ symbol "_" <* notFollowedBy alphaNumChar
 
 --- Keywords and identifiers
@@ -94,7 +124,7 @@ reservedKeywords =
   , "let"
   , "in"
   , "forall" -- also a keyword for types
-  , "def"
+  --, "def"
   -- Types
   , "Bit"
   , "Qubit"
@@ -105,8 +135,8 @@ reservedKeywords =
   , "sum"
   ]
 
-keyword :: String -> Parser String
-keyword kw = lexeme $ try $ string kw <* notFollowedBy alphaNumChar
+keyword :: String -> Parser ()
+keyword kw = void <$> lexeme $ try $ string kw <* notFollowedBy alphaNumChar
 
 idStart :: Parser Char
 idStart = letterChar
@@ -123,5 +153,5 @@ identifier = lexeme $ try $ do
 --- Runner
 
 runParser :: ParserConfig -> Parser a -> String -> String -> Either (ParseErrorBundle String Void) a
-runParser pconfig p = parse (runReaderT p pconfig)
+runParser pconfig p = parse (evalStateT p ParserState{baseIndent = pos1, config = pconfig})
 
