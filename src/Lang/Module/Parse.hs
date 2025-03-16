@@ -8,6 +8,7 @@ import Control.Monad
 import Lang.Type.Parse
 import Lang.Expr.Parse
 import Lang.Module.AST (TopLevelDefinition, Module(..))
+import Text.Megaparsec
 
 parseModule :: Parser Module
 parseModule = do
@@ -24,10 +25,14 @@ parseModule = do
 topLevelDefinition :: Parser TopLevelDefinition
 topLevelDefinition =
   do
-    (name, signature) <- nonIndented functionSignature
-    (name', definition) <- nonIndented functionDefinition
-    when (name /= name') $ fail $ "Definition name " ++ name' ++ " does not match signature name " ++ name
-    return (name, Just signature, definition)
+    sig <- optional $ try $ nonIndented functionSignature
+    (name, definition) <- nonIndented functionDefinition
+    case sig of
+      Nothing -> return (name, Nothing, definition)
+      Just (name', signature) -> do
+        when (name /= name') $
+          fail $ "The type signature for `" ++ name' ++ "' should be followed by an accompanying binding, found `" ++ name ++ "'"
+        return (name, Just signature, definition)
   <?> "top-level definition"
 
 functionSignature :: Parser (String, Type)
