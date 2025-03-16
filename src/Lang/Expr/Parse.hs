@@ -159,11 +159,7 @@ apply =
 iabs :: Parser Expr
 iabs =
   do
-    i <- try $ do
-      keyword "forall"
-      i <- identifier
-      symbol "."
-      return i
+    i <- try $ keyword "forall" *> identifier <* symbol "."
     e <- parseExpr
     return $ EIAbs i e
     <?> "index abstraction"

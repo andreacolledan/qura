@@ -24,12 +24,12 @@ analyzeExpression e = do
 analyzeTopLevelDefinition :: TopLevelDefinition -> TypeDerivation (VariableId, Type)
 analyzeTopLevelDefinition (id, msig, e) = do
   (typ, i) <- withNonLinearContext $ analyzeExpression e
+  ftyp <- runSimplifyType $ TBang i typ
   case msig of
     Just sigtyp -> do
-      actualtyp <- runSimplifyType typ
-      unlessSubtype (TBang i actualtyp) sigtyp $ throwLocalError $ UnexpectedType e sigtyp (TBang i actualtyp)
+      unlessSubtype ftyp sigtyp $ throwLocalError $ UnexpectedType e sigtyp ftyp
       return (id, sigtyp)
-    Nothing -> return (id, TBang i typ)
+    Nothing -> return (id, ftyp)
 
 analyzeModule :: Module -> TypeDerivation [(VariableId, Type)]
 analyzeModule mod = go (tldefs mod)

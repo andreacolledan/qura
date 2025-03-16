@@ -15,6 +15,7 @@ parseModule = do
   -- TODO module header
   -- TODO imports
   tldefs <- many topLevelDefinition
+  eof
   return Module {
     name = "",
     exports = [],
@@ -25,8 +26,8 @@ parseModule = do
 topLevelDefinition :: Parser TopLevelDefinition
 topLevelDefinition =
   do
-    sig <- optional $ try $ nonIndented functionSignature
-    (name, definition) <- nonIndented functionDefinition
+    sig <- optional functionSignature
+    (name, definition) <- functionDefinition
     case sig of
       Nothing -> return (name, Nothing, definition)
       Just (name', signature) -> do
@@ -38,8 +39,7 @@ topLevelDefinition =
 functionSignature :: Parser (String, Type)
 functionSignature =
   do
-    functionName <- identifier
-    doubleColon
+    functionName <- try $ nonIndented $ identifier <* doubleColon
     functionType <- indented parseType
     return (functionName, functionType)
   <?> "function signature"
@@ -47,7 +47,7 @@ functionSignature =
 functionDefinition :: Parser (String, Expr)
 functionDefinition =
   do
-    functionName <- identifier
+    functionName <- nonIndented identifier
     symbol "="
     functionDef <- indented parseExpr
     return (functionName, functionDef)

@@ -114,8 +114,8 @@ parseIndex =
   let -- Usual arithmetic operator associativity and precedence
       indexOperators =
         [ [InfixL multOp],
-          [InfixL plusOp],
           [InfixL minusOp],
+          [InfixL plusOp],
           [Prefix manyMaximumOp, Prefix manySumOp]
         ]
    in makeExprParser delimitedIndex indexOperators <?> "index expression"

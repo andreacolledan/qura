@@ -47,9 +47,8 @@ arrowOperator = do
     Just (i, j) -> \t1 t2 -> TArrow t1 t2 (Just i) (Just j)
     Nothing -> \t1 t2 -> TArrow t1 t2 Nothing Nothing
 
--- Parses "forall[i,j] id . t" as (IForall id t i j)
-forallOperator :: Parser (Type -> Type)
-forallOperator = do
+forallType :: Parser Type
+forallType = do
   keyword "forall"
   resAnno <- parseIfGlobalAnalysis $ brackets $ do
     i <- parseIndex
@@ -58,9 +57,10 @@ forallOperator = do
     return (i, j)
   id <- identifier
   _ <- symbol "."
+  typ <- parseType
   return $ case resAnno of
-    Just (i,j) -> \t -> TIForall id t (Just i) (Just j)
-    Nothing -> \t -> TIForall id t Nothing Nothing
+    Just (i,j) -> TIForall id typ (Just i) (Just j)
+    Nothing -> TIForall id typ Nothing Nothing
 
 -- Parses "Circ[i](btype1, btype2)" as (Circ i btype1 btype2)
 circ :: Parser Type
@@ -106,7 +106,7 @@ listOperator :: Parser (Type -> Type)
 listOperator = do
   symbol "List"
   (id,i) <- brackets $ do
-    id <- identifier
+    id <- identifier <|> (hole >> return "_") -- allow to parse "_" as a list type index
     symbol "<"
     i <- parseIndex
     return (id,i)
@@ -134,7 +134,6 @@ parseType :: Parser Type
 parseType =
   let table =
         [ [Prefix listOperator, Prefix bangOperator],
-          [InfixR arrowOperator], -- arrows have lower precedence than bangs and list constructors
-          [Prefix forallOperator]
+          [InfixR arrowOperator] -- arrows have lower precedence than bangs and list constructors
         ]
-   in makeExprParser delimitedType table <?> "type"
+   in makeExprParser (delimitedType <|> forallType) table <?> "type"

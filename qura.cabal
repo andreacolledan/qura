@@ -59,6 +59,7 @@ library
       Parser
       PrettyPrinter
       Solving.CVC5
+      Util
   other-modules:
       Paths_qura
   hs-source-dirs:
