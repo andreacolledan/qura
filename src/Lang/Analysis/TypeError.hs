@@ -57,7 +57,7 @@ instance Show TypeError where
   show (ExpectedBundleType e typ surr) = "* Expected expression '" ++ pretty e ++ "' to have bundle type, got '" ++ pretty typ ++ "' instead" ++ printSurroundings surr
   show (CannotSynthesizeType e surr) = "* Cannot synthesize type for expression '" ++ pretty e ++ "'. Consider annotating it with a type" ++ printSurroundings surr
   show (PatternMismatch p typ surr) = "* Pattern '" ++ pretty p ++ "' does not match type '" ++ pretty typ ++ "'" ++ printSurroundings surr
-  show (ConsEmptyList p typ surr) = "* Pattern '" ++ pretty p ++ "' does not match type '" ++ pretty typ ++ "' because the latter might represent the empty list" ++ printSurroundings surr
+  show (ConsEmptyList p typ surr) = "* Pattern '" ++ pretty p ++ "' does not match type '" ++ pretty typ ++ "' because the latter allows the empty list" ++ printSurroundings surr
 
 -- | @printSurroundings es@ returns a string describing the expressions in @es@, if any
 printSurroundings :: [Expr] -> String

@@ -69,7 +69,7 @@ instance Pretty Type where
   prettyPrec _ (TCirc i inBtype outBtype) = "Circ" ++ prettyGlobalAnnotation i ++ "(" ++ pretty inBtype ++ ", " ++ pretty outBtype ++ ")"
   prettyPrec prec (TArrow typ1 typ2 i j) = withinPar (prec > 5) $ prettyPrec 5 typ1 ++ " -o" ++ prettyGlobalAnnotations i j ++ " " ++ prettyPrec 5 typ2
   prettyPrec prec (TBang i typ) = withinPar (prec > 6) $ "!" ++ prettyGlobalAnnotation i  ++ prettyPrec 6 typ
-  prettyPrec prec (TList id i typ) = withinPar (prec > 6) "List[" ++ id ++ "<" ++ pretty i ++ "] " ++ prettyPrec 6 typ
+  prettyPrec prec (TList id i typ) = withinPar (prec > 6) "List[" ++ id ++ " < " ++ pretty i ++ "] " ++ prettyPrec 6 typ
   prettyPrec _ (TVar id) = id
   prettyPrec prec (TIForall id typ i j) = withinPar (prec > 4) $ "forall" ++ prettyGlobalAnnotations i j ++ " " ++ id ++ ". " ++ prettyPrec 4 typ
 
