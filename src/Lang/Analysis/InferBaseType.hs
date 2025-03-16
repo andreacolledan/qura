@@ -1,5 +1,5 @@
 module Lang.Analysis.InferBaseType
-  ( runBaseTypeInference,
+  ( inferBaseType,
   )
 where
 
@@ -144,10 +144,10 @@ inferBaseType e@(EAssume e1 annotyp) = withScope e $ do
   return (EAssume e1' annotyp, annotyp, sub1)
 
 
---- TOP-LEVEL EXPORTED FUNCTIONS -------------------------------------------------------
+-- --- TOP-LEVEL EXPORTED FUNCTIONS -------------------------------------------------------
 
--- | @ runAnnotation env e @ performs base type inference on @e@ under environment @env@.
--- If successful, returns the annotated expression. Otherwise, returns the error.
-runBaseTypeInference :: TypingEnvironment -> Expr -> DerivationResult Expr
-runBaseTypeInference env e = extractFirst <$> evalTypeDerivation (inferBaseType e) env
-  where extractFirst (a, _, _) = a
+-- -- | @ runAnnotation env e @ performs base type inference on @e@ under environment @env@.
+-- -- If successful, returns the annotated expression. Otherwise, returns the error.
+-- runBaseTypeInference :: TypingEnvironment -> Expr -> DerivationResult Expr
+-- runBaseTypeInference env e = extractFirst <$> evalTypeDerivation (inferBaseType e) env
+--   where extractFirst (a, _, _) = a

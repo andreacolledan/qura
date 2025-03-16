@@ -4,36 +4,33 @@
 --- d : initial depth of the teleported qubit
 
 -- put q and p into the entangled |+> state
-let bell = lift forall d.
-  \(q,p) :: (Qubit{d}, Qubit{d}) .
+bell :: ![0](forall[0,0] d.(Qubit{d}, Qubit{d}) -o[2,0] (Qubit{d+2}, Qubit{d+2}))
+bell = forall d. \(q,p) :: (Qubit{d}, Qubit{d}) .
     let q = (force hadamard @d) q in
     let (q,p) = (force cnot @(d+1) @d) q p in
     (q,p)
-in
 
 -- Alice's part of the teleportation protocol
-let alice = lift forall d.
-  \(p,r) :: (Qubit{2}, Qubit{d}) .
+alice :: ![0](forall[0,0] d. (Qubit{2}, Qubit{d}) -o[2,0] (Bit{2 + max(2, d)}, Bit{3 + max(2, d)}))
+alice = forall d. \(p,r) :: (Qubit{2}, Qubit{d}) .
     let (r,p) = (force cnot @d @2) r p in
     let r = (force hadamard @(1+max(2,d))) r in
     let c = (force meas @(1+max(2,d))) p in
     let d = (force meas @(2+max(2,d))) r in
     (c,d)
-in
 
 -- Bob's part of the teleportation protocol
-let bob = lift forall d.
-  \(q, c, d) :: (Qubit{2}, Bit{2+max(2,d)}, Bit{3+max(2,d)}) .
+bob :: ![0](forall[0,0] d. (Qubit{2}, Bit{2 + max(2, d)}, Bit{3 + max(2, d)}) -o[3,0] Qubit{4 + max(2, d)})
+bob = forall d. \(q, c, d) :: (Qubit{2}, Bit{2+max(2,d)}, Bit{3+max(2,d)}) .
     let (c,q) = (force ccnot @(2+max(2,d)) @2) c q in
     let (d,q) = (force ccz @(3+max(2,d)) @(3+max(2,d))) d q in
     let _ = (force cdiscard @(3+max(2,d))) c  in
     let _ = (force cdiscard @(4+max(2,d))) d  in
     q
-in
 
 -- teleport the state of qubit r (at depth i) into qubit q
-let teleport = lift forall d.
-  \r :: Qubit{d} .
+teleport :: ![0](forall[0,0] d. Qubit{d} -o[3,0] Qubit{d + 6})
+teleport = forall d. \r :: Qubit{d} .
     -- set-up
     let q = force qinit0 in
     let p = force qinit0 in
@@ -42,6 +39,3 @@ let teleport = lift forall d.
     let (c,d) = (force alice @d) (p,r) in
     -- classical communication of c,d happens here
     ((force bob @d) (q,c,d) :: Qubit{d+6})
-in
-
-teleport

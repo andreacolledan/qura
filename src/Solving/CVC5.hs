@@ -267,7 +267,7 @@ withSolver mdebug action = do
     std_out = CreatePipe,
     std_err = CreatePipe
   }
-  _ <- forkIO (hGetContents sErr >>= \s -> void (evaluate (length s))) -- drain stderr
+  --_ <- forkIO (hGetContents sErr >>= \s -> void (evaluate (length s))) -- drain stderr -- TODO figure out if needed
   hPutStrLn sIn "(set-logic HO_ALL)" -- TODO this might be made less powerful, check
   hPutStrLn sIn "(define-fun max ((x Int) (y Int)) Int (ite (< x y) y x)) ; max(x,y)" -- define the max function
   hPutStrLn sIn "(define-fun natminus ((x Int) (y Int)) Int (ite (< x y) 0 (- x y))) ; minus(x,y)" -- define the minus function

@@ -25,6 +25,7 @@ module Lang.Analysis.Derivation
     withNonLinearContext,
     withBoundIndexVariable,
     withScope,
+    withEnvironmentRollback,
     unlessSubtype,
     unlessSubtypeAssuming,
     unlessEq,
@@ -171,7 +172,6 @@ runSimplifyType t = do
   lrs <- gets lrs
   liftIO $ simplifyType sh grs lrs t
 
-
 --- DERIVATION COMBINATORS ------------------------------------------------------
 
 -- | @withBoundVariables ids typs der@ is derivation @der@ in which
@@ -266,6 +266,13 @@ withScope e der = do
   outcome <- der
   env@TypingEnvironment {scopes = es} <- get
   put env {scopes = tail es}
+  return outcome
+
+withEnvironmentRollback :: TypeDerivation a -> TypeDerivation a
+withEnvironmentRollback der = do
+  initialState <- get
+  outcome <- der
+  put initialState
   return outcome
 
 -- | @unlessSubtypeAssuming cs t1 t2 der@ is a derivation that behaves like @der@ if @t1@ is not a subtype of @t2@,

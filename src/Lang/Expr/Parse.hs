@@ -4,9 +4,7 @@
 {-# OPTIONS_GHC -Wno-unused-do-bind #-}
 
 module Lang.Expr.Parse
-  ( parseProgram,
-    parseMain,
-    parseLib
+  ( parseExpr
   )
 where
 
@@ -314,56 +312,3 @@ parseProgram =
     eof
     return e
     <?> "program"
-
--- TOP-LEVEL-DEFINITION STYLE PARSING
-
-parseTopLevelDefinitions :: Parser (Expr -> Expr)
-parseTopLevelDefinitions =
-  do
-    tldefs <- some parseTopLevelDefinition
-    return $ foldr1 (.) tldefs
-
-parseTopLevelDefinition :: Parser (Expr -> Expr)
-parseTopLevelDefinition =
-  do
-    (name, signature) <- nonIndented parseFunctionSignature
-    (name', definition) <- nonIndented parseFunctionDefinition
-    when (name /= name') $ fail $ "Definition name " ++ name' ++ " does not match signature name " ++ name
-    return $ \expr -> ELet (PVar name) (EAnno definition signature) expr
-  <?> "top-level definition"
-
-parseFunctionSignature :: Parser (String, Type)
-parseFunctionSignature =
-  do
-    functionName <- identifier
-    doubleColon
-    functionType <- indented parseType
-    return (functionName, functionType)
-  <?> "function signature"
-
-parseFunctionDefinition :: Parser (String, Expr)
-parseFunctionDefinition =
-  do
-    functionName <- identifier
-    symbol "="
-    functionDef <- indented parseExpr
-    return (functionName, functionDef)
-  <?> "function definition"
-
-parseLib :: Parser (Expr -> Expr)
-parseLib = 
-  do
-    whitespace
-    lib <- parseTopLevelDefinitions
-    eof
-    return lib
-  <?> "module"
-
-parseMain :: Parser Expr
-parseMain =
-  do
-    whitespace
-    tldefs <- parseTopLevelDefinitions
-    eof
-    return $ tldefs (EVar "main")
-  <?> "main"

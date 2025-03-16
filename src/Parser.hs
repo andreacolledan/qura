@@ -17,7 +17,9 @@ module Parser (
   isParsingGRA,
   isParsingLRA,
   indented,
-  nonIndented
+  nonIndented,
+  many,
+  (<?>)
 )
 where
 

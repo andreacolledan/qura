@@ -39,6 +39,7 @@ library
       Index.Semantics.Local.Resource
       Index.Semantics.Local.TDepth
       Index.Unify
+      Lang.Analysis
       Lang.Analysis.Derivation
       Lang.Analysis.Environment
       Lang.Analysis.InferBaseType
@@ -49,6 +50,8 @@ library
       Lang.Expr.Pattern
       Lang.Library.Constant
       Lang.Library.Prelude
+      Lang.Module.AST
+      Lang.Module.Parse
       Lang.Type.AST
       Lang.Type.Parse
       Lang.Type.Semantics
