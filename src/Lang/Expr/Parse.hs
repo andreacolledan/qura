@@ -166,7 +166,7 @@ iabs =
 
 --- EXPRESSION OPERATOR PARSERS -----------------------------------------------------------------------------------
 
--- intercept "lift" and "force" as special cases of EApp
+-- intercept "lift", "force" and "box" as special cases of EApp
 makeApp :: Expr -> Expr -> Expr
 makeApp (EVar "lift") = ELift
 makeApp (EVar "force") = EForce

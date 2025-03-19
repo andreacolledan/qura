@@ -1,3 +1,0 @@
-let q = apply(QInit0, ()) in
-let q = apply(Hadamard @ 0, q) in
-apply(QDiscard @ 1, q)

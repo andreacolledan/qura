@@ -120,18 +120,16 @@ reservedKeywords =
   -- Language expressions
   [ "let"
   , "in"
-  , "Circ"
   , "apply"
   , "fold"
   , "let"
   , "in"
   , "forall" -- also a keyword for types
-  --, "def"
   -- Types
+  , "Circ"
   , "Bit"
   , "Qubit"
   , "List"
-  , "Circ"
   -- Indices
   , "max"
   , "sum"
