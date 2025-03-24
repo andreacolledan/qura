@@ -1,0 +1,4 @@
+- [ ] Add top-level definitions
+- [ ] Add undefined
+- [ ] Add module support
+- [ ] Fix parsing of indices embedded in types and expressions 

@@ -4,7 +4,7 @@ import Control.Monad (when)
 import Options.Applicative
 import PrettyPrinter
 import Solving.CVC5
-import Parser(runParser, ParserConfig(..))
+import Parser(runParser)
 import Text.Megaparsec.Error
 import Lang.Library.Prelude
 import Index.Semantics.Global.Resource
@@ -110,15 +110,7 @@ parseSource :: Arguments -> IO Module
 parseSource CommandLineArguments{verbose=verb, filepath=file, grs=mgrs, lrs=mlrs} = do
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
   source <- readFile file
-  case runParser
-    ParserConfig{
-      parsegra = isJust mgrs,
-      parselra = isJust mlrs
-      }
-    parseModule
-    file
-    source
-    of
+  case runParser parseModule (isJust mgrs) (isJust mlrs) file source of
     Left err -> error $ errorBundlePretty err
     Right mod -> return mod
 

@@ -1,8 +1,3 @@
-{-# HLINT ignore "Use <$>" #-}
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-
 module Lang.Expr.Parse
   ( parseExpr
   )
@@ -17,33 +12,18 @@ import Text.Megaparsec
 import Parser
 import Control.Monad
 import Lang.Expr.Pattern
-import Lang.Type.AST
 import Circuit
 import Control.Monad.Combinators.Expr
 
---- UNIFIED LANGUAGE PARSER ---------------------------------------------------------------------------------
----
---- This module defines the parser for the unified, practical syntax of PQR.
---- This is the main parser used in the application. It is implemented using the Parsec library.
------------------------------------------------------------------------------------------------------------
+--- Delimited Expressions ---
 
---- ELEMENTARY EXPRESSION PARSERS -----------------------------------------------------------------------------------
-
--- parse "()" as EUnit
+-- parse "@()@" as @EUnit@
 unitValue :: Parser Expr
-unitValue =
-  do
-    symbol "()"
-    return EUnit
-    <?> "unit value"
+unitValue = emptyParens >> return EUnit <?> "unit value"
 
 -- parse "[]" as ENil
 nil :: Parser Expr
-nil =
-  do
-    symbol "[]"
-    return $ ENil Nothing
-    <?> "empty list"
+nil = emptyBrackets >> return (ENil Nothing) <?> "empty list"
 
 -- parse a lowercase identifier as a variable
 variable :: Parser Expr
@@ -77,23 +57,12 @@ constant = try $ do
     "CCNot" -> return $ EConst (Boxed CCNot)
     "CCZ" -> return $ EConst (Boxed CCZ)
     "Toffoli" -> return $ EConst (Boxed Toffoli)
+    "MakeRGate" -> return $ EConst MakeRGate
+    "MakeCRGate" -> return $ EConst MakeCRGate
+    "MakeMCNot" -> return $ EConst MakeMCNot
+    "MakeUnitList" -> return $ EConst MakeUnitList
     _ -> fail $ "Unrecognized constant \"" ++ name ++ "\""
     <?> "constant"
-
--- parse "\p :: t . e" as the (EAbs p t e)
-lambda :: Parser Expr
-lambda =
-  do
-    p <- try $ do
-      symbol "\\"
-      parsePattern
-    doubleColon
-    typ <- parseType
-    symbol "."
-    e <- parseExpr
-    return $ EAbs p typ e
-    <?> "abstraction"
-
 
 -- parse "(e1, e2, ..., en)" as (ETuple [e1, e2, ..., en])
 tuple :: Parser Expr
@@ -105,18 +74,6 @@ tuple =
       return elems
     return $ ETuple elems
     <?> "tuple"
-
--- parse "let p = e1 in e2" as (ELet p e1 e2)
-letIn :: Parser Expr
-letIn = do
-    keyword "let"
-    p <- parsePattern
-    symbol "="
-    e1 <- parseExpr
-    keyword "in"
-    e2 <- parseExpr
-    return $ ELet p e1 e2
-    <?> "let-in"
 
 -- parse "[e1, e2, ..., en]" as (ECons e1 (ECons ... (ECons en ENil) ...))
 -- Sugar: list literals are desugared right-associatively into nested Cons with Nil at the end
@@ -155,16 +112,8 @@ apply =
     return $ EApply e1 e2
     <?> "apply"
 
--- parse "forall i . e" as (EIAbs i e)
-iabs :: Parser Expr
-iabs =
-  do
-    i <- try $ keyword "forall" *> identifier <* symbol "."
-    e <- parseExpr
-    return $ EIAbs i e
-    <?> "index abstraction"
 
---- EXPRESSION OPERATOR PARSERS -----------------------------------------------------------------------------------
+--- Expression Operators ---
 
 -- intercept "lift", "force" and "box" as special cases of EApp
 makeApp :: Expr -> Expr -> Expr
@@ -179,7 +128,7 @@ appOp = return makeApp <?> "application" -- TODO make sure that we do not need t
 
 -- parse "$" as the infix operator EApp (lowest precedence)
 dollarOp :: Parser (Expr -> Expr -> Expr)
-dollarOp = symbol "$" >> return makeApp <?> "application"
+dollarOp = dollarSign >> return makeApp <?> "application"
 
 -- parse ":: t" as the postfix operator (\e -> EAnno e t), possibly applied multiple times
 manyAnnOp :: Parser (Expr -> Expr)
@@ -188,8 +137,7 @@ manyAnnOp = foldr1 (flip (.)) <$> some annOp
     annOp :: Parser (Expr -> Expr)
     annOp = do
       doubleColon
-      t <- parseType
-      return $ flip EAnno t
+      flip EAnno <$> typeExpression
       <?> "type annotation"
 
 -- parse "!:: t" as the postfix operator (\e -> EAssume e t), possibly applied multiple times
@@ -199,9 +147,8 @@ manyAssumeOp = foldr1 (flip (.)) <$> some assumeOp
     assumeOp :: Parser (Expr -> Expr)
     assumeOp =
       do
-        symbol "!::"
-        t <- parseType
-        return $ flip EAssume t
+        bangDoubleColon
+        flip EAssume <$> typeExpression
         <?> "type assumption"
 
 -- parse "@ i" as the postfix operator (\e -> EIApp e i), possibly applied multiple times
@@ -212,14 +159,52 @@ manyIappOp = foldr1 (flip (.)) <$> some iappOp
     iappOp =
       do
         i <- try $ do
-          symbol "@"
-          parseIndex
+          at
+          indexExpression
         return $ flip EIApp i
         <?> "index application"
 
 -- parse ":" as the infix operator Cons
 consOp :: Parser (Expr -> Expr -> Expr)
 consOp = colon >> return ECons <?> "cons operator"
+
+
+--- Low-precedence Prefix Operators ---
+-- These operators have the least precedence, i.e. they extend until the end of the expression.
+-- The 'makeExprParser' function does not deal well with them, so it is better to define them like this.
+
+-- parse "\p :: t . e" as the (EAbs p t e)
+abstraction :: Parser Expr
+abstraction =
+  do
+    p <- try $ do
+      backslash
+      parsePattern
+    doubleColon
+    typ <- typeExpression
+    dot
+    EAbs p typ <$> parseExpr
+    <?> "abstraction"
+
+-- parse "let p = e1 in e2" as (ELet p e1 e2)
+letIn :: Parser Expr
+letIn = do
+    keyword "let"
+    p <- parsePattern
+    equalSign
+    e1 <- parseExpr
+    keyword "in"
+    ELet p e1 <$> parseExpr
+    <?> "let-in"
+
+-- parse "forall i . e" as (EIAbs i e)
+iabs :: Parser Expr
+iabs =
+  do
+    i <- try $ keyword "forall" *> identifier <* dot
+    EIAbs i <$> parseExpr
+    <?> "index abstraction"
+
 
 
 --- PATTERN AND PATTERN OPERATOR PARSERS -----------------------------------------------------------------------------------
@@ -246,7 +231,7 @@ ptuple =
     <?> "tuple pattern"
 
 phole :: Parser Pattern
-phole = hole >> return PHole
+phole = underscore >> return PHole
 
 -- parse ":" as the infix operator PCons
 pconsOp :: Parser (Pattern -> Pattern -> Pattern)
@@ -266,7 +251,7 @@ parsePattern = let
     <|> parens parsePattern
     <|> phole
   in makeExprParser simplePattern operatorTable <?> "pattern"
-      
+
 -- parse a PQR expression whose syntactic bounds are unambiguous
 delimitedExpr :: Parser Expr
 delimitedExpr =
@@ -294,7 +279,7 @@ parseExpr =
         ]
       simpleExpr =
         delimitedExpr
-          <|> lambda
+          <|> abstraction
           <|> iabs
           <|> letIn
    in makeExprParser simpleExpr operatorTable <?> "expression"

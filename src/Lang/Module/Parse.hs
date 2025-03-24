@@ -10,6 +10,7 @@ import Lang.Expr.Parse
 import Lang.Module.AST (TopLevelDefinition, Module(..))
 import Text.Megaparsec
 
+-- | Parse a PQ module, i.e. a sequence of top-level declarations.
 parseModule :: Parser Module
 parseModule = do
   -- TODO module header
@@ -23,6 +24,7 @@ parseModule = do
     tldefs = tldefs
   }
 
+-- | Parse a top-level declaration, i.e. an optional type signature followed by a definition
 topLevelDefinition :: Parser TopLevelDefinition
 topLevelDefinition =
   do
@@ -36,19 +38,21 @@ topLevelDefinition =
         return (name, Just signature, definition)
   <?> "top-level definition"
 
+-- | Parse "@f :: typ@" as a top-level type signature.
 functionSignature :: Parser (String, Type)
 functionSignature =
   do
     functionName <- try $ nonIndented $ identifier <* doubleColon
-    functionType <- indented parseType
+    functionType <- indented typeExpression
     return (functionName, functionType)
   <?> "function signature"
 
+-- | Parse "@f = expr@" as a top-level definition.
 functionDefinition :: Parser (String, Expr)
 functionDefinition =
   do
     functionName <- nonIndented identifier
-    symbol "="
+    equalSign
     functionDef <- indented parseExpr
     return (functionName, functionDef)
   <?> "function definition"

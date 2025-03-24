@@ -1,70 +1,70 @@
-module Parser (
-  Parser,
-  ParserConfig(..),
-  whitespace,
-  symbol,
-  number,
-  keyword,
-  identifier,
-  parens,
-  brackets,
-  braces,
-  comma,
-  colon,
-  doubleColon,
-  hole,
-  Parser.runParser,
-  isParsingGRA,
-  isParsingLRA,
-  indented,
-  nonIndented,
-  many,
-  (<?>)
-)
+module Parser
+  ( Parser,
+    whitespace,
+    number,
+    keyword,
+    identifier,
+    parens,
+    brackets,
+    braces,
+    comma,
+    dot,
+    emptyParens,
+    emptyBrackets,
+    arrow,
+    lessSign,
+    plus,
+    star,
+    hyphen,
+    bang,
+    colon,
+    doubleColon,
+    bangDoubleColon,
+    underscore,
+    equalSign,
+    backslash,
+    dollarSign,
+    at,
+    Parser.runParser,
+    indented,
+    nonIndented,
+    whenGlobalAnalysis,
+    whenLocalAnalysis,
+    many,
+    (<?>),
+  )
 where
 
-import Text.Megaparsec
-import Data.Void
-import qualified Text.Megaparsec.Char.Lexer as Lex
-import Text.Megaparsec.Char (space1, string, alphaNumChar, letterChar)
 import Control.Monad
 import Control.Monad.State.Strict
+import Data.Void
+import Text.Megaparsec
+import Text.Megaparsec.Char (alphaNumChar, letterChar, space1, string)
+import qualified Text.Megaparsec.Char.Lexer as Lex
 
 --- Custom Parser type
 
-data ParserConfig = ParserConfig {
-  parsegra :: Bool,
-  parselra :: Bool
-}
+-- | The state of the PQ parser
+data ParserState = ParserState
+  { -- | The current indentation level.
+    baseIndent :: Pos,
+    -- | Whether global metric annotations should be parsed.
+    parseGMA :: Bool,
+    -- | Whether local metric annotations should be parsed.
+    parseLMA :: Bool
+  }
 
-data ParserState = ParserState {
-  baseIndent :: Pos,
-  config :: ParserConfig
-}
-
+-- | The type of the stateful PQ parser (see @Parsec@)
 type Parser = StateT ParserState (Parsec Void String)
 
-indented :: Parser a -> Parser a
-indented p = do
-  ParserState{baseIndent = bi, config = cfg} <- get
-  put ParserState{baseIndent = mkPos . (+1) . unPos $ bi , config = cfg}
-  res <- p
-  put ParserState{baseIndent = bi , config = cfg}
-  return res
-
-isParsingGRA :: Parser Bool
-isParsingGRA = gets (parsegra . config)
-
-isParsingLRA :: Parser Bool
-isParsingLRA = gets (parselra . config)
-
---- Fundamental lexing functions
+--- Fundamental lexing functions ---
 
 -- | Space consumer for lexing, consumes all whitespace, including newlines
 sc :: Parser ()
 sc = Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
 
--- | Parse 'p' consuming all trailing whitespace.
+-- | @lexeme p@ parses @p@, checking the indentation level and consuming all trailing whitespace.
+-- Fails if the lexeme is below the current indentation level.
 lexeme :: Parser a -> Parser a
 lexeme p = do
   baseIndent <- gets baseIndent
@@ -80,78 +80,176 @@ symbol = void <$> lexeme . string
 whitespace :: Parser ()
 whitespace = sc
 
-nonIndented :: Parser a -> Parser a
-nonIndented = Lex.nonIndented sc
+--- Recurring symbols
 
---- Numbers
+-- | Parse ".".
+dot :: Parser ()
+dot = symbol "." <?> "dot"
 
--- | Parse a decimal number
-number :: Parser Integer
-number = lexeme Lex.decimal <?> "natural number"
-
-
---- Symbols
-
-parens :: Parser a -> Parser a
-parens = between (symbol "(") (symbol ")")
-
-brackets :: Parser a -> Parser a
-brackets = between (symbol "[") (symbol "]")
-
-braces :: Parser a -> Parser a
-braces = between (symbol "{") (symbol "}")
-
+-- | Parse ",".
 comma :: Parser ()
 comma = symbol "," <?> "comma"
 
+-- | Parse ":".
 colon :: Parser ()
 colon = try $ symbol ":" <* notFollowedBy (symbol ":")
 
+-- | Parse "::".
 doubleColon :: Parser ()
 doubleColon = symbol "::"
 
-hole :: Parser ()
-hole = try $ symbol "_" <* notFollowedBy alphaNumChar
+-- | Parse "_".
+underscore :: Parser ()
+underscore = try $ symbol "_" <* notFollowedBy alphaNumChar
 
---- Keywords and identifiers
+-- | Parse "()".
+emptyParens :: Parser ()
+emptyParens = symbol "()"
 
+-- | Parse "[]".
+emptyBrackets :: Parser ()
+emptyBrackets = symbol "[]"
+
+-- | Parse "-o".
+arrow :: Parser ()
+arrow = symbol "-o"
+
+-- | Parse "-".
+hyphen :: Parser ()
+hyphen = try $ symbol "-" <* notFollowedBy (symbol "o")
+
+-- | Parse "+".
+plus :: Parser ()
+plus = symbol "+"
+
+-- | Parse "*".
+star :: Parser ()
+star = symbol "*"
+
+-- | Parse "<".
+lessSign :: Parser ()
+lessSign = symbol "<"
+
+-- | Parse "!".
+bang :: Parser ()
+bang = try $ symbol "!" <* notFollowedBy (symbol ":")
+
+-- | Parse "=".
+equalSign :: Parser ()
+equalSign = symbol "="
+
+-- | Parse "\".
+backslash :: Parser ()
+backslash = symbol "\\"
+
+-- | Parse "@".
+at :: Parser ()
+at = symbol "@"
+
+-- | Parse "$".
+dollarSign :: Parser ()
+dollarSign = symbol "$"
+
+-- | Parse "!::".
+bangDoubleColon :: Parser ()
+bangDoubleColon = symbol "!::"
+
+--- Keywords and identifiers ---
+
+-- | The list of reserved PQ keywords: @let@, @in@, @fold@, @apply@, @forall@, @Circ@, @Bit@, @Qubit@, @List@, @max@, and @sum@.
 reservedKeywords :: [String]
-reservedKeywords = 
+reservedKeywords =
   -- Language expressions
-  [ "let"
-  , "in"
-  , "apply"
-  , "fold"
-  , "let"
-  , "in"
-  , "forall" -- also a keyword for types
-  -- Types
-  , "Circ"
-  , "Bit"
-  , "Qubit"
-  , "List"
-  -- Indices
-  , "max"
-  , "sum"
+  [ "let",
+    "in",
+    "apply",
+    "fold",
+    "forall", -- also a keyword for types
+    -- Types
+    "Circ",
+    "Bit",
+    "Qubit",
+    "List",
+    -- Indices
+    "max",
+    "sum"
   ]
 
+-- | Parse a reserved keyword. Throws an exception if the specified keyword is not a valid keyword in 'reservedKeywords'.
 keyword :: String -> Parser ()
-keyword kw = void <$> lexeme $ try $ string kw <* notFollowedBy alphaNumChar
+keyword kw = do
+  unless (kw `elem` reservedKeywords) $ error $ "Internal error: tried to parse `" ++ kw ++ "' as a keyword, but it is not."
+  _ <- lexeme $ try $ string kw <* notFollowedBy alphaNumChar
+  return ()
 
-idStart :: Parser Char
-idStart = letterChar
-
-idChar :: Parser Char
-idChar = alphaNumChar
-
+-- | Parse an identifier. Fails without consuming anything if the identifier is a reserved keyword.
 identifier :: Parser String
 identifier = lexeme $ try $ do
   id <- (:) <$> idStart <*> many idChar
   when (id `elem` reservedKeywords) $ fail ("expected identifier, found reserved keyword " ++ id)
   return id
+  where
+    -- \| Parse a character allowed at the start of an identifier (a letter).
+    idStart :: Parser Char
+    idStart = letterChar
+    -- \| Parse a character allowed in an identifier (an alphanumerical character).
+    idChar :: Parser Char
+    idChar = alphaNumChar
 
---- Runner
+-- | Parse a natural number
+number :: Parser Integer
+number = lexeme Lex.decimal <?> "natural number"
 
-runParser :: ParserConfig -> Parser a -> String -> String -> Either (ParseErrorBundle String Void) a
-runParser pconfig p = parse (evalStateT p ParserState{baseIndent = pos1, config = pconfig})
+--- Basic combinators ---
 
+-- | @indented p@ parses @p@ if it is more indented than the current indentation level. Fails otherwise.
+indented :: Parser a -> Parser a
+indented p = do
+  state@(ParserState {baseIndent = bi}) <- get
+  put state {baseIndent = mkPos . (+ 1) . unPos $ bi}
+  res <- p
+  put state
+  return res
+
+-- | @nonIndented p@ parses @p@ if it is not preceded by any indentation. Fails otherwise.
+nonIndented :: Parser a -> Parser a
+nonIndented = Lex.nonIndented sc
+
+-- | @parens p@ parses @p@ enclosed in "(" and ")".
+parens :: Parser a -> Parser a
+parens = between (symbol "(") (symbol ")")
+
+-- | @brackets p@ parses @p@ enclosed in "[" and "]".
+brackets :: Parser a -> Parser a
+brackets = between (symbol "[") (symbol "]")
+
+-- | @braces p@ parses @p@ enclosed in "{" and "}".
+braces :: Parser a -> Parser a
+braces = between (symbol "{") (symbol "}")
+
+-- | @whenGlobalAnalysis p@ parses @p@ if the parser is configured to take into account global metric annotations.
+-- Otherwise, @p@ is consumed, if present, and the parser returns 'Nothing'.
+whenGlobalAnalysis :: Parser a -> Parser (Maybe a)
+whenGlobalAnalysis p = do
+  shouldParse <- gets parseGMA
+  if shouldParse
+    then Just <$> p
+    else optional p >> return Nothing
+
+-- | @whenLocalAnalysis p@ parses @p@ if the parser is configured to take into account local metric annotations.
+-- Otherwise, @p@ is consumed, if present, and the parser returns 'Nothing'.
+whenLocalAnalysis :: Parser a -> Parser (Maybe a)
+whenLocalAnalysis p = do
+  shouldParse <- gets parseLMA
+  if shouldParse
+    then Just <$> p
+    else optional p >> return Nothing
+
+--- Runner ---
+
+-- | @runParser p parseGMA parseLMA filename content@ runs parser @p@ on @content@.
+-- @parseGMA@ and @parseLMA@ control whether annotations for global and local metrics are parsed, respectively.
+-- @filename@ is only used for error reporting, the function does not read from any file.
+-- Returns 'Either' a 'ParseErrorBundle' from "Megaparsec" or the result of @p@.
+runParser :: Parser a -> Bool -> Bool -> String -> String -> Either (ParseErrorBundle String Void) a
+runParser p parseGMA parseLMA = parse (evalStateT p ParserState {baseIndent = pos1, parseGMA = parseGMA, parseLMA = parseLMA})
