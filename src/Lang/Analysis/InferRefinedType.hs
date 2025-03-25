@@ -166,7 +166,7 @@ inferRefinedType e@(EForce e1) = withScope e $ do
   return (typ', join k)
 -- INDEX ABSTRACTION
 inferRefinedType e@(EIAbs id e1) = withScope e $ do
-  ((typ, i), wc) <- withEnvSize $ withBoundIndexVariable id $ inferRefinedType e1
+  ((typ, i), wc) <- withEnvSize $ withBoundIndexVariables [id] $ inferRefinedType e1
   k <- ifGlobalResources wc
   return (TIForall id typ i (join k), join k)
 -- INDEX APPLICATION

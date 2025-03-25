@@ -29,9 +29,7 @@ mapMeasure = forall n. forall d. \x :: List[_<n] Qubit{d}.
 
 -- the diffusion operator on n qubits with ancilla a (all qubits at depth d)
 diffusion :: ![0](forall[0,0] n. forall[0,0] d. List[_<n] Qubit{d} -o[0,0] Qubit{d} -o[4*n + 1, 0] (List[_<n] Qubit{d+5}, Qubit{d+3}))
-diffusion = forall n. forall d. 
-  \reg :: List[_<n] Qubit{d}.
-  \a :: Qubit{d}.
+diffusion n d reg a =
     let reg = (force mapHadamard @ n @ d) reg in
     -- begin negatively controlled not
     let reg = (force mapQnot @ n @ d+1) reg in
@@ -48,10 +46,7 @@ groverIteration :: ![0](forall[0,0] n. forall[0,0] d. forall[0,0] os. forall[0,0
   (forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d + od}, Qubit{d + od})))
   -o[0,0] List[_<n] Qubit{d} -o[0,0] Qubit{d}
   -o[os + 4*n + 1, 0] (List[_<n] Qubit{d + od + 5}, Qubit{d + od + 3}))
-groverIteration = forall n. forall d. forall os. forall od.
-  \oracle :: forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
-  \reg :: List[_<n] Qubit{d}.
-  \a :: Qubit{d}.
+groverIteration n d os od oracle reg a = 
     let (reg, a) = apply(oracle @ d, (reg, a)) in
     (force diffusion @ n @ d + od) reg a
 
@@ -59,8 +54,7 @@ groverIteration = forall n. forall d. forall os. forall od.
 grover :: ![0](forall[0, 0] r. forall[0, 0] n. forall[0, 0] os. forall[0, 0] od.
   (forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})))
   -o[2*n + r*(os + 4*n + 1) + 1, 0] List[_<n] Bit{2 + r*(od+5)})
-grover = forall r. forall n. forall os. forall od.
-  \oracle :: forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})).
+grover r n os od oracle =
     -- prepare working qubits
     let wqs = force qinit0Many @ n in
     let wqs = (force mapHadamard @ n @ 0) wqs in

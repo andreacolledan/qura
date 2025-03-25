@@ -23,7 +23,7 @@ module Lang.Analysis.Derivation
     withBoundVariables,
     withEnvSize,
     withNonLinearContext,
-    withBoundIndexVariable,
+    withBoundIndexVariables,
     withScope,
     withEnvironmentRollback,
     unlessSubtype,
@@ -35,6 +35,7 @@ module Lang.Analysis.Derivation
     unlessIdentity,
     makePatternBindings,
     runSimplifyType,
+    runSimplifyIndex,
     ifGlobalResources,
     SizeDiscipline (..),
   )
@@ -174,6 +175,15 @@ runSimplifyType t = do
   lrs <- gets lrs
   liftIO $ simplifyType sh grs lrs t
 
+-- | @runSimplifyIndex i@ simplifies index @i@ using the environment's SMT solver,
+-- global resource semantics, and local resource semantics.
+runSimplifyIndex :: Index -> TypeDerivation Index
+runSimplifyIndex i = do
+  sh <- gets solverHandle
+  grs <- gets grs
+  lrs <- gets lrs
+  liftIO $ simplifyIndex sh grs lrs i
+
 --- DERIVATION COMBINATORS ------------------------------------------------------
 
 -- | @withBoundVariables ids typs der@ is derivation @der@ in which
@@ -249,15 +259,24 @@ withNonLinearContext der = do
         )
 
 -- | @withBoundIndexVariable id der@ is derivation @der@ in which index variable @id@ is in scope.
-withBoundIndexVariable :: IVarId -> TypeDerivation a -> TypeDerivation a
-withBoundIndexVariable id der = do
-  env@TypingEnvironment {indexContext = theta} <- get
-  when (Set.member id theta) $ throwLocalError $ ShadowedIndexVariable id
-  put env {indexContext = Set.insert id theta}
+withBoundIndexVariables :: [IVarId] -> TypeDerivation a -> TypeDerivation a
+withBoundIndexVariables ids der = do
+  mapM_ bindIndexVariable ids
   outcome <- der
-  env@TypingEnvironment {indexContext = theta} <- get
-  put env {indexContext = Set.delete id theta}
+  mapM_ unbindIndexVariable ids
   return outcome
+  where
+    bindIndexVariable :: IVarId -> TypeDerivation ()
+    bindIndexVariable id = do
+      env@TypingEnvironment {indexContext = theta} <- get
+      when (Set.member id theta) $ throwLocalError $ ShadowedIndexVariable id
+      put env {indexContext = Set.insert id theta}
+    unbindIndexVariable :: IVarId -> TypeDerivation ()
+    unbindIndexVariable id = do
+      env@TypingEnvironment {indexContext = theta} <- get
+      put env {indexContext = Set.delete id theta}
+      
+    
 
 -- | @withScope e der@ is derivation @der@ in which expression the enclosing expression @e@ is visible.
 -- This is only used to provide good error messages in case of failure and it has no effect on the environment.

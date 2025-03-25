@@ -1,5 +1,6 @@
 module Lang.Expr.Parse
-  ( parseExpr
+  ( parseExpr,
+  parsePattern
   )
 where
 

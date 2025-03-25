@@ -16,7 +16,7 @@ import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
 import Control.Monad.Except
 import Control.Monad (unless)
-import Data.Maybe (fromJust)
+import Lang.Expr.Pattern (Pattern (..))
 
 -- | Analyze an expression, inferring its type and possibly its effect.
 -- Runs both Milner-style inference and refinement synthesis, in sequence.
@@ -31,36 +31,38 @@ analyzeTopLevelDefinition :: TopLevelDefinition -> TypeDerivation (VariableId, T
 -- Top-level definition with arguments and type signature
 analyzeTopLevelDefinition (TopLevelDefinition id args (Just sig) e) = do
   case sig of
-    TBang eff typ -> withNonLinearContext (checkTldef args e typ eff ) >> return (id, sig)
+    TBang _ typ -> do
+      (inferTyp, inferEff) <- withNonLinearContext $ inferTLDefType args e typ
+      let atyp = TBang inferEff inferTyp
+      unlessSubtype atyp sig $ throwLocalError . UnexpectedType (EVar id) sig =<< runSimplifyType atyp
+      return (id, sig)
     typ -> throwLocalError $ UnbangedSignature id typ
   where
-    -- | @checkTldef args e typ eff@ checks that the top-level definition of the function @id@
+    -- | @inferTLDefType args e typ eff@ checks that the top-level definition of the function @id@
     -- with parameters @args@ and body @e@ has type @typ@ and effect @eff@.
-    checkTldef :: [VariableId] -> Expr -> Type -> Maybe Index -> TypeDerivation ()
-    checkTldef [] e typ eff = withScope e $ do
-      (atyp, aeff) <- analyzeExpression e
-      unlessSubtype atyp typ $ throwLocalError $ UnexpectedType e typ atyp
-      unlessGRLeq aeff eff $ throwLocalError $ UnexpectedEffect e (fromJust eff) (fromJust aeff) -- If either is Nothing, then unlessGRLeq handles the situation
-    checkTldef (arg:rargs) e typ eff = do
-      (fSize, asize) <- withEnvSize $ case typ of
-        TArrow domType codType fEff fSize -> do
-          withBoundVariables [arg] [domType] $ checkTldef rargs e codType fEff
-          return fSize
-        TIForall tArg codType fEff fSize -> do
-          unless (arg == tArg) $ throwLocalError $ BoundIndexVariableMismatch id tArg arg
-          withBoundIndexVariable arg $ checkTldef rargs e codType fEff
-          return fSize
-        _ -> throwLocalError $ ExtraArgument id arg
-      unlessGRLeq (Just Identity) eff $ error "Internal error"
-      unlessGREq asize fSize $ throwLocalError $ UnexpectedIndex (fromJust fSize) (fromJust asize)
+    inferTLDefType :: [Pattern] -> Expr -> Type -> TypeDerivation (Type, Maybe Index)
+    -- no arguments, just infer the type of e
+    inferTLDefType [] e _ = withScope e $ analyzeExpression e
+    -- at least one argument, remainder has arrow type, treat this like an abstraction
+    inferTLDefType (arg:rargs) e (TArrow domType codType _ _) = do
+      (varNames, varTypes) <- makePatternBindings arg domType SizedLists
+      ((typ, eff), asize) <- withEnvSize $ withBoundVariables varNames varTypes $ inferTLDefType rargs e codType
+      return (TArrow domType typ eff asize, Just Identity)
+    -- at least one argument, remainder has forall type, treat this like an index absraction
+    inferTLDefType (arg:rargs) e (TIForall tArg codType _ _) = do
+      unless (arg == PVar tArg) $ throwLocalError $ UnexpectedIndexVariableArgument id tArg arg
+      ((typ, eff), asize) <- withEnvSize $ withBoundIndexVariables [tArg] $ inferTLDefType rargs e codType
+      return (TIForall tArg typ eff asize, Just Identity)
+    -- at least one argument, but other type form. This is an error.
+    inferTLDefType (arg:_) _ _ = throwLocalError $ ExtraArgument id arg
 -- Top-level definition with no arguments and no type signature: just infer the type
 analyzeTopLevelDefinition (TopLevelDefinition id [] Nothing e) = do
   (typ, i) <- withNonLinearContext $ analyzeExpression e
   ftyp <- runSimplifyType $ TBang i typ
   return (id, ftyp)
 -- Top-level definition with arguments, but no type signature: cannot infer type, throw error.
-analyzeTopLevelDefinition (TopLevelDefinition _ (arg:_) Nothing _)
-  = fail $ "Cannot determine type for function parameter " ++ arg
+analyzeTopLevelDefinition (TopLevelDefinition id (arg:_) Nothing _)
+  = throwLocalError $ MissingSignature id arg
 
 
 -- | Analyze all the top-level definitions in a module. Return a list of type bindings.

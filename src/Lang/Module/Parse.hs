@@ -9,6 +9,7 @@ import Lang.Type.Parse
 import Lang.Expr.Parse
 import Lang.Module.AST (TopLevelDefinition(..), Module(..))
 import Text.Megaparsec
+import Lang.Expr.Pattern (Pattern)
 
 -- | Parse a PQ module, i.e. a sequence of top-level declarations.
 parseModule :: Parser Module
@@ -48,11 +49,11 @@ functionSignature =
   <?> "function signature"
 
 -- | Parse "@f = expr@" as a top-level definition.
-functionDefinition :: Parser (VariableId, [VariableId], Expr)
+functionDefinition :: Parser (VariableId, [Pattern], Expr)
 functionDefinition =
   do
     functionName <- nonIndented identifier
-    args <- many identifier
+    args <- many parsePattern
     equalSign
     functionDef <- indented parseExpr
     return (functionName, args, functionDef)

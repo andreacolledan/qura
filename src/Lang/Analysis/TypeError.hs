@@ -33,9 +33,10 @@ data TypeError
   | UnfoldableAccumulator Expr Type [Expr]
   | UnfoldableArg Expr Type [Expr]
   | -- Top-level definitions
-    BoundIndexVariableMismatch VariableId IVarId IVarId [Expr]
-  | ExtraArgument VariableId VariableId [Expr]
+    UnexpectedIndexVariableArgument VariableId IVarId Pattern [Expr]
+  | ExtraArgument VariableId Pattern [Expr]
   | UnbangedSignature VariableId Type [Expr]
+  | MissingSignature VariableId Pattern [Expr]
   | -- Other
     ShadowedIndexVariable IVarId [Expr]
   | UnexpectedEmptyList Expr Type [Expr]
@@ -62,8 +63,9 @@ instance Show TypeError where
   show (CannotSynthesizeType e surr) = "* Cannot synthesize type for expression '" ++ pretty e ++ "'. Consider annotating it with a type" ++ printSurroundings surr
   show (PatternMismatch p typ surr) = "* Pattern '" ++ pretty p ++ "' does not match type '" ++ pretty typ ++ "'" ++ printSurroundings surr
   show (ConsEmptyList p typ surr) = "* Pattern '" ++ pretty p ++ "' does not match type '" ++ pretty typ ++ "' because the latter allows the empty list" ++ printSurroundings surr
-  show (BoundIndexVariableMismatch fname id1 id2 _) = "* Mismatching index variable names in top-level definition '" ++ fname ++ "': signature binds '" ++ id1 ++ "', while definition binds '" ++ id2 ++ "'."
-  show (ExtraArgument fname id _) = "* Extra argument in top-level definition '" ++ fname ++ "': '" ++ id ++ "'."
+  show (UnexpectedIndexVariableArgument fname id pat _) = "* Mismatching index parameters in top-level definition '" ++ fname ++ "': signature binds '" ++ id ++ "', while definition binds '" ++ pretty pat ++ "'."
+  show (ExtraArgument fname pat _) = "* Extra argument in top-level definition '" ++ fname ++ "': '" ++ pretty pat ++ "'."
+  show (MissingSignature fname pat _) = "* Cannot determine type of argument '" ++ pretty pat ++ "' in top-level definition '" ++ fname ++ "'. Consider providing a type signature for '" ++ fname ++ "'."
   show (UnbangedSignature fname typ _) = "* Expected top-level definition '" ++ fname ++ "' to have a banged type signature, got '" ++ pretty typ ++ "' instead."
 
 -- | @printSurroundings es@ returns a string describing the expressions in @es@, if any
