@@ -108,27 +108,27 @@ range = EIAbs "n" $ EIApp (EConst MakeUnitList) (IVar "n")
 
 libraryBindings :: [TopLevelDefinition]
 libraryBindings = [
-  ("qinit0", Nothing, qinit0),
-  ("qinit1", Nothing, qinit1),
-  ("qdiscard", Nothing, qdiscard),
-  ("meas", Nothing, meas),
-  ("cinit0", Nothing, cinit0),
-  ("cinit1", Nothing, cinit1),
-  ("cdiscard", Nothing, cdiscard),
-  ("hadamard", Nothing, hadamard),
-  ("qnot", Nothing, qnot),
-  ("pauliY", Nothing, pauliY),
-  ("pauliZ", Nothing, pauliZ),
-  ("tgate", Nothing, tgate),
-  ("cnot", Nothing, cnot),
-  ("cz", Nothing, cz),
-  ("ccnot", Nothing, ccnot),
-  ("ccz", Nothing, ccz),
-  ("toffoli", Nothing, toffoli),
-  ("mcnot", Nothing, mcnot),
-  ("rgate", Nothing, rgate),
-  ("cr", Nothing, cr),
-  ("range", Nothing, range)
+  TopLevelDefinition "qinit0" [] Nothing qinit0,
+  TopLevelDefinition "qinit1" [] Nothing qinit1,
+  TopLevelDefinition "qdiscard" [] Nothing qdiscard,
+  TopLevelDefinition "meas" [] Nothing meas,
+  TopLevelDefinition "cinit0" [] Nothing cinit0,
+  TopLevelDefinition "cinit1" [] Nothing cinit1,
+  TopLevelDefinition "cdiscard" [] Nothing cdiscard,
+  TopLevelDefinition "hadamard" [] Nothing hadamard,
+  TopLevelDefinition "qnot" [] Nothing qnot,
+  TopLevelDefinition "pauliY" [] Nothing pauliY,
+  TopLevelDefinition "pauliZ" [] Nothing pauliZ,
+  TopLevelDefinition "tgate" [] Nothing tgate,
+  TopLevelDefinition "cnot" [] Nothing cnot,
+  TopLevelDefinition "cz" [] Nothing cz,
+  TopLevelDefinition "ccnot" [] Nothing ccnot,
+  TopLevelDefinition "ccz" [] Nothing ccz,
+  TopLevelDefinition "toffoli" [] Nothing toffoli,
+  TopLevelDefinition "mcnot" [] Nothing mcnot,
+  TopLevelDefinition "rgate" [] Nothing rgate,
+  TopLevelDefinition "cr" [] Nothing cr,
+  TopLevelDefinition "range" [] Nothing range
   ]
 
 prelude :: Module

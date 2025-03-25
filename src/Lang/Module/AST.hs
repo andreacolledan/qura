@@ -2,17 +2,21 @@ module Lang.Module.AST where
 import Lang.Expr.AST (VariableId, Expr)
 import Lang.Type.AST
 import PrettyPrinter (Pretty(..))
-import Control.Monad (join)
 import Data.Maybe
 
 type Import = String -- Placeholder, currently unused
 
-type TopLevelDefinition = (VariableId, Maybe Type, Expr)
+data TopLevelDefinition = TopLevelDefinition{
+  id :: VariableId,
+  args :: [VariableId],
+  signature :: Maybe Type,
+  definition :: Expr
+}
 
 prettyTopLevelDefinition :: TopLevelDefinition -> String
-prettyTopLevelDefinition (id, mtyp, e) = 
+prettyTopLevelDefinition (TopLevelDefinition id args mtyp e) = 
   (if isJust mtyp then id ++ " :: " ++ pretty mtyp ++ "\n" else "") ++
-  id ++ " = " ++ pretty e ++ "\n" 
+  id ++ unwords args ++ " = " ++ pretty e ++ "\n" 
 
 data Module = Module {
   name :: String,
@@ -22,4 +26,4 @@ data Module = Module {
 }
 
 instance Pretty Module where
-  pretty (Module name exports imports tldefs) = join $ map prettyTopLevelDefinition tldefs
+  pretty (Module name exports imports tldefs) = unwords $ map prettyTopLevelDefinition tldefs

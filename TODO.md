@@ -1,4 +1,12 @@
-- [ ] Add top-level definitions
-- [ ] Add undefined
-- [ ] Add module support
-- [ ] Fix parsing of indices embedded in types and expressions 
+- [x] Add top-level definitions
+  - [x] Add primitive modules (i.e. lists of top-level definitions)
+  - [x] Add top-level definitions without arguments
+  - [x] Add top-level definitions with arguments
+  - [x] Change tool interface to only consider top-level definitions
+- [ ] Add 'undefined' for experimentation purposes
+- [ ] Add actual module support
+- [ ] Fix parsing of indices embedded in types and expressions
+- [ ] Make closure annotations transparent to the user
+- [ ] Better error messages for type inference
+  - [ ] Add line numbers
+  - [ ] Add original source text instead of printing AST

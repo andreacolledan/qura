@@ -30,6 +30,8 @@ module Lang.Analysis.Derivation
     unlessSubtypeAssuming,
     unlessEq,
     unlessLeq,
+    unlessGRLeq,
+    unlessGREq,
     unlessIdentity,
     makePatternBindings,
     runSimplifyType,

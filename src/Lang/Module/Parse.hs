@@ -7,7 +7,7 @@ import Lang.Type.AST
 import Control.Monad
 import Lang.Type.Parse
 import Lang.Expr.Parse
-import Lang.Module.AST (TopLevelDefinition, Module(..))
+import Lang.Module.AST (TopLevelDefinition(..), Module(..))
 import Text.Megaparsec
 
 -- | Parse a PQ module, i.e. a sequence of top-level declarations.
@@ -29,17 +29,17 @@ topLevelDefinition :: Parser TopLevelDefinition
 topLevelDefinition =
   do
     sig <- optional functionSignature
-    (name, definition) <- functionDefinition
+    (name, args, definition) <- functionDefinition
     case sig of
-      Nothing -> return (name, Nothing, definition)
+      Nothing -> return $ TopLevelDefinition name args Nothing definition
       Just (name', signature) -> do
         when (name /= name') $
           fail $ "The type signature for `" ++ name' ++ "' should be followed by an accompanying binding, found `" ++ name ++ "'"
-        return (name, Just signature, definition)
+        return $ TopLevelDefinition name args (Just signature) definition
   <?> "top-level definition"
 
 -- | Parse "@f :: typ@" as a top-level type signature.
-functionSignature :: Parser (String, Type)
+functionSignature :: Parser (VariableId, Type)
 functionSignature =
   do
     functionName <- try $ nonIndented $ identifier <* doubleColon
@@ -48,11 +48,12 @@ functionSignature =
   <?> "function signature"
 
 -- | Parse "@f = expr@" as a top-level definition.
-functionDefinition :: Parser (String, Expr)
+functionDefinition :: Parser (VariableId, [VariableId], Expr)
 functionDefinition =
   do
     functionName <- nonIndented identifier
+    args <- many identifier
     equalSign
     functionDef <- indented parseExpr
-    return (functionName, functionDef)
+    return (functionName, args, functionDef)
   <?> "function definition"
