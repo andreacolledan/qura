@@ -1,0 +1,10 @@
+site_name: QuRA
+site_url: !ENV READTHEDOCS_CANONICAL_URL
+theme:
+  name: readthedocs
+extra_javascript:
+    - javascript/readthedocs.js
+nav:
+  - Getting started: tool/tutorial.md
+  - PQ reference : language/index.md
+  - Extending QuRA : tool/extension.md

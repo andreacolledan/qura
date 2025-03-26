@@ -14,15 +14,6 @@ import Data.Maybe
 import Index.Unify
 import Lang.Library.Constant
 import Control.Monad.State
-import Lang.Module.AST (TopLevelDefinition, Module (tldefs))
-
---- REFINED TYPE INFERENCE MODULE -------------------------------------------------------
----
---- This module contains the main logic to infer the refined type of a PQR expression,
---- after it has been preprocessed. Refined type inference assumes that the structure
---- of a type is already correct and focuses instead on the indices that annotate types.
---- At this stage, there should be no type variables left.
------------------------------------------------------------------------------------------
 
 -- | @inferRefinedType e@ infers the refined type and width upper-bound of expression @e@.
 -- If successful, it returns a pair @(t, i)@, where @t@ is the inferred type of @e@ 

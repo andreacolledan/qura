@@ -7,12 +7,7 @@ import Lang.Type.AST
 import Index.AST
 import Circuit
 
---- CONSTANTS -----------------------------------------------------------------------------------------------
----
---- This module defines the constants of the PQR language.
--------------------------------------------------------------------------------------------------------------
-
--- | The datatype of PQR constants
+-- | The datatype of PQ constants
 data Constant
   = Boxed QuantumOperation -- All circuit-level operations are constants in PQR
   -- Functions

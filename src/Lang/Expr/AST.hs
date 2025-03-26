@@ -13,11 +13,6 @@ import Lang.Type.Unify (HasType (..), TypeSubstitution)
 import qualified Data.HashSet as Set
 import Data.List (intercalate)
 
---- PQR SYNTAX MODULE ---------------------------------------------------------------------------------------
----
---- This module defines the abstract syntax of PQR expressions.
--------------------------------------------------------------------------------------------------------------
-
 -- | The datatype of PQR expressions
 data Expr =
   EUnit                                       -- Unit value               : ()

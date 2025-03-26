@@ -20,14 +20,6 @@ import Data.List (intercalate)
 import Circuit
 import Index.Unify
 
---- TYPE SYNTAX MODULE ---------------------------------------------------------------------------------------
----
---- This module defines the abstract syntax of PQR types.
---- The syntax is almost identical to the one in the paper, with the exception of the introduction of
---- type variables (used internally) and dependent function types (which internalize the index
---- meta-theoretical results in the paper).
--------------------------------------------------------------------------------------------------------------
-
 type TVarId = String
 
 -- | The datatype of PQR types

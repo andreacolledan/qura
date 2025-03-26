@@ -5,11 +5,6 @@ import Index.AST
 import Lang.Expr.Pattern
 import PrettyPrinter
 
---- TYPING ERROR MODULE ------------------------------------------------------------------
----
---- This module defines typing errors that can occur during the type derivation process.
-------------------------------------------------------------------------------------------
-
 -- The datatype of errors that can occur during a derivation
 data TypeError
   = UnboundVariable VariableId [Expr]

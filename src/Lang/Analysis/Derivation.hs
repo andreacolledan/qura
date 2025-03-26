@@ -60,14 +60,6 @@ import Solving.CVC5 (SolverHandle)
 import Lang.Expr.Pattern
 import Index.Unify
 
---- TYPE DERIVATIONS MODULE --------------------------------------------------------------
----
---- This module contains base definitions to work with type derivations in
---- a linear setting. It defines the type of type derivation computations,
---- the basic type derivations that interact with the environment and
---- some useful combinators to build more complex derivations.
-------------------------------------------------------------------------------------------
-
 
 --- BASIC DERIVATIONS ---------------------------------------------------------------
 

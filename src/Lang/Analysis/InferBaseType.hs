@@ -12,14 +12,6 @@ import Data.Foldable
 import Control.Monad.Extra
 import Lang.Library.Constant
 
---- BASE TYPE INFERENCE MODULE ------------------------------------------------------------------------------
----
---- This module defines the preprocessing stage of type inference.
---- Actual inference (i.e. unification) is only carried out at this stage.
---- Right now, this stage is responsible for checking obvious (i.e. not having to do with indices)
---- type errors and annotating some AST nodes with relevant type information (e.g. Nil, Box)
--------------------------------------------------------------------------------------------------------------
-
 -- | @irr@ is a placeholder index variable used for the length of lists.
 irr :: Index
 irr = IVar "irr"

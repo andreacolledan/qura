@@ -13,18 +13,13 @@ import Index.AST
 import PrettyPrinter
 import System.Process as Proc
 import System.IO
-import Control.Concurrent
-import Control.Exception
+-- import Control.Concurrent
+-- import Control.Exception
 import Index.Unify
 import Data.List (intercalate)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
 import Util (undesugaredPanic)
-
---- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
----
---- This module contains the logic to communicate with the CVC5 SMT solver.
------------------------------------------------------------------------------------------
 
 -- | @ApproximationStrategy@ is an enumeration of the possible approximation strategies when encoding an index as an SMTLIB term.
 data ApproximationStrategy = Exact | Overapproximate | Underapproximate

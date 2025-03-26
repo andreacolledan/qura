@@ -9,12 +9,6 @@ import Lang.Library.Constant
 import Lang.Type.AST
 import Circuit
 
---- PRELUDE MODULE -------------------------------------------------------------------------------------------
----
---- This module contains the definition of some library expressions which wrap the constants of the PQR language.
---- This is meant to simulate the standard library of PQR in the absence of an actual linking system.
--------------------------------------------------------------------------------------------------------------
-
 --- BASIC GATES AND OPERATIONS --------------------------------------------------------------------------------
 
 -- | @qinit0@ is the function that initializes a qubit to the |0⟩ state.

@@ -9,13 +9,6 @@ import Solving.CVC5
 import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
 
-
---- TYPE ENVIRONMENT MODULE ------------------------------------------------------------
----
---- This module defines the typing environment used by the analysis procedures.
---- It defines bindings, typing contexts, and their encasing environments.
-----------------------------------------------------------------------------------------
-
 --- BINDINGS ------------------------------------------------------------------
 
 -- | The datatype of bindings (carries the type of a variable and whether it has been used yet)
