@@ -16,8 +16,8 @@ import Solving.CVC5
 import qualified Data.HashSet as Set
 import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
-import PrettyPrinter
 import Index.Unify
+import Util (undesugaredPanic, missingGlobalResourceAnnotationPanic, missingLocalResourceAnnotationPanic)
 
 -- | @toNumber i@ returns the natural number represented by index expression @i@ if it is a number.
 toNumber :: Index -> Maybe Int
@@ -43,7 +43,7 @@ desugarIndex mgrs@(Just grs) mlrs (Parallel i j) = desugarParallel grs (desugarI
 desugarIndex mgrs@(Just grs) mlrs (BoundedSequence id i j) = desugarBoundedSequence grs id (desugarIndex mgrs mlrs i) (desugarIndex mgrs mlrs j)
 desugarIndex mgrs@(Just grs) mlrs (BoundedParallel id i j) = desugarBoundedParallel grs id (desugarIndex mgrs mlrs i) (desugarIndex mgrs mlrs j)
 desugarIndex mgrs mlrs@(Just lrs) (Output op n is) = desugarOutput lrs op n (desugarIndex mgrs mlrs <$> is)
-desugarIndex _ _ i = error $ "Internal error: resource operator was not desugared (desugarIndex): " ++ pretty i
+desugarIndex _ _ i = undesugaredPanic "desugarIndex" $ show i
 
 -- | @simplifyIndexStrong grs lrs qfh i@ returns index expression @i@ in a normal form.
 -- Note that this might not be a natural number (e.g. if @i@ contains free variables).
@@ -128,7 +128,7 @@ evalIndex qfh (BoundedSum id i j) = do
       if id `Set.member` ifv j'
         then return $ BoundedSum id i' j' -- do not reduce further
         else evalIndex qfh $ Mult i' j' --use shortcut
-evalIndex _ i = error $ "Internal error: resource operator was not desugared (evalIndex): " ++ pretty i 
+evalIndex _ i = undesugaredPanic "evalIndex" $ show i
 
 -- | @simplifyIndex qfh grs lrs i@ desugars index expression @i@ and then simplifies it to a normal form.
 -- 'SolverHandle' @qfh@ is used to interact with the SMT solver.
@@ -174,23 +174,23 @@ checkEq cs qfh i j = do
 checkGRLeq :: [Constraint] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkGRLeq _ _ Nothing _ _ = return True
 checkGRLeq cs qfh (Just grs) (Just i) (Just j) = checkLeq cs qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
-checkGRLeq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGRLeq)."
+checkGRLeq _ _ (Just _) _ _ = missingGlobalResourceAnnotationPanic "checkGRLeq"
 
 -- | @checkGREq cs qfh grs i j@ is like 'checkEq', but defaults to true if global resource module @grs@ is not given.
 checkGREq :: [Constraint] -> SolverHandle -> Maybe GlobalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkGREq _ _ Nothing _ _ = return True
 checkGREq cs qfh (Just grs) (Just i) (Just j) = checkEq cs qfh (desugarIndex (Just grs) Nothing i) (desugarIndex (Just grs) Nothing j)
-checkGREq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkGREq)."
+checkGREq _ _ (Just _) _ _ = missingGlobalResourceAnnotationPanic "checkGREq"
 
 -- | @checkLRLeq cs qfh lrs i j@ is like 'checkLeq', but defaults to true if local resource module @lrs@ is not given.
 checkLRLeq :: [Constraint] -> SolverHandle -> Maybe LocalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkLRLeq _ _ Nothing _ _ = return True
 checkLRLeq cs qfh (Just lrs) (Just i) (Just j) = checkLeq cs qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
-checkLRLeq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLRLeq)."
+checkLRLeq _ _ (Just _) _ _ = missingLocalResourceAnnotationPanic "checkLRLeq"
 
 -- | @checkLREq cs qfh lrs i j@ is like 'checkEq', but defaults to true if local resource module @lrs@ is not given.
 checkLREq :: [Constraint] -> SolverHandle -> Maybe LocalMetricModule -> Maybe Index -> Maybe Index -> IO Bool
 checkLREq _ _ Nothing _ _ = return True
 checkLREq cs qfh (Just lrs) (Just i) (Just j) = checkEq cs qfh (desugarIndex Nothing (Just lrs) i) (desugarIndex Nothing (Just lrs) j)
-checkLREq _ _ (Just _) _ _ = error "Internal error: missing index in global resource annotation (checkLREq)."
+checkLREq _ _ (Just _) _ _ = missingLocalResourceAnnotationPanic "checkLREq"
 

@@ -1,6 +1,5 @@
 module Lang.Analysis.InferRefinedType
-  ( runRefinedTypeInference,
-    runRefinedTypeInferenceWith,
+  ( inferRefinedType,
   )
 where
 
@@ -11,15 +10,11 @@ import Index.AST
 import Lang.Type.AST
 import Lang.Expr.AST
 import Lang.Analysis.Derivation
-import Lang.Analysis.InferBaseType
-import Control.Monad.Except
-import Solving.CVC5 (SolverHandle)
-import Index.Semantics.Global.Resource
-import Index.Semantics.Local.Resource
 import Data.Maybe
 import Index.Unify
 import Lang.Library.Constant
 import Control.Monad.State
+import Lang.Module.AST (TopLevelDefinition, Module (tldefs))
 
 --- REFINED TYPE INFERENCE MODULE -------------------------------------------------------
 ---
@@ -171,7 +166,7 @@ inferRefinedType e@(EForce e1) = withScope e $ do
   return (typ', join k)
 -- INDEX ABSTRACTION
 inferRefinedType e@(EIAbs id e1) = withScope e $ do
-  ((typ, i), wc) <- withEnvSize $ withBoundIndexVariable id $ inferRefinedType e1
+  ((typ, i), wc) <- withEnvSize $ withBoundIndexVariables [id] $ inferRefinedType e1
   k <- ifGlobalResources wc
   return (TIForall id typ i (join k), join k)
 -- INDEX APPLICATION
@@ -199,18 +194,18 @@ inferRefinedType e@(EAssume e1 annotyp) = withScope e $ do
 
 --- EXPORTED WRAPPER FUNCTIONS ---------------------------------------------------------------
 
--- | @runRefinedTypeInferenceWith env e@ runs the whole type inference pipeline on expression @e@,
--- using the typing environment @env@.
-runRefinedTypeInferenceWith :: TypingEnvironment -> Expr -> IO (Either TypeError (Type, Maybe Index))
-runRefinedTypeInferenceWith env e = runExceptT $ do
-  e' <- runBaseTypeInference env e
-  ((typ, i), remaining) <- runTypeDerivation (inferRefinedType e') env
-  when (envIsLinear remaining) $ do
-    let remainingNames = [id | (id, bs) <- Map.toList (typingContext remaining), any mustBeUsed bs]
-    throwError $ UnusedLinearVariable (head remainingNames) [e]
-  return (typ, i)
+-- -- | @runRefinedTypeInferenceWith env e@ runs the whole type inference pipeline on expression @e@,
+-- -- using the typing environment @env@.
+-- runRefinedTypeInferenceWith :: TypingEnvironment -> Expr -> IO (Either TypeError (Type, Maybe Index))
+-- runRefinedTypeInferenceWith env e = runExceptT $ do
+--   e' <- runBaseTypeInference env e
+--   ((typ, i), remaining) <- runTypeDerivation (inferRefinedType e') env
+--   when (envIsLinear remaining) $ do
+--     let remainingNames = [id | (id, bs) <- Map.toList (typingContext remaining), any mustBeUsed bs]
+--     throwError $ UnusedLinearVariable (head remainingNames) [e]
+--   return (typ, i)
 
--- | @runRefinedTypeInference e sh@ runs the whole type inference pipeline on expression @e@,
--- using the handle @sh@ to communicate with the SMT solver.
-runRefinedTypeInference :: Expr -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> IO (Either TypeError (Type, Maybe Index))
-runRefinedTypeInference e sh grs lrs = runRefinedTypeInferenceWith (emptyEnv sh grs lrs) e
+-- -- | @runRefinedTypeInference e sh@ runs the whole type inference pipeline on expression @e@,
+-- -- using the handle @sh@ to communicate with the SMT solver.
+-- runRefinedTypeInference :: Expr -> SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> IO (Either TypeError (Type, Maybe Index))
+-- runRefinedTypeInference e sh grs lrs = runRefinedTypeInferenceWith (emptyEnv sh grs lrs) e

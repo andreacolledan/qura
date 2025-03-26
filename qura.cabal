@@ -39,6 +39,7 @@ library
       Index.Semantics.Local.Resource
       Index.Semantics.Local.TDepth
       Index.Unify
+      Lang.Analysis
       Lang.Analysis.Derivation
       Lang.Analysis.Environment
       Lang.Analysis.InferBaseType
@@ -49,12 +50,16 @@ library
       Lang.Expr.Pattern
       Lang.Library.Constant
       Lang.Library.Prelude
+      Lang.Module.AST
+      Lang.Module.Parse
       Lang.Type.AST
       Lang.Type.Parse
       Lang.Type.Semantics
       Lang.Type.Unify
+      Parser
       PrettyPrinter
       Solving.CVC5
+      Util
   other-modules:
       Paths_qura
   hs-source-dirs:
@@ -67,9 +72,10 @@ library
     , extra
     , filepath
     , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
-    , parsec
+    , parser-combinators
     , process
     , transformers
     , unordered-containers
@@ -89,9 +95,10 @@ executable qura
     , extra
     , filepath
     , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
-    , parsec
+    , parser-combinators
     , process
     , qura
     , transformers
@@ -113,9 +120,10 @@ test-suite qura-test
     , extra
     , filepath
     , hspec
+    , megaparsec
     , mtl
     , optparse-applicative
-    , parsec
+    , parser-combinators
     , process
     , qura
     , transformers

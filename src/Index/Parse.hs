@@ -1,152 +1,105 @@
-{-# HLINT ignore "Use <$>" #-}
-{-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-{-# OPTIONS_GHC -Wno-unused-do-bind #-}
-
+{-# HLINT ignore "Use <$>" #-}
 module Index.Parse
-  ( parseIndex,
-    delimitedIndex,
-    ParserConfig (..),
-    Parser,
+  ( indexExpression
   )
 where
 
 import Index.AST
-import Text.Parsec (alphaNum, lower, oneOf, try, (<|>), Parsec)
-import Text.Parsec.Expr
-import Text.Parsec.Language
-import Text.Parsec.Prim ((<?>))
-import Text.Parsec.Token
-import Text.Parsec.Combinator
+import Text.Megaparsec
+import Parser
+import Control.Monad.Combinators.Expr
 
-data ParserConfig = ParserConfig {
-  parsegra :: Bool,
-  parselra :: Bool
-}
+--- Delimited Indices ---
 
-type Parser = Parsec String ParserConfig
+-- | Parse a natural number /n/ as @Number n@.
+naturalNumber :: Parser Index
+naturalNumber = Number . fromInteger <$> number <?> "natural number"
 
---- INDEX PARSING MODULE ------------------------------------------------------------
----
---- This module contains the logic to parse index expressions.
--------------------------------------------------------------------------------------
+-- | Parse an identifier /id/ " as @IndexVariable id@.
+indexVariable :: Parser Index
+indexVariable = IVar <$> identifier <?> "index variable"
 
-TokenParser
-  { parens = m_parens,
-    identifier = m_identifier,
-    reservedOp = m_reservedOp,
-    reserved = m_reserved,
-    whiteSpace = m_whiteSpace,
-    natural = m_natural,
-    symbol = m_symbol
-  } =
-    makeTokenParser
-      emptyDef
-        { identStart = lower,
-          identLetter = alphaNum,
-          opStart = oneOf "+-*<",
-          opLetter = oneOf "+-*<",
-          reservedOpNames = ["+", "-", "*", "<"],
-          reservedNames = ["max","sum"]
-        }
-
--- Parses "n" as (Number n)
-parseNat :: Parser Index
-parseNat =
-  do
-    n <- m_natural
-    return $ Number $ fromInteger n
-    <?> "natural number"
-
--- Parses an identifier "id "as (IndexVariable id)
-parseIndexVariable :: Parser Index
-parseIndexVariable =
-  do
-    v <- m_identifier
-    return $ IVar v
-    <?> "index variable"
-
--- Parses "max(i, j)" as (Max i j)
-parseMax :: Parser Index
-parseMax =
-  do
-    try $ do
-      m_reserved "max"
-      m_symbol "("
-    i1 <- parseIndex
-    m_symbol ","
-    i2 <- parseIndex
-    m_symbol ")"
+-- | Parse "max(i, j)"" as @Max i j@.
+binaryMax :: Parser Index
+binaryMax = do
+    (i1,i2) <- try $ do
+      keyword "max"
+      parens $ (,) <$> indexExpression <* comma <*> indexExpression
     return $ Max i1 i2
     <?> "max expression"
 
-multOp :: Parser (Index -> Index -> Index)
-multOp =
+
+--- Index Operators ---
+
+-- | Parse "*" as the "Mult _ _" index operator.
+multOperator :: Parser (Index -> Index -> Index)
+multOperator =
   do
-    m_reservedOp "*"
+    star
     return Mult
     <?> "multiplication"
 
-plusOp :: Parser (Index -> Index -> Index)
-plusOp =
+-- | Parse "+" as the "Plus _ _" index operator.
+plusOperator :: Parser (Index -> Index -> Index)
+plusOperator =
   do
-    m_reservedOp "+"
+    plus
     return Plus
     <?> "plus"
 
-minusOp :: Parser (Index -> Index -> Index)
-minusOp =
+-- | Parse "-" as the "Minus _ _" index operator.
+minusOperator :: Parser (Index -> Index -> Index)
+minusOperator =
   do
-    m_reservedOp "-"
+    hyphen
     return Minus
     <?> "minus"
 
-manyMaximumOp :: Parser (Index -> Index)
-manyMaximumOp = foldr1 (.) <$> many1 maximumOp
-  where
-    maximumOp :: Parser (Index -> Index)
-    maximumOp =
-      do
-        try $ do
-          m_reserved "max"
-          m_symbol "["
-        ivar <- m_identifier
-        m_reservedOp "<"
-        i <- parseIndex
-        m_symbol "]"
-        return $ BoundedMax ivar i
 
-manySumOp :: Parser (Index -> Index)
-manySumOp = foldr1 (.) <$> many1 sumOp
-  where
-    sumOp :: Parser (Index -> Index)
-    sumOp =
-      do
-        try $ do
-          m_reserved "sum"
-          m_symbol "["
-        ivar <- m_identifier
-        m_reservedOp "<"
-        i <- parseIndex
-        m_symbol "]"
-        return $ BoundedSum ivar i
-  
-delimitedIndex :: Parser Index
-delimitedIndex =
-  m_parens parseIndex
-    <|> parseNat
-    <|> parseIndexVariable
-    <|> parseMax
-    <?> "delimited index"
+--- Low-precedence Prefix Operators ---
+-- These operators have the least precedence, i.e. they extend until the end of the expression.
+-- The 'makeExprParser' function does not deal well with them, so it is better to define them like this.
 
--- Parses an index expression
-parseIndex :: Parser Index
-parseIndex =
-  let -- Usual arithmetic operator associativity and precedence
-      indexOperators =
-        [ [Infix multOp AssocLeft],
-          [Infix plusOp AssocLeft],
-          [Infix minusOp AssocLeft],
-          [Prefix manyMaximumOp, Prefix manySumOp]
-        ]
-   in buildExpressionParser indexOperators delimitedIndex <?> "index expression"
+-- | Parse "max[id < i] j" as @BoundedMax id i j@
+boundedMaximum :: Parser Index
+boundedMaximum = do
+  (iterator, bound) <- try $ do
+    keyword "max"
+    brackets $ (,) <$> identifier <* lessSign <*> indexExpression
+  i <- indexExpression
+  return $ BoundedMax iterator bound i
+
+-- | Parse "sum[id < i] j" as @BoundedSum id i j@
+boundedSum :: Parser Index
+boundedSum = do
+  keyword "sum" 
+  (iterator, bound) <- brackets $ (,) <$> identifier <* lessSign <*> indexExpression
+  i <- indexExpression
+  return $ BoundedSum iterator bound i
+
+
+--- Index Expression Parsing
+
+-- | Parse an index with certain boundaries.
+baseIndex :: Parser Index
+baseIndex =
+  parens indexExpression
+    <|> naturalNumber
+    <|> indexVariable
+    <|> binaryMax
+    <|> boundedMaximum
+    <|> boundedSum
+    <?> "base index"
+
+-- | Table of index operators, ranked from highest to lowest precedence.
+indexOperatorTable :: [[Operator Parser Index]]
+indexOperatorTable =
+  [ [InfixL multOperator],
+    [InfixL minusOperator],
+    [InfixL plusOperator]
+  ]
+
+-- | Parse an index expression.
+indexExpression :: Parser Index
+indexExpression = makeExprParser baseIndex indexOperatorTable <?> "index expression"

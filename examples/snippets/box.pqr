@@ -1,9 +1,0 @@
-let oracle = box $ lift \(target, input) :: (Qubit{0}, Qubit{0}).
-  let input = (force qnot @ 0) input in
-  let (target, input) = (force cnot @ 1 @ 1) input target in
-  let input = (force qnot @ 2) input in
-  (target, input)
-in
-let q = apply(QInit0, ()) in
-let p = apply(QInit0, ()) in
-apply(oracle, (q, p))

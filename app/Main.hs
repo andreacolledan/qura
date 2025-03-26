@@ -1,16 +1,12 @@
 module Main (main) where
 
 import Control.Monad (when)
-import Index.Semantics
-import Lang.Type.Semantics
-import Lang.Analysis.InferRefinedType
-import Lang.Expr.Parse
+import Data.List
 import Options.Applicative
 import PrettyPrinter
 import Solving.CVC5
-import System.Console.ANSI
-import System.IO.Extra
-import Text.Parsec (runParser)
+import Parser(runParser)
+import Text.Megaparsec.Error
 import Lang.Library.Prelude
 import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
@@ -19,14 +15,19 @@ import Index.Semantics.Global.Qubits
 import Index.Semantics.Global.TCount
 import Index.Semantics.Global.Bits
 import Index.Semantics.Global.GateCount
-import Data.Maybe (isJust, fromJust)
-import qualified Index.Parse as IP
+import Data.Maybe (isJust, catMaybes)
 import Index.Semantics.Local.Depth
 import Index.Semantics.Local.TDepth
+import Lang.Module.AST
+import Lang.Module.Parse
+import Lang.Analysis
+import Lang.Expr.AST (VariableId)
+import System.IO.Extra
+import System.Console.ANSI
 
 globalMetricArgParser :: ReadM GlobalMetricModule
 globalMetricArgParser = do
-  s <- str 
+  s <- str
   case s of
     "width" -> return widthMetric
     "qubits" -> return qubitsMetric
@@ -98,32 +99,43 @@ interface =
 
 main :: IO ()
 main = do
-  CommandLineArguments {
-    filepath = file,
-    verbose = verb,
-    debug = deb,
-    noprelude = nopre,
-    grs = mgrs,
-    lrs = mlrs} <- execParser interface
+  opts <- execParser interface
+  mod <- parseSource opts
+  libs <- getLibs opts
+  outcome <- analyzeModule mod libs opts
+  case outcome of
+    Left err -> outputError err
+    Right bindings -> outputBindings opts bindings
+
+parseSource :: Arguments -> IO Module
+parseSource CommandLineArguments{verbose=verb, filepath=file, grs=mgrs, lrs=mlrs} = do
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
-  contents <- readFile file
-  case runParser parseProgram IP.ParserConfig{IP.parsegra = isJust mgrs, IP.parselra = isJust mlrs} "" contents of
-    Left err -> print err
-    Right ast -> do
-      when verb $ do
-        putStrLn $ "Parsed successfully as \n\t" ++ pretty ast
-        putStrLn "Inferring type..."
-      withSolver deb $ \qfh -> do
-        let actualAst = if nopre then ast else library ast
-        outcome <- runRefinedTypeInference actualAst qfh mgrs mlrs
-        case outcome of
-          Left err -> do
-            hSetSGR stderr [SetColor Foreground Vivid Red]
-            hPrint stderr err
-            hSetSGR stderr [Reset]
-          Right (t, i) -> do
-            t' <- simplifyType qfh mgrs mlrs t
-            putStrLn $ "* Inferred type: " ++ pretty t'
-            when (isJust mgrs) $ do
-              i' <- simplifyIndex qfh mgrs mlrs (fromJust i)
-              putStrLn $ "* Inferred " ++ pretty mgrs ++ " upper bound: " ++ pretty i'
+  source <- readFile file
+  case runParser parseModule (isJust mgrs) (isJust mlrs) file source of
+    Left err -> error $ errorBundlePretty err
+    Right mod -> return mod
+
+getLibs :: Arguments -> IO [Module]
+getLibs CommandLineArguments{noprelude = nopre} = return $ ([prelude | not nopre]) -- for now, we only allow the prelude as a library
+
+analyzeModule :: Module -> [Module] -> Arguments -> IO (Either TypeError [(VariableId, Type)])
+analyzeModule
+  mod libs CommandLineArguments{verbose=verb, debug=deb, grs=mgrs, lrs=mlrs} = do
+    when verb $ do
+      putStrLn $ "Parsed successfully as \n\t" ++ pretty mod
+      putStrLn "Inferring type..."
+    withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+
+
+outputError :: (Show a) => a -> IO ()
+outputError e = do
+  hSetSGR stderr [SetColor Foreground Vivid Red]
+  hPrint stderr e
+  hSetSGR stderr [Reset]
+
+outputBindings :: Arguments -> [(VariableId, Type)] -> IO ()
+outputBindings opts bindings = do
+  putStrLn $ "Analyzing file '" ++ filepath opts ++ "'."
+  let metrics = catMaybes [pretty <$> grs opts, pretty <$> lrs opts]
+  putStrLn $ "Checking " ++ intercalate ", " (["type"] ++ metrics) ++ ".\n"
+  putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings

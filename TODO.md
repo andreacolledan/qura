@@ -1,0 +1,16 @@
+- [x] Add top-level definitions
+  - [x] Add primitive modules (i.e. lists of top-level definitions)
+  - [x] Add top-level definitions without arguments
+  - [x] Add top-level definitions with arguments
+  - [x] Add top-level definitions with patterns
+  - [x] Change tool interface to only consider top-level definitions
+  - [x] Update README
+- [ ] Add 'undefined' for experimentation purposes
+- [ ] Add proper documentation for the PQ language
+- [ ] Major code refactoring
+- [ ] Add actual module support with linking
+- [ ] Fix parsing of indices embedded in types and expressions
+- [ ] Make closure annotations transparent to the user
+- [ ] Better error messages for type inference
+  - [ ] Add line numbers
+  - [ ] Add original source text instead of printing AST

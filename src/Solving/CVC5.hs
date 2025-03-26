@@ -19,6 +19,7 @@ import Index.Unify
 import Data.List (intercalate)
 import Control.Monad.Extra (concatMapM)
 import Data.Foldable
+import Util (undesugaredPanic)
 
 --- SMT SOLVER (CVC5) MODULE ------------------------------------------------------------
 ---
@@ -79,7 +80,7 @@ approximate as (BoundedMin id i j) = do
 approximate Overapproximate (BoundedSum id i j) = approximate Overapproximate (Mult i (BoundedMax id i j)) -- sum[id < i] j <= i * max[id < i] j
 approximate Underapproximate (BoundedSum id i j) = approximate Underapproximate (Mult i (BoundedMin id i j)) -- sum[id < i] j >= i * min[id < i] j
 approximate Exact (BoundedSum {}) = Nothing -- cannot encode a bounded sum exactly in SMT
-approximate _ i = error $ "Internal error: resource operator was not desugared (approximate):" ++ pretty i
+approximate _ i = undesugaredPanic "approximate" $ show i
 
 -- | @embedIndex i@ turns index @i@ into a pair of strings @(d, ei)@
 -- where @ei@ is an appropriate encoding of @i@ as an SMTLIB term and @d@ is a string containing
@@ -160,7 +161,7 @@ embedIndex (BoundedMin id i j) = do
             ++ "(>= " ++ anyOtherJ ++ " " ++ minimumJ ++ "))))\n"
   return (d0 ++ di ++ dj ++ d, minName)
 embedIndex (BoundedSum {}) = lift Nothing
-embedIndex i = error $ "Internal error: resource operator was not desugared (embedIndex):" ++ pretty i
+embedIndex i = undesugaredPanic "embedIndex" $ show i
 
 -- | @smtBoundedMaxGeneric id i j embed@ turns a bounded maximum @max[id < i] j@ into a triple
 -- of strings @(d, i', maxName)@ where @maxName@ is a fresh variable representing the maximum of @j@ for @id@
@@ -267,7 +268,7 @@ withSolver mdebug action = do
     std_out = CreatePipe,
     std_err = CreatePipe
   }
-  _ <- forkIO (hGetContents sErr >>= \s -> void (evaluate (length s))) -- drain stderr
+  --_ <- forkIO (hGetContents sErr >>= \s -> void (evaluate (length s))) -- drain stderr -- TODO figure out if needed
   hPutStrLn sIn "(set-logic HO_ALL)" -- TODO this might be made less powerful, check
   hPutStrLn sIn "(define-fun max ((x Int) (y Int)) Int (ite (< x y) y x)) ; max(x,y)" -- define the max function
   hPutStrLn sIn "(define-fun natminus ((x Int) (y Int)) Int (ite (< x y) 0 (- x y))) ; minus(x,y)" -- define the minus function
