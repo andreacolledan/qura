@@ -1,6 +1,7 @@
 module Main (main) where
 
 import Control.Monad (when)
+import Data.List
 import Options.Applicative
 import PrettyPrinter
 import Solving.CVC5
@@ -14,7 +15,7 @@ import Index.Semantics.Global.Qubits
 import Index.Semantics.Global.TCount
 import Index.Semantics.Global.Bits
 import Index.Semantics.Global.GateCount
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, catMaybes)
 import Index.Semantics.Local.Depth
 import Index.Semantics.Local.TDepth
 import Lang.Module.AST
@@ -104,7 +105,7 @@ main = do
   outcome <- analyzeModule mod libs opts
   case outcome of
     Left err -> outputError err
-    Right bindings -> outputBindings bindings
+    Right bindings -> outputBindings opts bindings
 
 parseSource :: Arguments -> IO Module
 parseSource CommandLineArguments{verbose=verb, filepath=file, grs=mgrs, lrs=mlrs} = do
@@ -132,5 +133,9 @@ outputError e = do
   hPrint stderr e
   hSetSGR stderr [Reset]
 
-outputBindings :: [(VariableId, Type)] -> IO ()
-outputBindings = putStrLn . concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n")
+outputBindings :: Arguments -> [(VariableId, Type)] -> IO ()
+outputBindings opts bindings = do
+  putStrLn $ "Analyzing file '" ++ filepath opts ++ "'."
+  let metrics = catMaybes [pretty <$> grs opts, pretty <$> lrs opts]
+  putStrLn $ "Checking " ++ intercalate ", " (["type"] ++ metrics) ++ ".\n"
+  putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings

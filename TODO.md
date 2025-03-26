@@ -4,7 +4,7 @@
   - [x] Add top-level definitions with arguments
   - [x] Add top-level definitions with patterns
   - [x] Change tool interface to only consider top-level definitions
-  - [ ] Update README
+  - [x] Update README
 - [ ] Add 'undefined' for experimentation purposes
 - [ ] Add proper documentation for the PQ language
 - [ ] Major code refactoring
