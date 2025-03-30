@@ -6,7 +6,7 @@ As a running example, we'll use the following PQ implementation of [quantum tele
 
 ```hs
 -8<-
-snippets/teleportation.pq:3
+docs/snippets/teleportation.pq:3
 -8<-
 ```
 
@@ -49,7 +49,7 @@ QuRA lets us to specify upper bounds on the size of the circuits built by progra
 
 ```hs
 -8<-
-snippets/teleportation-width.pq:3
+docs/snippets/teleportation-width.pq:3
 -8<-
 ```
 
@@ -107,7 +107,7 @@ In order to specify an upper bound to the depth of the bits and qubits involved 
 
 ```hs
 -8<-
-snippets/teleportation-depth.pq:3
+docs/snippets/teleportation-depth.pq:3
 -8<-
 ```
 
@@ -146,7 +146,7 @@ In order to avoid this duplication, we can make `teleport` parametric in the dep
 
 ```hs
 -8<-
-snippets/teleportation-depth-generic.pq:3
+docs/snippets/teleportation-depth-generic.pq:3
 -8<-
 ```
 
@@ -174,7 +174,7 @@ An ubiquitous example of a quantum algorithm that corresponds to a circuit famil
 
 ```hs
 -8<-
-snippets/qft.pq:3
+docs/snippets/qft.pq:3
 -8<-
 ```
 
@@ -187,7 +187,7 @@ Naturally, any form of size or depth analysis of `qft` must take `n` into accoun
 
 ```hs
 -8<-
-snippets/qft-width.pq:3
+docs/snippets/qft-width.pq:3
 -8<-
 ```
 
