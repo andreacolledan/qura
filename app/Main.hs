@@ -137,5 +137,5 @@ outputBindings :: Arguments -> [(VariableId, Type)] -> IO ()
 outputBindings opts bindings = do
   putStrLn $ "Analyzing file '" ++ filepath opts ++ "'."
   let metrics = catMaybes [pretty <$> grs opts, pretty <$> lrs opts]
-  putStrLn $ "Checking " ++ intercalate ", " (["type"] ++ metrics) ++ ".\n"
+  putStrLn $ "Checked " ++ intercalate ", " (["type"] ++ metrics) ++ ".\n"
   putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings

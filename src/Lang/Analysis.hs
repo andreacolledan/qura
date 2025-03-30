@@ -45,6 +45,7 @@ analyzeTopLevelDefinition (TopLevelDefinition id args (Just sig) e) = do
     inferTLDefType [] e _ = withScope e $ analyzeExpression e
     -- at least one argument, remainder has arrow type, treat this like an abstraction
     inferTLDefType (arg:rargs) e (TArrow domType codType _ _) = do
+      checkWellFormedness domType
       (varNames, varTypes) <- makePatternBindings arg domType SizedLists
       ((typ, eff), asize) <- withEnvSize $ withBoundVariables varNames varTypes $ inferTLDefType rargs e codType
       return (TArrow domType typ eff asize, Just Identity)

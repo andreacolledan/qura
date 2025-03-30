@@ -4,7 +4,13 @@ theme:
   name: readthedocs
 extra_javascript:
     - javascript/readthedocs.js
+markdown_extensions:
+  - pymdownx.snippets
+
 nav:
-  - Getting started: tool/tutorial.md
-  - PQ reference : language/index.md
-  - Extending QuRA : tool/extension.md
+  - The Tool:
+    - Installation: tool/installation.md
+    - Getting started: tool/getting-started.md
+    - Extending QuRA : tool/extensions.md
+  - The PQ Language:
+    - Overview : language/overview.md

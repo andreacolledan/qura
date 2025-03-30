@@ -4,7 +4,7 @@ QuRA is a static analysis tool for the resource consumption of quantum algorithm
 
 PQ is a quantum circuit description language that features a rich type-and-effect system, which allows programmers to include quantitative information regarding the resource requirements of a program in its type. Then, if the program type-checks in QuRA, we know for certain that it will not consume more resources than specified.
 
-[Official documentation](https://qura-docs.readthedocs.io/en/latest/)
+[Official documentation](https://qura.readthedocs.io/en/latest/)
 
 **Disclaimer:** support for resource metrics other than circuit width is still experimental.
 
@@ -58,4 +58,4 @@ For more information, refer to `qura --help`.
 
 ## Contributing
 
-If you are interested in extending QuRA with new kinds of metric analysis, consult [this guide](https://qura-docs.readthedocs.io/en/latest/tool/extension/).
+If you are interested in extending QuRA with new kinds of metric analysis, consult [this guide](https://qura.readthedocs.io/en/latest/tool/extension/).

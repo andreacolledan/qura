@@ -1,20 +1,20 @@
 # Extending QuRA
 
 All the logic for the analysis of a specific resource metric is encoded as a *metric module*, that is, an instance of `GlobalMetricModule` (for global metrics) or `LocalMetricModule` (for local metrics).
-This guide is meant to aid contributors in the implementation of new metric modules, that is, in the extension of QuRA with the analysis of new kinds of resources.
+This guide is meant to aid contributors in the implementation of new metric modules, that is, in the extension of QuRA with the ability tackle new definitions of "resource".
 
 ## The `Index` datatype
 
-The definition of a new metric analysis boils down to specifying *what resource annotations should be produced* when analyzing a small number of key circuit building scenarios. These annotations are called *indices*, and they are essentially arithmetic expressions built from natural numbers and index variables. They are represented as the `Index` datatype, in the [`Index.AST`](https://github.com/andreacolledan/qura/blob/main/src/Index/AST.hs) module. 
+The definition of a new metric analysis boils down to specifying *what resource annotations should be produced* when analyzing a small number of key circuit building scenarios. These annotations are called *indices*, and they are essentially arithmetic expressions built from natural numbers and index variables. They are represented through the `Index` datatype, in the [`Index.AST`](https://github.com/andreacolledan/qura/blob/main/src/Index/AST.hs) module. 
 
 Here is a list of the `Index` constructors that can be used when defining new metrics:
 
-- `Number :: Int -> Index` makes an index out of an integer number. For matters of soundness, this number should be non-negative.
+- `Number :: Int -> Index` makes an index out of an integer. For matters of soundness, only non-negative integers should appear in indices.
 - `IVar :: IVarId -> Index` makes an index variable out of a string identifier.
 - `Plus :: Index -> Index -> Index` represents the sum of two index expressions.
 - `Minus :: Index -> Index -> Index` represents the natural subtractions of two index expression. Note that `Minus e1 e2` is equal to zero whenever `e1` is less or equal than `e2`.
-- `Mult :: Index -> Index -> Index` represents the product of two index expressions
-- `Max :: Index -> Index -> Index` represents the maximum of two index expressions
+- `Mult :: Index -> Index -> Index` represents the product of two index expressions.
+- `Max :: Index -> Index -> Index` represents the maximum of two index expressions.
 - `BoundedSum :: IVarId -> Index -> Index` represents the bounded sum of indices. `BoundedSum "i" e1 e2` is the sum for `i` going from 0 (included) to `e1` (excluded) of `e2`, where `e2` can depend on `i`.
 - `BoundedMax :: IVarId -> Index -> Index` represents the bounded maximum of indices. `BoundedMax "i" e1 e2` is the maximum for `i` going from 0 (included) to `e1` (excluded) of `e2`, where `e2` can depend on `i`.
 
@@ -26,7 +26,7 @@ An instance of `GlobalMetricModule` requires the definition of the following fun
 
 - `name :: String` is just the name of the metric, used for pretty printing.
 - `desugarIdentity :: Index` defines the neutral element for the metric (e.g. what it means to have "no width"). This is usually just `Number 0`.
-- `desugarWire :: WireType -> Index` defines the size of a wire, which might depend on its wiretype. Note that `WireType = Bit | Qubit`. For example, for width:
+- `desugarWire :: WireType -> Index` defines the size of a wire, which might depend on its wiretype. Note that `WireType = Bit | Qubit`. For example, in the case of width:
 ```hs
 -- src/Index/Semantics/Global/Width.hs
 
@@ -42,7 +42,7 @@ desugarOperation T = Number 1
 desugarOperation _ = Number 0
 ```
 
-- `desugarSequence :: Index -> Index -> Index` defines the size of two circuits composed in sequence. Suppose `C` is a circuit of size `e1` and `D` is a circuit of size `e2`. Then, `desugarSequence e1 e2` should be the size of the composition in sequence of `C` and `D`. For example, for width:
+- `desugarSequence :: Index -> Index -> Index` defines the size of two circuits composed in sequence. Suppose `C` is a circuit of size `e1` and `D` is a circuit of size `e2`. Then, `desugarSequence e1 e2` should be the size of the composition in sequence of `C` and `D`. For example, in the case of width:
 ```hs
 -- src/Index/Semantics/Global/Width.hs
 
@@ -50,7 +50,7 @@ desugarSequence e1 e2 = Max e1 e2
 ```
 
 
-- `desugarParallel :: Index -> Index -> Index` defines the size of two circuits composed in parallel. Suppose `C` is a circuit of size `e1` and `D` is a circuit of size `e2`. Then, `desugarSequence  e1 e2` should be the size of the composition in parallel of `C` and `D`. For example, for width:
+- `desugarParallel :: Index -> Index -> Index` defines the size of two circuits composed in parallel. Suppose `C` is a circuit of size `e1` and `D` is a circuit of size `e2`. Then, `desugarSequence  e1 e2` should be the size of the composition in parallel of `C` and `D`. For example, in the case of width:
 ```hs
 -- src/Index/Semantics/Global/Width.hs
 
@@ -78,7 +78,7 @@ For more examples of global metric modules, consult the modules under [`Index.Se
 Once you have defined a global resource module, you need to make the following changes [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs) in order to make it available from QuRA's interface:
 
 1. Add a new case to `globalMetricArgParser` to parse your new metric as a command line option.
-2. Also add your metric's name to the error message of the argument parser, so that users know it's there.
+2. Add your metric's name to the error message of the argument parser, so that users know it's there.
 
 If your metric is defined in `myGlobalMetricModule` and is called `myglobalmetric`, the last lines of the case analysis in `globalMetricArgParser` should look like this:
 
@@ -92,7 +92,7 @@ globalMetricArgParser = do
 
 ```
 
-Finally, to analyze `myglobalmetric` with QuRA, run
+Finally, to analyze `myglobalmetric` in QuRA, run
 ```
 qura FILE -g myglobalmetric
 ```
@@ -104,7 +104,7 @@ qura FILE -g myglobalmetric
 An instance of `LocalMetricModule` requires the definition of the following functions:
 
 - `name :: String` is just the name of the metric, used for pretty printing.
-- `desugarOutput :: QuantumOperation -> Int -> [Index] -> Index` describes the local metric associated to each of the outputs of a quantum operations, as a function of the operation and its inputs. `desugarOutput op n inMetrics` is the local metric associated to the `n`-th output of `op`, when the local metrics associated to its inputs are those in `inMetrics`. For example, for depth:
+- `desugarOutput :: QuantumOperation -> Int -> [Index] -> Index` describes the local metric associated to each of the outputs of a quantum operation, as a function of the operation itself and the local metrics of its inputs. `desugarOutput op n inMetrics` is the local metric associated to the `n`-th output of `op`, when the local metrics associated to its inputs are those in `inMetrics`. For example, for depth:
 
 ```hs
 -- src/Index/Semantics/Local/Depth.hs
@@ -120,7 +120,7 @@ For more examples of local metric modules, consult the modules under [`Index.Sem
 Once you have defined a local resource module, you need to make the following changes [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs) in order to make it available from QuRA's interface:
 
 1. Add a new case to `localMetricArgParser` to parse your new metric as a command line option.
-2. Also add your metric's name to the error message of the argument parser, so that users know it's there.
+2. Add your metric's name to the error message of the argument parser, so that users know it's there.
 
 If your metric is defined in `myLocalMetricModule` and is called `mylocalmetric`, the last lines of the case analysis in `localMetricArgParser` should look like this:
 
@@ -133,7 +133,7 @@ localMetricArgParser = do
   _ -> readerError "Supported local resources are 'depth', `tdepth`, `mylocalmetric`"
 ```
 
-Finally, to analyze `mylocalmetric` with QuRA, run
+Finally, to analyze `mylocalmetric` in QuRA, run
 ```
 qura FILE -l mylocalmetric
 ```
