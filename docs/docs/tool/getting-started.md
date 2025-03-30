@@ -5,9 +5,41 @@ The purpose of this guide is to help new users get started with the tool and to 
 As a running example, we'll use the following PQ implementation of [quantum teleportation](https://en.wikipedia.org/wiki/Quantum_teleportation):
 
 ```hs
--8<-
-docs/snippets/teleportation.pq:3
--8<-
+-- teleportation.pq
+
+-- put q and p into the entangled |+> state
+bell :: !((Qubit, Qubit) -o (Qubit, Qubit))
+bell (q, p) = 
+    let q = (force hadamard @0) q in
+    let (q,p) = (force cnot @0 @0) q p in
+    (q,p)
+
+-- Alice's part of the teleportation protocol
+alice :: !((Qubit, Qubit) -o (Bit, Bit))
+alice (p, r) =
+    let (r,p) = (force cnot @0 @0) r p in
+    let r = (force hadamard @0) r in
+    let c = (force meas @0) p in
+    let d = (force meas @0) r in
+    (c,d)
+
+-- Bob's part of the teleportation protocol
+bob :: !((Qubit, Bit, Bit) -o Qubit)
+bob (q, c, d) =
+    let (c,q) = (force ccnot @0 @0) c q in
+    let (d,q) = (force ccz @0 @0) d q in
+    let _ = (force cdiscard @0) c  in
+    let _ = (force cdiscard @0) d  in
+    q
+
+-- teleport the state of qubit r (at depth i) into qubit q
+teleport :: !(Qubit -o Qubit)
+teleport r = 
+    let q = force qinit0 in
+    let p = force qinit0 in
+    let (q,p) = force bell (q,p) in
+    let (c,d) = force alice (p,r) in
+    force bob (q,c,d)
 ```
 
 The syntax of PQ is designed to look like [Haskell](https://www.haskell.org), and in particular like the [Quipper](https://www.mathstat.dal.ca/~selinger/quipper/) EDSL, so programmers experienced with either language should feel at home. For a detailed description of PQ, refer to [the relevant documentation](../language/overview.md). For now, we only focus on the key aspects of the language:
@@ -48,9 +80,41 @@ The size and shape of such a circuit determines whether it can be executed succe
 QuRA lets us to specify upper bounds on the size of the circuits built by programs by directly annotating their type. Let's revisit the teleportation example, focusing on circuit width. The circuit shown above has a width of 3, so we can annotate the type signature of `teleport` and its auxiliary functions accordingly:
 
 ```hs
--8<-
-docs/snippets/teleportation-width.pq:3
--8<-
+-- teleportation-width.pq
+
+-- put q and p into the entangled |+> state
+bell :: ![0]((Qubit, Qubit) -o[2,0] (Qubit, Qubit))
+bell (q, p) = 
+    let q = (force hadamard @0) q in
+    let (q,p) = (force cnot @0 @0) q p in
+    (q,p)
+
+-- Alice's part of the teleportation protocol
+alice :: ![0]((Qubit, Qubit) -o[2,0] (Bit, Bit))
+alice (p, r) =
+    let (r,p) = (force cnot @0 @0) r p in
+    let r = (force hadamard @0) r in
+    let c = (force meas @0) p in
+    let d = (force meas @0) r in
+    (c,d)
+
+-- Bob's part of the teleportation protocol
+bob :: ![0]((Qubit, Bit, Bit) -o[3,0] Qubit)
+bob (q, c, d) =
+    let (c,q) = (force ccnot @0 @0) c q in
+    let (d,q) = (force ccz @0 @0) d q in
+    let _ = (force cdiscard @0) c  in
+    let _ = (force cdiscard @0) d  in
+    q
+
+-- teleport the state of qubit r (at depth i) into qubit q
+teleport :: ![0](Qubit -o[3,0] Qubit)
+teleport r = 
+    let q = force qinit0 in
+    let p = force qinit0 in
+    let (q,p) = force bell (q,p) in
+    let (c,d) = force alice (p,r) in
+    force bob (q,c,d)
 ```
 
 The signature `teleport :: !(Qubit -o Qubit)` has become `teleport :: ![0](Qubit -o[3,0] Qubit)`, with the addition of three type annotations. In order of importance:
@@ -106,9 +170,41 @@ QuRA also lets us to verify properties of the individual wires within the circui
 In order to specify an upper bound to the depth of the bits and qubits involved in the teleportation example, we no longer annotate arrow and bang types, but rather the wire types `Qubit` and `Bit` themselves, like this:
 
 ```hs
--8<-
-docs/snippets/teleportation-depth.pq:3
--8<-
+-- teleportation-depth.pq
+
+-- put q and p into the entangled |+> state
+bell :: !((Qubit{0}, Qubit{0}) -o (Qubit{2}, Qubit{2}))
+bell (q, p) = 
+    let q = (force hadamard @0) q in
+    let (q,p) = (force cnot @1 @0) q p in
+    (q,p)
+
+-- Alice's part of the teleportation protocol
+alice :: !((Qubit{2}, Qubit{0}) -o (Bit{4}, Bit{5}))
+alice (p, r) =
+    let (r,p) = (force cnot @0 @2) r p in
+    let r = (force hadamard @3) r in
+    let c = (force meas @3) p in
+    let d = (force meas @4) r in
+    (c,d)
+
+-- Bob's part of the teleportation protocol
+bob :: !((Qubit{2}, Bit{4}, Bit{5}) -o Qubit{6})
+bob (q, c, d) =
+    let (c,q) = (force ccnot @4 @2) c q in
+    let (d,q) = (force ccz @5 @5) d q in
+    let _ = (force cdiscard @5) c  in
+    let _ = (force cdiscard @6) d  in
+    q
+
+-- teleport the state of qubit r (at depth i) into qubit q
+teleport :: !(Qubit{0} -o Qubit{6})
+teleport r = 
+    let q = force qinit0 in
+    let p = force qinit0 in
+    let (q,p) = force bell (q,p) in
+    let (c,d) = force alice (p,r) in
+    force bob (q,c,d)
 ```
 
 Local metric annotations are enclosed in curly braces, as opposed to square brackets, to better distinguish them from global metric annotations. You can see that the signature `teleport :: !(Qubit -o Qubit)` has become `teleport :: !(Qubit{0} -o Qubit{6})`, meaning that `teleport` takes as input a qubit at depth 0 and outputs a qubit at depth 6.
@@ -145,9 +241,44 @@ Naturally, local metric polymorphism is not only important for library functions
 In order to avoid this duplication, we can make `teleport` parametric in the depth of its input qubit. We do so by extending its definition with a new index parameter `dr`, which represents the maximum depth of the qubit `r` that we're teleporting:
 
 ```hs
--8<-
-docs/snippets/teleportation-depth-generic.pq:3
--8<-
+-- teleportation-depth-generic.pq
+
+-- put q and p into the entangled |+> state
+bell :: !(forall dq. forall dp.
+  (Qubit{dq}, Qubit{dp}) -o (Qubit{max(dq+1, dp) + 1}, Qubit{max(dq+1, dp) + 1}))
+bell dq dp (q, p) = 
+    let q = (force hadamard @dq) q in
+    let (q,p) = (force cnot @dq+1 @dp) q p in
+    (q,p)
+
+-- Alice's part of the teleportation protocol
+alice :: !(forall dp. forall dr.
+  (Qubit{dp}, Qubit{dr}) -o (Bit{max(dp, dr) + 2}, Bit{max(dp, dr) + 3}))
+alice dp dr (p, r) =
+    let (r,p) = (force cnot @dr @dp) r p in
+    let r = (force hadamard @ max(dp, dr) + 1) r in
+    let c = (force meas @ max(dp, dr) + 1) p in
+    let d = (force meas @ max(dp, dr) + 2) r in
+    (c,d)
+
+-- Bob's part of the teleportation protocol
+bob :: !(forall dq. forall dc. forall dd.
+  (Qubit{dq}, Bit{dc}, Bit{dd}) -o Qubit{max(dd, max(dc, dq) + 1) + 1})
+bob dq dc dd (q, c, d) =
+    let (c,q) = (force ccnot @dc @dq) c q in
+    let (d,q) = (force ccz @dd @ max(dc, dq) + 1) d q in
+    let _ = (force cdiscard @ max(dc, dq) + 1) c  in
+    let _ = (force cdiscard @ max(dd, max(dc, dq) + 1) + 1) d  in
+    q
+
+-- teleport the state of qubit r (at depth i) into qubit q
+teleport :: !(forall dr. Qubit{dr} -o Qubit{dr+6})
+teleport dr r = 
+    let q = force qinit0 in
+    let p = force qinit0 in
+    let (q,p) = (force bell @0 @0) (q,p) in
+    let (c,d) = (force alice @2 @dr) (p,r) in
+    (force bob @2 @ max(2, dr) + 2 @ max(2, dr) + 3)  (q,c,d)
 ```
 
 Note that we extended the remaining function definitions in a similar way, introducing a new depth parameter for each qubit or bit input. The signature `teleport :: !(forall dr. Qubit{dr} -o Qubit{dr+6})` tells us something more general than `teleport :: !(Qubit{0} -o Qubit{6})`: it tells us that *for all* `dr`, `teleport` takes as input a qubit at depth `dr` and outputs a qubit at depth `dr+6`. We call `forall dr. Qubit{dr} -o Qubit{dr+6}` a *dependent type*, since its precise meaning *depends* on the function parameter `dr`. Once again, QuRA can verify that the signature we gave for `teleport` actually holds:
@@ -173,9 +304,38 @@ In this case, running the function on an arbitrary input and checking the size o
 An ubiquitous example of a quantum algorithm that corresponds to a circuit family is the quantum Fourier transform (QFT), which can be implemented in PQ as follows:
 
 ```hs
--8<-
-docs/snippets/qft.pq:3
--8<-
+-- qft.pq
+
+--- HELPER FUNCTIONS ---
+
+-- invert the list of intermediate qubits at iteration iter
+qrev :: !(forall iter. List[i<iter] Qubit -o List[i<iter] Qubit)
+qrev iter reg =
+    let revStep = lift forall step.
+      \(rev, q) :: (List[i<step] Qubit, Qubit).
+        rev:q in
+    fold(revStep, [], reg)
+
+-- apply the controlled rotation gate to the target qubit trg at iteration iter
+rotate :: !(forall iter. !(forall step.
+  ((List[i < step] Qubit, Qubit), Qubit) -o (List[i < step + 1] Qubit, Qubit)))
+rotate iter = lift forall step.
+  \((ctrls, trg), ctrl)::((List[i<step] Qubit, Qubit), Qubit).
+    let (ctrl, trg) = (force cr @(iter+1-step) @0 @0) ctrl trg in
+    (ctrls:ctrl, trg)
+
+--- QUANTUM FOURIER TRANSFORM ---
+
+qftIteration :: !(forall iter. (List[i<iter] Qubit, Qubit) -o List[i<iter+1] Qubit)
+qftIteration iter (ctrls, trg) =
+    let revctrls = (force qrev @iter) ctrls in
+    let (ctrls, trg) = fold(force rotate @iter, ([], trg), revctrls) in
+    let trg = (force hadamard @0) trg in
+    ctrls:trg
+
+-- apply the Quantum Fourier Transform to n qubits at depth d
+qft :: !(forall n. List[i<n] Qubit -o List[i<n] Qubit)
+qft n reg = fold(qftIteration, [], reg)
 ```
 
 The signature `qft :: !(forall n. List[i<n] Qubit -o List[i<n] Qubit)` tells us that `qft` is a function that, *for all n*, takes as input a list of `n` qubits and outputs a list of the same length.
@@ -186,9 +346,38 @@ Notice that whereas the index parameters that we've encountered in the teleporta
 Naturally, any form of size or depth analysis of `qft` must take `n` into account, and reasonably produce upper bounds on the size of the circuit that are parametric in `n`. For example, we can verify the width of `qft` as follows:
 
 ```hs
--8<-
-docs/snippets/qft-width.pq:3
--8<-
+-- qft-width.pq
+
+--- HELPER FUNCTIONS ---
+
+-- invert the list of intermediate qubits at iteration iter
+qrev :: ![0](forall[0,0] iter. List[i<iter] Qubit -o[iter,0] List[i<iter] Qubit)
+qrev iter reg =
+    let revStep = lift forall step.
+      \(rev, q) :: (List[i<step] Qubit, Qubit).
+        rev:q in
+    fold(revStep, [], reg)
+
+-- apply the controlled rotation gate to the target qubit trg at iteration iter
+rotate :: ![0](forall[0,0] iter. ![0](forall[0,0] step.
+  ((List[i < step] Qubit, Qubit), Qubit) -o[step+2,0] (List[i<step+1] Qubit, Qubit)))
+rotate iter = lift forall step.
+  \((ctrls, trg), ctrl)::((List[i<step] Qubit, Qubit), Qubit).
+    let (ctrl, trg) = (force cr @(iter+1-step) @0 @0) ctrl trg in
+    (ctrls:ctrl, trg)
+
+--- QUANTUM FOURIER TRANSFORM ---
+
+qftIteration :: ![0](forall[0,0] iter. (List[i<iter] Qubit, Qubit) -o[iter+1,0] List[i<iter+1] Qubit)
+qftIteration iter (ctrls, trg) =
+    let revctrls = (force qrev @iter) ctrls in
+    let (ctrls, trg) = fold(force rotate @iter, ([], trg), revctrls) in
+    let trg = (force hadamard @0) trg in
+    ctrls:trg
+
+-- apply the Quantum Fourier Transform to n qubits at depth d
+qft :: ![0](forall[0,0] n. List[i<n] Qubit -o[n,0] List[i<n] Qubit)
+qft n reg = fold(qftIteration, [], reg)
 ```
 
 The signature `qft :: !(forall n. List[i<n] Qubit -o List[i<n] Qubit)` becomes `qft :: ![0](forall[0,0] n. List[i<n] Qubit -o[n,0] List[i<n] Qubit)`, telling us that, for all `n`, `qft` takes as input a list of `n` qubits and outputs a list of `n` qubits, describing a circuit of width at most `n`.
