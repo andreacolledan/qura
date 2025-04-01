@@ -14,3 +14,5 @@ nav:
     - Extending QuRA : tool/extensions.md
   - The PQ Language:
     - Overview : language/overview.md
+    - The fold primitive : language/fold.md
+    - Prelude : language/prelude.md
