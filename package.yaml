@@ -33,6 +33,8 @@ dependencies:
 - argparser
 - optparse-applicative
 - ansi-terminal
+- QuickCheck
+- directory
 
 ghc-options:
 - -Wall

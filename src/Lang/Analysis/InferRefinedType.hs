@@ -14,6 +14,7 @@ import Data.Maybe
 import Index.Unify
 import Lang.Library.Constant
 import Control.Monad.State
+import Debug.Trace
 
 -- | @inferRefinedType e@ infers the refined type and width upper-bound of expression @e@.
 -- If successful, it returns a pair @(t, i)@, where @t@ is the inferred type of @e@ 
@@ -175,7 +176,7 @@ inferRefinedType e@(EConst c) = withScope e $ do
   let typ = typeOf c
   let typ' = if isNothing grs then stripGlobalAnnotations typ else typ
   let typ'' = if isNothing lrs then stripLocalAnnotations typ' else typ'
-  return (typ'', k)
+  return (trace "ret const typ" typ'', k)
 -- ASSUMPTION (unsafe)
 inferRefinedType e@(EAssume e1 annotyp) = withScope e $ do
   checkWellFormedness annotyp

@@ -59,6 +59,7 @@ library
       Parser
       PrettyPrinter
       Solving.CVC5
+      TestUtil
       Util
   other-modules:
       Paths_qura
@@ -66,9 +67,11 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wno-unused-top-binds -Wincomplete-patterns -Wno-name-shadowing
   build-depends:
-      ansi-terminal
+      QuickCheck
+    , ansi-terminal
     , argparser
     , base >=4.7 && <5
+    , directory
     , extra
     , filepath
     , hspec
@@ -89,9 +92,11 @@ executable qura
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wno-unused-top-binds -Wincomplete-patterns -Wno-name-shadowing -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      ansi-terminal
+      QuickCheck
+    , ansi-terminal
     , argparser
     , base >=4.7 && <5
+    , directory
     , extra
     , filepath
     , hspec
@@ -109,14 +114,19 @@ test-suite qura-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      Analyzer.Binding.Spec
+      Analyzer.Linearity.LinearitySpec
+      Parser.IndexSpec
       Paths_qura
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wno-unused-top-binds -Wincomplete-patterns -Wno-name-shadowing -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      ansi-terminal
+      QuickCheck
+    , ansi-terminal
     , argparser
     , base >=4.7 && <5
+    , directory
     , extra
     , filepath
     , hspec

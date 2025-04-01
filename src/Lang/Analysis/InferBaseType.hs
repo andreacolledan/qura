@@ -129,7 +129,8 @@ inferBaseType e@(EIApp e1 g) = withScope e $ do
   return (tsub sub (EIApp e1' g), tsub sub typ1', sub)
 -- CONSTANTS
 inferBaseType e@(EConst c) = withScope e $ do
-  return (EConst c, typeOf c, mempty)
+  let typ = stripLocalAnnotations . stripGlobalAnnotations . typeOf $ c
+  return (EConst c, typ, mempty)
 -- ASSUME
 inferBaseType e@(EAssume e1 annotyp) = withScope e $ do
   (e1', _, sub1) <- inferBaseType e1

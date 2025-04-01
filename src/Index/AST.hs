@@ -47,10 +47,9 @@ instance Pretty Index where
   prettyPrec _ (Max i j) = "max(" ++ pretty i ++ ", " ++ pretty j ++ ")"
   prettyPrec prec (Mult i j) = withinPar (prec > 7) $ prettyPrec 7 i ++ " * " ++ prettyPrec 7 j
   prettyPrec prec (Minus i j) = withinPar (prec > 6) $ prettyPrec 6 i ++ " - " ++ prettyPrec 6 j
-  prettyPrec _ (BoundedMax id i j) = "max[" ++ id ++ " < " ++ pretty i ++ "]" ++ "(" ++ pretty j ++ ")"
-  prettyPrec _ (BoundedMin id i j) = "min[" ++ id ++ " < " ++ pretty i ++ "]" ++ "(" ++ pretty j ++ ")"
-  prettyPrec _ (BoundedSum id i j) = "sum[" ++ id ++ " < " ++ pretty i ++ "]" ++ "(" ++ pretty j ++ ")"
-  prettyPrec _ (Output op n is) = "output[" ++ show op ++ "," ++ show n ++ "](" ++ intercalate ", " (pretty <$> is) ++ ")"
+  prettyPrec prec (BoundedMax id i j) = withinPar (prec > 3) $ "max[" ++ id ++ " < " ++ pretty i ++ "]" ++ prettyPrec 3 j
+  prettyPrec prec (BoundedMin id i j) = withinPar (prec > 3) $ "min[" ++ id ++ " < " ++ pretty i ++ "]" ++ prettyPrec 3 j
+  prettyPrec prec (BoundedSum id i j) = withinPar (prec > 3) $ "sum[" ++ id ++ " < " ++ pretty i ++ "]" ++ prettyPrec 3 j
   prettyPrec _ i = undesugaredPanic "prettyPrec" $ show i
 
 -- | The datatype of index contexts

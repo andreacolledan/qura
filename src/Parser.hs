@@ -32,6 +32,7 @@ module Parser
     whenLocalAnalysis,
     many,
     (<?>),
+    ParserError
   )
 where
 
@@ -56,6 +57,8 @@ data ParserState = ParserState
 
 -- | The type of the stateful PQ parser (see @Parsec@)
 type Parser = StateT ParserState (Parsec Void String)
+
+type ParserError = ParseErrorBundle String Void
 
 --- Fundamental lexing functions ---
 
@@ -251,5 +254,5 @@ whenLocalAnalysis p = do
 -- @parseGMA@ and @parseLMA@ control whether annotations for global and local metrics are parsed, respectively.
 -- @filename@ is only used for error reporting, the function does not read from any file.
 -- Returns 'Either' a 'ParseErrorBundle' from "Megaparsec" or the result of @p@.
-runParser :: Parser a -> Bool -> Bool -> String -> String -> Either (ParseErrorBundle String Void) a
+runParser :: Parser a -> Bool -> Bool -> String -> String -> Either ParserError a
 runParser p parseGMA parseLMA = parse (evalStateT p ParserState {baseIndent = pos1, parseGMA = parseGMA, parseLMA = parseLMA})
