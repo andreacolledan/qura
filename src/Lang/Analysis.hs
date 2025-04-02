@@ -15,7 +15,7 @@ import Solving.CVC5
 import Index.Semantics.Global.Resource
 import Index.Semantics.Local.Resource
 import Control.Monad.Except
-import Control.Monad (unless)
+import Control.Monad (unless, join)
 import Lang.Expr.Pattern (Pattern (..))
 
 -- | Analyze an expression, inferring its type and possibly its effect.
@@ -48,18 +48,22 @@ analyzeTopLevelDefinition (TopLevelDefinition id args (Just sig) e) = do
       checkWellFormedness domType
       (varNames, varTypes) <- makePatternBindings arg domType SizedLists
       ((typ, eff), asize) <- withEnvSize $ withBoundVariables varNames varTypes $ inferTLDefType rargs e codType
-      return (TArrow domType typ eff asize, Just Identity)
+      effAnno <- ifGlobalResources Identity
+      sizeAnno <- ifGlobalResources asize
+      return (TArrow domType typ eff (join sizeAnno), effAnno)
     -- at least one argument, remainder has forall type, treat this like an index absraction
     inferTLDefType (arg:rargs) e (TIForall tArg codType _ _) = do
       unless (arg == PVar tArg) $ throwLocalError $ UnexpectedIndexVariableArgument id tArg arg
       ((typ, eff), asize) <- withEnvSize $ withBoundIndexVariables [tArg] $ inferTLDefType rargs e codType
-      return (TIForall tArg typ eff asize, Just Identity)
+      effAnno <- ifGlobalResources Identity
+      sizeAnno <- ifGlobalResources asize
+      return (TIForall tArg typ eff (join sizeAnno), effAnno)
     -- at least one argument, but other type form. This is an error.
     inferTLDefType (arg:_) _ _ = throwLocalError $ ExtraArgument id arg
 -- Top-level definition with no arguments and no type signature: just infer the type
 analyzeTopLevelDefinition (TopLevelDefinition id [] Nothing e) = do
-  (typ, i) <- withNonLinearContext $ analyzeExpression e
-  ftyp <- runSimplifyType $ TBang i typ
+  (typ, eff) <- withNonLinearContext $ analyzeExpression e
+  ftyp <- runSimplifyType $ TBang eff typ
   return (id, ftyp)
 -- Top-level definition with arguments, but no type signature: cannot infer type, throw error.
 analyzeTopLevelDefinition (TopLevelDefinition id (arg:_) Nothing _)

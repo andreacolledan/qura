@@ -115,6 +115,7 @@ test-suite qura-test
   main-is: Spec.hs
   other-modules:
       Analyzer.Binding.Spec
+      Analyzer.ExamplesSpec
       Analyzer.Linearity.LinearitySpec
       Parser.IndexSpec
       Paths_qura

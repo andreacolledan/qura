@@ -1,45 +1,58 @@
 module TestUtil (
+  withTest,
   withTests,
-  basicAnalysisTest,
+  analysisTest,
+  typeCheckingTest,
   shouldAccept,
   shouldReject,
   --re-exports
   withSolver
 ) where
 
-import Test.Hspec
-import System.Directory
-import Solving.CVC5
+import Data.Maybe
+import Index.Semantics.Global.Resource
+import Index.Semantics.Local.Resource
 import Lang.Analysis
+import Lang.Module.AST
 import Lang.Module.Parse
 import Parser
+import Solving.CVC5
+import System.Directory
+import System.FilePath
+import Test.Hspec
 
 data TestOutcome = Unparsed ParserError | Fail TypeError | Pass deriving (Eq, Show)
 
-withTests :: String -> ([(String, String)] -> IO ()) -> IO ()
-withTests which action = do
-  filenames <- listDirectory which
-  let filepaths = map (which ++ ) filenames
+withTest :: FilePath -> ((FilePath, String) -> Expectation) -> Expectation
+withTest which action = readFile which >>= action . (,) which
+
+withTests :: FilePath -> ([(FilePath, String)] -> Expectation) -> Expectation
+withTests dir action = do
+  filenames <- listDirectory dir
+  let filepaths = map (dir </>) filenames
   filecontents <- mapM readFile filepaths
   action (zip filepaths filecontents)
 
-basicAnalysisTest :: SolverHandle -> (String, String) -> IO (String, TestOutcome)
-basicAnalysisTest qfh (filepath, source) = do
-  case runParser parseModule False False filepath source of
+analysisTest :: Maybe GlobalMetricModule -> Maybe LocalMetricModule -> [Module] -> SolverHandle -> (FilePath, String) -> IO (FilePath, TestOutcome)
+analysisTest mgmm mlmm libs qfh (filepath, source) = do
+  case runParser parseModule (isJust mgmm) (isJust mlmm) filepath source of
     Left err -> return (filepath, Unparsed err)
     Right mod -> do
-      outcome <- runAnalysis mod [] qfh Nothing Nothing
+      outcome <- runAnalysis mod libs qfh mgmm mlmm
       case outcome of
         Left err -> return (filepath, Fail err)
         Right _ -> return (filepath, Pass)
-  
-shouldAccept :: ((String, String) -> IO (String, TestOutcome)) -> (String, String) -> Expectation
+
+typeCheckingTest :: [Module] -> SolverHandle -> (FilePath, String) -> IO (String, TestOutcome)
+typeCheckingTest = analysisTest Nothing Nothing
+
+shouldAccept :: ((FilePath, String) -> IO (FilePath, TestOutcome)) -> (FilePath, String) -> Expectation
 shouldAccept action test = action test >>= (`shouldSatisfy` passed)
   where
     passed (_, Pass) = True
     passed _ = False
 
-shouldReject :: ((String, String) -> IO (String, TestOutcome)) -> (String, String) -> Expectation
+shouldReject :: ((FilePath, String) -> IO (FilePath, TestOutcome)) -> (FilePath, String) -> Expectation
 shouldReject action test = action test >>= (`shouldSatisfy` failed)
   where
     failed (_, Fail _) = True
