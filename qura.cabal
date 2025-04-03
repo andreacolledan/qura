@@ -114,7 +114,7 @@ test-suite qura-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Analyzer.Binding.Spec
+      Analyzer.Binding.BindingSpec
       Analyzer.ExamplesSpec
       Analyzer.Linearity.LinearitySpec
       Parser.IndexSpec
