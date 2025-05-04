@@ -1,8 +1,7 @@
-module Analyzer.ExamplesSpec where
+module Analyzer.ExamplesSpec (spec) where
 
 import Test.Hspec
 import TestUtil
-import Control.Monad
 import Lang.Library.Prelude
 import Index.Semantics.Global.Width
 import Index.Semantics.Global.GateCount

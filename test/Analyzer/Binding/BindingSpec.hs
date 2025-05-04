@@ -1,4 +1,4 @@
-module Analyzer.Binding.BindingSpec where
+module Analyzer.Binding.BindingSpec (spec) where
 
 import Test.Hspec
 import TestUtil

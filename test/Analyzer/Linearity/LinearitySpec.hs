@@ -1,4 +1,4 @@
-module Analyzer.Linearity.LinearitySpec where
+module Analyzer.Linearity.LinearitySpec (spec) where
 
 import Test.Hspec
 import TestUtil

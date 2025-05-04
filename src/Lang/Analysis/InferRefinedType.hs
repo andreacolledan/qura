@@ -4,8 +4,6 @@ module Lang.Analysis.InferRefinedType
 where
 
 import Control.Monad
-import Control.Monad.Error.Class
-import qualified Data.HashMap.Strict as Map
 import Index.AST
 import Lang.Type.AST
 import Lang.Expr.AST
