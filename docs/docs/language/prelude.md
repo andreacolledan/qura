@@ -224,8 +224,37 @@ Parametric rotation gate. Apply a rotation of `2π/2^n` radians around the Z-axi
 
 **Returns:** a qubit at depth `d+1`.
 
+### `invrgate :: ![0](forall[0,0] n. forall[0,0] d. Qubit{d} -o[1,0] Qubit{d+1})` 
+Parametric rotation gate. Inverse of `rgate`. Apply a rotation of `-2π/2^n` radians around the Z-axis to a qubit `q` at depth `d`.
+
+| Parameter | Description                            |
+|-----------|----------------------------------------|
+| `n`       | Determines the angle of the rotation.  |
+| `d`       | Maximum depth of the target qubit.     |
+
+| Argument | Type           | Description                |
+|----------|----------------|----------------------------|
+| `q`      | `Qubit{d}`     | The qubit to rotate.       |
+
+**Returns:** a qubit at depth `d+1`.
+
 ### `cr :: ![0](forall[0,0] n. forall[0,0] dctrl. forall[0,0] dtrgt. Qubit{dctrl} -o[1,0] Qubit{dtrgt} -o[2,1] (Qubit{max(dctrl, dtrgt) + 1}, Qubit{max(dctrl, dtrgt) + 1}))` 
 Parametric controlled rotation gate. Apply a rotation of `2π/2^n` radians around the Z-axis to a control qubit `ctrl` at depth `dctrl` and a target qubit `trgt` at depth `dtrgt`. Note that this gate is symmetrical.
+
+| Parameter | Description                         |
+|-----------|-------------------------------------|
+| `dctrl`   | Maximum depth of the control qubit. |
+| `dtrgt`   | Maximum depth of the target qubit.  |
+
+| Argument | Type           | Description                |
+|----------|----------------|----------------------------|
+| `ctrl`   | `Qubit{dctrl}` | The control qubit.         |
+| `trgt`   | `Qubit{dtrgt}` | The target qubit.          |
+
+**Returns:** the control bit and the target qubit, both at depth `max(dctrl, dtrgt) + 1`.
+
+### `invcr :: ![0](forall[0,0] n. forall[0,0] dctrl. forall[0,0] dtrgt. Qubit{dctrl} -o[1,0] Qubit{dtrgt} -o[2,1] (Qubit{max(dctrl, dtrgt) + 1}, Qubit{max(dctrl, dtrgt) + 1}))` 
+Parametric controlled rotation gate. Inverse of `cr`. Apply a rotation of `-2π/2^n` radians around the Z-axis to a control qubit `ctrl` at depth `dctrl` and a target qubit `trgt` at depth `dtrgt`. Note that this gate is symmetrical.
 
 | Parameter | Description                         |
 |-----------|-------------------------------------|

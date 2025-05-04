@@ -12,32 +12,20 @@ data Constant
   = Boxed QuantumOperation -- All circuit-level operations are constants in PQR
   -- Functions
   | MakeRGate     -- single-qubit R gate family
+  | MakeRinvGate  -- single-qubit inverse R gate family
   | MakeCRGate    -- single-qubit single-controlled R gate family
+  | MakeCRinvGate -- single-qubit single-controlled inverse R gate family
   | MakeMCNot     -- multiply-controlled NOT gate family
   | MakeUnitList  -- unit list family, used to generate ranges
   deriving (Eq, Show)
 
 instance Pretty Constant where
-  pretty (Boxed (QInit b)) = "QInit" ++ if b then "1" else "0"  
-  pretty (Boxed QDiscard) = "QDiscard"
-  pretty (Boxed (CInit b)) = "CInit" ++ if b then "1" else "0"
-  pretty (Boxed CDiscard) = "CDiscard"
-  pretty (Boxed Meas) = "Meas"
-  pretty (Boxed Hadamard) = "Hadamard"
-  pretty (Boxed PauliX) = "PauliX"
-  pretty (Boxed PauliY) = "PauliY"
-  pretty (Boxed PauliZ) = "PauliZ"
-  pretty (Boxed T) = "T"
-  pretty (Boxed (R n)) = "R" ++ show n
-  pretty (Boxed CNot) = "CNot"
-  pretty (Boxed CZ) = "CZ"
-  pretty (Boxed (CR n)) = "CR" ++ show n
-  pretty (Boxed CCNot) = "CCNot"
-  pretty (Boxed CCZ) = "CCZ"
-  pretty (Boxed Toffoli) = "Toffoli"
+  pretty (Boxed op) = pretty op
   pretty MakeMCNot = "MakeMCNot"
   pretty MakeRGate = "MakeRGate"
+  pretty MakeRinvGate = "MakeRGate"
   pretty MakeCRGate = "MakeCRGate"
+  pretty MakeCRinvGate = "MakeCRGate"
   pretty MakeUnitList = "MakeUnitList"
 
 -- | @typeOf c@ returns the type of constant @c@.
@@ -105,6 +93,12 @@ typeOf (Boxed (R n))
         (TWire Qubit (Just $ IVar "i0"))
         (TWire Qubit (Just $ Output (R n) 0 [IVar "i0"]))
     ) (Just $ Number 0) (Just $ Number 0)
+typeOf (Boxed (Rinv n))
+  = TIForall "i0" (
+      TCirc (Just $ Operation (Rinv n))
+        (TWire Qubit (Just $ IVar "i0"))
+        (TWire Qubit (Just $ Output (Rinv n) 0 [IVar "i0"]))
+    ) (Just $ Number 0) (Just $ Number 0)
 -- multi-qubit gates
 typeOf (Boxed CNot)
   = TIForall "i0" ( TIForall "i1" (
@@ -123,6 +117,12 @@ typeOf (Boxed (CR n))
       TCirc (Just $ Operation (CR n))
         (TTensor [TWire Qubit (Just $ IVar "i0"), TWire Qubit (Just $ IVar "i1")])
         (TTensor [TWire Qubit (Just $ Output (CR n) 0 [IVar "i0", IVar "i1"]), TWire Qubit (Just $ Output (CR n) 1 [IVar "i0", IVar "i1"])])
+    ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
+typeOf (Boxed (CRinv n))
+  = TIForall "i0" ( TIForall "i1" (
+      TCirc (Just $ Operation (CRinv n))
+        (TTensor [TWire Qubit (Just $ IVar "i0"), TWire Qubit (Just $ IVar "i1")])
+        (TTensor [TWire Qubit (Just $ Output (CRinv n) 0 [IVar "i0", IVar "i1"]), TWire Qubit (Just $ Output (CRinv n) 1 [IVar "i0", IVar "i1"])])
     ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
 typeOf (Boxed CCNot)
   = TIForall "i0" ( TIForall "i1" (
@@ -156,12 +156,26 @@ typeOf MakeRGate
         (TWire Qubit (Just $ IVar "i0"))
         (TWire Qubit (Just $ Output (R 0) 0 [IVar "i0"]))
     ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
+-- single-qubit inverse R gate family
+typeOf MakeRinvGate
+  = TIForall "i" (TIForall "i0" (
+      TCirc (Just $ Operation (Rinv 0))
+        (TWire Qubit (Just $ IVar "i0"))
+        (TWire Qubit (Just $ Output (Rinv 0) 0 [IVar "i0"]))
+    ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
 -- single-qubit single-controlled R gate family
 typeOf MakeCRGate
   = TIForall "i" (TIForall "i0" (TIForall "i1" (
     TCirc (Just $ Operation (CR 0))
       (TTensor [TWire Qubit (Just $ IVar "i0"), TWire Qubit (Just $ IVar "i1")])
       (TTensor [TWire Qubit (Just $ Output (CR 0) 0 [IVar "i0", IVar "i1"]), TWire Qubit (Just $ Output (CR 0) 1 [IVar "i0", IVar "i1"])])) (Just $ Number 0) (Just $ Number 0)
+  ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
+-- single-qubit single-controlled inverse R gate family
+typeOf MakeCRinvGate
+  = TIForall "i" (TIForall "i0" (TIForall "i1" (
+    TCirc (Just $ Operation (CRinv 0))
+      (TTensor [TWire Qubit (Just $ IVar "i0"), TWire Qubit (Just $ IVar "i1")])
+      (TTensor [TWire Qubit (Just $ Output (CRinv 0) 0 [IVar "i0", IVar "i1"]), TWire Qubit (Just $ Output (CRinv 0) 1 [IVar "i0", IVar "i1"])])) (Just $ Number 0) (Just $ Number 0)
   ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)
 -- list of unit of length n
 typeOf MakeUnitList
