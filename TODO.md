@@ -13,4 +13,4 @@
 - [ ] Make closure annotations transparent to the user
 - [ ] Better error messages for type inference
   - [ ] Add line numbers
-  - [ ] Add original source text instead of printing AST
+  - [ ] Add original source text instead of printing the AST
