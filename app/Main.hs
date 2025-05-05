@@ -1,27 +1,19 @@
 module Main (main) where
 
 import Control.Monad (when)
-import Data.List
+import Data.List (intercalate)
 import Options.Applicative
 import PrettyPrinter
-import Solving.CVC5
+import Solver
 import Parser(runParser)
 import Text.Megaparsec.Error
-import Lang.Library.Prelude
-import Index.Semantics.Global.Resource
-import Index.Semantics.Local.Resource
-import Index.Semantics.Global.Width
-import Index.Semantics.Global.Qubits
-import Index.Semantics.Global.TCount
-import Index.Semantics.Global.Bits
-import Index.Semantics.Global.GateCount
+import PQ.Prelude
+import Metric
 import Data.Maybe (isJust, catMaybes)
-import Index.Semantics.Local.Depth
-import Index.Semantics.Local.TDepth
-import Lang.Module.AST
-import Lang.Module.Parse
-import Lang.Analysis
-import Lang.Expr.AST (VariableId)
+import PQ.Module
+import Parser.Module
+import Analyzer
+import PQ.Expr (VariableId)
 import System.IO.Extra
 import System.Console.ANSI
 

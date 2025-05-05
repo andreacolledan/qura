@@ -10,13 +10,12 @@ module TestUtil (
 ) where
 
 import Data.Maybe
-import Index.Semantics.Global.Resource
-import Index.Semantics.Local.Resource
-import Lang.Analysis
-import Lang.Module.AST
-import Lang.Module.Parse
+import Metric
+import Analyzer
+import PQ.Module
+import Parser.Module
 import Parser
-import Solving.CVC5
+import Solver
 import System.Directory
 import System.FilePath
 import Test.Hspec

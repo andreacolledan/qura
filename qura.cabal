@@ -25,42 +25,45 @@ source-repository head
 
 library
   exposed-modules:
+      Analyzer
+      Analyzer.Derivation
+      Analyzer.Environment
+      Analyzer.InferBaseType
+      Analyzer.InferRefinedType
+      Analyzer.Subtype
+      Analyzer.TypeError
+      Analyzer.Unify
       Circuit
-      Index.AST
-      Index.Parse
-      Index.Semantics
-      Index.Semantics.Global.Bits
-      Index.Semantics.Global.GateCount
-      Index.Semantics.Global.Qubits
-      Index.Semantics.Global.Resource
-      Index.Semantics.Global.TCount
-      Index.Semantics.Global.Width
-      Index.Semantics.Local.Depth
-      Index.Semantics.Local.Resource
-      Index.Semantics.Local.TDepth
-      Index.Unify
-      Lang.Analysis
-      Lang.Analysis.Derivation
-      Lang.Analysis.Environment
-      Lang.Analysis.InferBaseType
-      Lang.Analysis.InferRefinedType
-      Lang.Analysis.TypeError
-      Lang.Expr.AST
-      Lang.Expr.Parse
-      Lang.Expr.Pattern
-      Lang.Library.Constant
-      Lang.Library.Prelude
-      Lang.Module.AST
-      Lang.Module.Parse
-      Lang.Type.AST
-      Lang.Type.Parse
-      Lang.Type.Semantics
-      Lang.Type.Unify
+      Eval.Index
+      Eval.Type
+      Metric
+      Metric.Global
+      Metric.Global.Bits
+      Metric.Global.GateCount
+      Metric.Global.Qubits
+      Metric.Global.TCount
+      Metric.Global.Width
+      Metric.Local
+      Metric.Local.Depth
+      Metric.Local.TDepth
+      Panic
       Parser
+      Parser.Expr
+      Parser.Index
+      Parser.Module
+      Parser.Type
+      PQ.Constant
+      PQ.Expr
+      PQ.Index
+      PQ.Module
+      PQ.Prelude
+      PQ.Type
       PrettyPrinter
-      Solving.CVC5
+      Solver
+      Solver.Constraint
+      Solver.SMT
+      Solver.SMT.CVC5
       TestUtil
-      Util
   other-modules:
       Paths_qura
   hs-source-dirs:

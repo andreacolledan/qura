@@ -5,9 +5,9 @@
   - [x] Add top-level definitions with patterns
   - [x] Change tool interface to only consider top-level definitions
   - [x] Update README
+- [x] Major code refactoring
 - [ ] Add 'undefined' for experimentation purposes
 - [ ] Add proper documentation for the PQ language
-- [ ] Major code refactoring
 - [ ] Add actual module support with linking
 - [ ] Fix parsing of indices embedded in types and expressions
 - [ ] Make closure annotations transparent to the user

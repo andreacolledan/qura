@@ -1,8 +1,8 @@
 module Parser.IndexSpec (spec) where
 
 import Test.Hspec
-import Index.Parse
-import Index.AST
+import Parser.Index
+import PQ.Index
 import Parser
 
 parseIndex :: String -> Either ParserError Index

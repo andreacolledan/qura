@@ -5,7 +5,7 @@ This guide is meant to aid contributors in the implementation of new metric modu
 
 ## The `Index` datatype
 
-The definition of a new metric analysis boils down to specifying *what resource annotations should be produced* when analyzing a small number of key circuit building scenarios. These annotations are called *indices*, and they are essentially arithmetic expressions built from natural numbers and index variables. They are represented through the `Index` datatype, in the [`Index.AST`](https://github.com/andreacolledan/qura/blob/main/src/Index/AST.hs) module. 
+The definition of a new metric analysis boils down to specifying *what resource annotations should be produced* when analyzing a small number of key circuit building scenarios. These annotations are called *indices*, and they are essentially arithmetic expressions built from natural numbers and index variables. They are represented through the `Index` datatype, in the [`PQ.Index`](https://github.com/andreacolledan/qura/blob/main/src/PQ/Index.hs) module. 
 
 Here is a list of the `Index` constructors that can be used when defining new metrics:
 
@@ -28,7 +28,7 @@ An instance of `GlobalMetricModule` requires the definition of the following fun
 - `desugarIdentity :: Index` defines the neutral element for the metric (e.g. what it means to have "no width"). This is usually just `Number 0`.
 - `desugarWire :: WireType -> Index` defines the size of a wire, which might depend on its wiretype. Note that `WireType = Bit | Qubit`. For example, in the case of width:
 ```hs
--- src/Index/Semantics/Global/Width.hs
+-- src/Metric/Global/Width.hs
 
 desugarWire Bit = Number 1
 desugarWire Qubit = Number 1
@@ -36,7 +36,7 @@ desugarWire Qubit = Number 1
 
 - `desugarOperation :: QuantumOperation -> Index` defines the size of each elementary quantum operation available in PQR. The list of of available `QuantumOperation`s is available in the [`Circuit`](https://github.com/andreacolledan/qura/blob/main/src/Circuit.hs) module. For example, for T-count:
 ```hs
--- src/Index/Semantics/Global/TCount.hs
+-- src/Metric/Global/TCount.hs
 
 desugarOperation T = Number 1
 desugarOperation _ = Number 0
@@ -44,7 +44,7 @@ desugarOperation _ = Number 0
 
 - `desugarSequence :: Index -> Index -> Index` defines the size of two circuits composed in sequence. Suppose `C` is a circuit of size `e1` and `D` is a circuit of size `e2`. Then, `desugarSequence e1 e2` should be the size of the composition in sequence of `C` and `D`. For example, in the case of width:
 ```hs
--- src/Index/Semantics/Global/Width.hs
+-- src/Metric/Global/Width.hs
 
 desugarSequence e1 e2 = Max e1 e2
 ```
@@ -52,30 +52,30 @@ desugarSequence e1 e2 = Max e1 e2
 
 - `desugarParallel :: Index -> Index -> Index` defines the size of two circuits composed in parallel. Suppose `C` is a circuit of size `e1` and `D` is a circuit of size `e2`. Then, `desugarSequence  e1 e2` should be the size of the composition in parallel of `C` and `D`. For example, in the case of width:
 ```hs
--- src/Index/Semantics/Global/Width.hs
+-- src/Metric/Global/Width.hs
 
 desugarParallel e1 e2 = Plus e1 e2
 ```
 
 - `desugarBoundedSequence :: IVarId -> Index -> Index -> Index` is the same as `desugarSequence`, but generalized to bounded sequences. That is, `desugarBoundedSequence "i" e1 e2` is the size of the circuit obtained by composing in sequence `e1` circuits, where the size of the `i`-th circuit is `e2` and might depend on `i`.
 ```hs
--- src/Index/Semantics/Global/Width.hs
+-- src/Metric/Global/Width.hs
 
 desugarBoundedSequence i e1 e2 = BoundedMax i e1 e2
 ```
 
 - `desugarBoundedParallel :: IVarId -> Index -> Index -> Index` is the same as `desugarParallel`, but generalized to bounded sequences. That is, `desugarBoundedParallel "i" e1 e2` is the size of the circuit obtained by composing in parallel `e1` circuits, where the size of the `i`-th circuit is `e2` and might depend on `i`.
 ```hs
--- src/Index/Semantics/Global/Width.hs
+-- src/Metric/Global/Width.hs
 
 desugarBoundedParallel i e1 e2 = BoundedSum i e1 e2
 ```
 
-For more examples of global metric modules, consult the modules under [`Index.Semantics.Global`](https://github.com/andreacolledan/qura/tree/main/src/Index/Semantics/Global)
+For more examples of global metric modules, consult the modules under [`Metric.Global`](https://github.com/andreacolledan/qura/tree/main/src/Metric/Global)
 
 ### Making it available through QuRA's interface
 
-Once you have defined a global resource module, you need to make the following changes [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs) in order to make it available from QuRA's interface:
+In order to make a new `GlobalMetricModule` available from QuRA's interface, you need to first re-export it in [`Metric.hs`](https://github.com/andreacolledan/qura/blob/main/src/Metric.hs) and then make the following changes to [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs):
 
 1. Add a new case to `globalMetricArgParser` to parse your new metric as a command line option.
 2. Add your metric's name to the error message of the argument parser, so that users know it's there.
@@ -107,17 +107,17 @@ An instance of `LocalMetricModule` requires the definition of the following func
 - `desugarOutput :: QuantumOperation -> Int -> [Index] -> Index` describes the local metric associated to each of the outputs of a quantum operation, as a function of the operation itself and the local metrics of its inputs. `desugarOutput op n inMetrics` is the local metric associated to the `n`-th output of `op`, when the local metrics associated to its inputs are those in `inMetrics`. For example, for depth:
 
 ```hs
--- src/Index/Semantics/Local/Depth.hs
+-- src/Metric/Local/Depth.hs
 
 desugarOutput _ _ inDepths =
   foldr Max (Number 0) $ map (Number 1 `Plus`) inDepths
 ```
 
-For more examples of local metric modules, consult the modules under [`Index.Semantics.Local`](https://github.com/andreacolledan/qura/tree/main/src/Index/Semantics/Local)
+For more examples of local metric modules, consult the modules under [`Metric.Local`](https://github.com/andreacolledan/qura/tree/main/src/Metric/Local)
 
 ### Making it available through QuRA's interface
 
-Once you have defined a local resource module, you need to make the following changes [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs) in order to make it available from QuRA's interface:
+In order to make a new `LocalMetricModule` available from QuRA's interface, you need to first re-export it in [`Metric.hs`](https://github.com/andreacolledan/qura/blob/main/src/Metric.hs) and then make the following changes to [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs):
 
 1. Add a new case to `localMetricArgParser` to parse your new metric as a command line option.
 2. Add your metric's name to the error message of the argument parser, so that users know it's there.
