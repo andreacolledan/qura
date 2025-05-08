@@ -10,7 +10,7 @@ import Control.Monad.Combinators.Expr
 import Data.Char
 import PQ.Constant
 import PQ.Expr
-import Parser
+import Parser.Core
 import Parser.Index
 import Parser.Type
 import Text.Megaparsec

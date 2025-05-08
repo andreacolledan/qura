@@ -13,7 +13,6 @@ import Data.Maybe
 import Metric
 import Analyzer
 import PQ.Module
-import Parser.Module
 import Parser
 import Solver
 import System.Directory

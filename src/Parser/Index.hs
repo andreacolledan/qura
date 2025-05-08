@@ -8,7 +8,7 @@ where
 
 import Control.Monad.Combinators.Expr
 import PQ.Index
-import Parser
+import Parser.Core
 import Text.Megaparsec
 
 --- Delimited Indices ---

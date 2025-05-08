@@ -48,10 +48,12 @@ library
       Metric.Local.TDepth
       Panic
       Parser
+      Parser.Core
       Parser.Expr
       Parser.Index
       Parser.Module
       Parser.Type
+      PQ
       PQ.Constant
       PQ.Expr
       PQ.Index

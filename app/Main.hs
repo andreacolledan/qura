@@ -1,21 +1,17 @@
 module Main (main) where
 
+import Analyzer
 import Control.Monad (when)
 import Data.List (intercalate)
+import Data.Maybe (catMaybes, isJust)
+import Metric
 import Options.Applicative
+import PQ
+import Parser
 import PrettyPrinter
 import Solver
-import Parser(runParser)
-import Text.Megaparsec.Error
-import PQ.Prelude
-import Metric
-import Data.Maybe (isJust, catMaybes)
-import PQ.Module
-import Parser.Module
-import Analyzer
-import PQ.Expr (VariableId)
-import System.IO.Extra
 import System.Console.ANSI
+import System.IO.Extra
 
 globalMetricArgParser :: ReadM GlobalMetricModule
 globalMetricArgParser = do

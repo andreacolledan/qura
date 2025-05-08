@@ -5,7 +5,7 @@ where
 
 import Control.Monad.Combinators.Expr
 import PQ.Type
-import Parser
+import Parser.Core
 import Parser.Index
 import Text.Megaparsec
 

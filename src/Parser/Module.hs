@@ -7,7 +7,7 @@ import Control.Monad
 import PQ.Expr
 import PQ.Module (Module (..), TopLevelDefinition (..))
 import PQ.Type
-import Parser
+import Parser.Core
 import Parser.Expr
 import Parser.Type
 import Text.Megaparsec
