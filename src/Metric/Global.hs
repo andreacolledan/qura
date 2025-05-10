@@ -26,5 +26,4 @@ data GlobalMetricModule = GlobalMetricModule
   }
 
 instance Pretty GlobalMetricModule where
-pretty :: GlobalMetricModule -> String
-pretty = name
+  pretty = name
