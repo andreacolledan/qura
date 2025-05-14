@@ -44,7 +44,7 @@ checkSubtype cs qfh mgrs mlrs (TList id i t) (TList id' i' t') = do
   if cempty1 && cempty2 then return True else do -- empty list types are equal regardless of parameter
     let fid = fresh (fresh (fresh id [i, i']) [IVar id']) [t, t']
     c1 <- checkEq cs qfh i i'
-    c2 <- checkSubtype cs qfh mgrs mlrs (isub (isubSingleton id (IVar fid)) t) (isub (isubSingleton id' (IVar fid)) t')
+    c2 <- checkSubtype (Leq (IVar fid) i : cs) qfh mgrs mlrs (isub (isubSingleton id (IVar fid)) t) (isub (isubSingleton id' (IVar fid)) t')
     return $ c1 && c2
 checkSubtype cs qfh mgrs mlrs (TIForall id t i j) (TIForall id' t' i' j') =
   let fid = fresh (fresh (fresh id [i, j, i', j']) [IVar id']) [t, t']
