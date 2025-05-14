@@ -128,7 +128,9 @@ libraryBindings = [
   TopLevelDefinition "toffoli" [] Nothing toffoli,
   TopLevelDefinition "mcnot" [] Nothing mcnot,
   TopLevelDefinition "rgate" [] Nothing rgate,
+  TopLevelDefinition "invrgate" [] Nothing invrgate,
   TopLevelDefinition "cr" [] Nothing cr,
+  TopLevelDefinition "invcr" [] Nothing invcr,
   TopLevelDefinition "range" [] Nothing range
   ]
 
