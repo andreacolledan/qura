@@ -120,8 +120,9 @@ test-suite qura-test
   main-is: Spec.hs
   other-modules:
       Analyzer.Binding.BindingSpec
-      Analyzer.ExamplesSpec
+      Analyzer.Examples.ExamplesSpec
       Analyzer.Linearity.LinearitySpec
+      Analyzer.Subtype.SubtypeSpec
       Parser.IndexSpec
       Paths_qura
   hs-source-dirs:

@@ -3,6 +3,7 @@ module TestUtil (
   withTests,
   analysisTest,
   typeCheckingTest,
+  widthCheckingTest,
   shouldAccept,
   shouldReject,
   --re-exports
@@ -43,6 +44,9 @@ analysisTest mgmm mlmm libs qfh (filepath, source) = do
 
 typeCheckingTest :: [Module] -> SolverHandle -> (FilePath, String) -> IO (String, TestOutcome)
 typeCheckingTest = analysisTest Nothing Nothing
+
+widthCheckingTest :: [Module] -> SolverHandle -> (FilePath, String) -> IO (String, TestOutcome)
+widthCheckingTest = analysisTest (Just widthMetric) Nothing
 
 shouldAccept :: ((FilePath, String) -> IO (FilePath, TestOutcome)) -> (FilePath, String) -> Expectation
 shouldAccept action test = action test >>= (`shouldSatisfy` passed)
