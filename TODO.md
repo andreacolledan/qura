@@ -7,6 +7,7 @@
   - [x] Update README
 - [x] Major code refactoring
 - [ ] Add 'undefined' for experimentation purposes
+- [ ] Better syntax and handling of independent list types
 - [ ] Add proper documentation for the PQ language
 - [ ] Add actual module support with linking
 - [ ] Fix parsing of indices embedded in types and expressions

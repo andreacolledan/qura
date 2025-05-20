@@ -6,21 +6,21 @@ module Solver.SMT.CVC5
   )
 where
 
-import Control.Monad
-import Control.Monad.State (MonadState (..), StateT, lift, evalStateT)
-import qualified Data.HashSet as Set
-import PQ.Index
-import PrettyPrinter
-import System.Process as Proc
-import System.IO
 -- import Control.Concurrent
 -- import Control.Exception
 import Analyzer.Unify
-import Data.List (intercalate)
+import Control.Monad
 import Control.Monad.Extra (concatMapM)
+import Control.Monad.State (MonadState (..), StateT, evalStateT, lift)
 import Data.Foldable
-import Panic (undesugaredPanic)
-import Solver.Constraint
+import qualified Data.HashSet as Set
+import Data.List (intercalate)
+import PQ.Index
+import Panic
+import PrettyPrinter
+import Solver.Constraint (Constraint (..))
+import System.IO
+import System.Process as Proc
 
 -- | @ApproximationStrategy@ is an enumeration of the possible approximation strategies when encoding an index as an SMTLIB term.
 data ApproximationStrategy = Exact | Overapproximate | Underapproximate
@@ -84,6 +84,7 @@ approximate _ i = undesugaredPanic "approximate" $ show i
 -- Note: bounded sums and maxima are handled by `smtBoundedMaxGeneric`: they
 -- are desugared into fresh variables subject to appropriate constraints.
 embedIndex :: Index -> StateT Int Maybe (String, String)
+embedIndex (IVar id) | id == "_" = panic "\"_\" is not a valid SmtLib identifier (embedIndex)"
 embedIndex (IVar id) = return ("", id)
 embedIndex (Number n) = return ("", show n)
 embedIndex (Plus i j) = do
@@ -209,7 +210,7 @@ makeQuery assumptions query = do
     makeGoal :: Constraint -> Maybe String
     makeGoal goal = do
       (d, egoal) <- evalStateT (embedConstraint goal) 0
-      return $ d ++ "(assert (not " ++ egoal ++ "))"
+      return $ d ++ "(assert (not " ++ egoal ++ "))\n"
 
 
 -- | @querySMTWithContext qfh cs c@ queries the CVC5 solver to check if the constraint @c@ holds for every possible assignment of its free variables, assuming that the constraints @cs@ hold.

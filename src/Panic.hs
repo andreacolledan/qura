@@ -1,14 +1,18 @@
 module Panic (
+  panic,
   undesugaredPanic,
   missingGlobalResourceAnnotationPanic,
   missingLocalResourceAnnotationPanic
 ) where
 
+panic :: String -> a
+panic msg = error $ "Internal error: " ++ msg
+
 undesugaredPanic :: String -> String -> a
-undesugaredPanic fname index = error $ "Internal error: resource operator was not desugared in `" ++ fname ++ "': " ++ show index
+undesugaredPanic fname index = panic $ "resource operator was not desugared in `" ++ fname ++ "': " ++ show index
 
 missingGlobalResourceAnnotationPanic :: String -> a
-missingGlobalResourceAnnotationPanic fname = error $ "Internal error: missing global resource annotation in `" ++ fname ++ "'"
+missingGlobalResourceAnnotationPanic fname = panic $ "missing global resource annotation in `" ++ fname ++ "'"
 
 missingLocalResourceAnnotationPanic :: String -> a
-missingLocalResourceAnnotationPanic fname = error $ "Internal error: missing local resource annotation in `" ++ fname ++ "'"
+missingLocalResourceAnnotationPanic fname = panic $ "missing local resource annotation in `" ++ fname ++ "'"

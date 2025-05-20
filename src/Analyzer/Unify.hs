@@ -145,8 +145,10 @@ instance HasIndex Constraint where
 -- | @fresh id xs@ returns a fresh index variable name that does not occur in @xs@, @id@ if possible.
 fresh :: (HasIndex a) => IVarId -> [a] -> IVarId
 fresh id xs =
-  let toavoid = Set.unions $ iv <$> xs
-   in head $ filter (not . (`Set.member` toavoid)) $ id : [id ++ show n | n <- [0 :: Int ..]]
+  let
+    validId = if id == "_" then "i" else id -- "_" is not a valid fresh identifier
+    toavoid = Set.unions $ iv <$> xs
+   in head $ filter (not . (`Set.member` toavoid)) $ validId : [validId ++ show n | n <- [0 :: Int ..]]
 
 -- Natural lifting of well-formedness to traversable data structures
 instance (Traversable t, HasIndex a) => HasIndex (t a) where
