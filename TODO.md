@@ -6,6 +6,7 @@
   - [x] Change tool interface to only consider top-level definitions
   - [x] Update README
 - [x] Major code refactoring
+- [ ] When checking list subtypes, element type subtyping should be checked under the assumption that the list counter is strictly less than the list length (currently, it is only assumed that it is no greater than it)
 - [ ] Add 'undefined' for experimentation purposes
 - [ ] Better syntax and handling of independent list types
 - [ ] Add proper documentation for the PQ language
