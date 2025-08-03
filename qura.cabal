@@ -84,6 +84,7 @@ library
     , mtl
     , optparse-applicative
     , parser-combinators
+    , pretty-simple
     , process
     , transformers
     , unordered-containers
@@ -109,6 +110,7 @@ executable qura
     , mtl
     , optparse-applicative
     , parser-combinators
+    , pretty-simple
     , process
     , qura
     , transformers
@@ -141,6 +143,7 @@ test-suite qura-test
     , mtl
     , optparse-applicative
     , parser-combinators
+    , pretty-simple
     , process
     , qura
     , transformers

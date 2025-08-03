@@ -12,6 +12,7 @@ import PrettyPrinter
 import Solver
 import System.Console.ANSI
 import System.IO.Extra
+import Text.Pretty.Simple (pPrint)
 
 globalMetricArgParser :: ReadM GlobalMetricModule
 globalMetricArgParser = do
@@ -101,7 +102,11 @@ parseSource CommandLineArguments{verbose=verb, filepath=file, grs=mgrs, lrs=mlrs
   source <- readFile file
   case runParser parseModule (isJust mgrs) (isJust mlrs) file source of
     Left err -> error $ errorBundlePretty err
-    Right mod -> return mod
+    Right mod -> do
+      when verb $ do
+        putStrLn $ "Abstract Syntax Tree: \n\t"
+        pPrint mod
+      return mod
 
 getLibs :: Arguments -> IO [Module]
 getLibs CommandLineArguments{noprelude = nopre} = return $ ([prelude | not nopre]) -- for now, we only allow the prelude as a library
@@ -110,7 +115,6 @@ analyzeModule :: Module -> [Module] -> Arguments -> IO (Either TypeError [(Varia
 analyzeModule
   mod libs CommandLineArguments{verbose=verb, debug=deb, grs=mgrs, lrs=mlrs} = do
     when verb $ do
-      putStrLn $ "Parsed successfully as \n\t" ++ pretty mod
       putStrLn "Inferring type..."
     withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
 
