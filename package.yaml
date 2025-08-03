@@ -3,8 +3,8 @@ version:             0.1.0.0
 github:              "andreacolledan/qura"
 license:             MIT
 author:              "Andrea Colledan"
-maintainer:          "andrea.colledan@unibo.it"
-copyright:           "2024 Andrea Colledan"
+maintainer:          "andreacolledan@fastmail.com"
+copyright:           "Copyright (c) 2024–2025 Andrea Colledan"
 
 extra-source-files:
 - README.md
