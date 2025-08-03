@@ -75,7 +75,7 @@ For more examples of global metric modules, consult the modules under [`Metric.G
 
 ### Making it available through QuRA's interface
 
-In order to make a new `GlobalMetricModule` available from QuRA's interface, you need to first re-export it in [`Metric.hs`](https://github.com/andreacolledan/qura/blob/main/src/Metric.hs) and then make the following changes to [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs):
+In order to make a new `GlobalMetricModule` available from QuRA's interface, you need to first re-export it in [`Metric.hs`](https://github.com/andreacolledan/qura/blob/main/src/Metric.hs) and then make the following changes to [`Interface.hs`](https://github.com/andreacolledan/qura/blob/main/src/Interface.hs):
 
 1. Add a new case to `globalMetricArgParser` to parse your new metric as a command line option.
 2. Add your metric's name to the error message of the argument parser, so that users know it's there.
@@ -117,7 +117,7 @@ For more examples of local metric modules, consult the modules under [`Metric.Lo
 
 ### Making it available through QuRA's interface
 
-In order to make a new `LocalMetricModule` available from QuRA's interface, you need to first re-export it in [`Metric.hs`](https://github.com/andreacolledan/qura/blob/main/src/Metric.hs) and then make the following changes to [`Main.hs`](https://github.com/andreacolledan/qura/blob/main/app/Main.hs):
+In order to make a new `LocalMetricModule` available from QuRA's interface, you need to first re-export it in [`Metric.hs`](https://github.com/andreacolledan/qura/blob/main/src/Metric.hs) and then make the following changes to [`Interface.hs`](https://github.com/andreacolledan/qura/blob/main/src/Interface.hs):
 
 1. Add a new case to `localMetricArgParser` to parse your new metric as a command line option.
 2. Add your metric's name to the error message of the argument parser, so that users know it's there.

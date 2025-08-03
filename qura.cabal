@@ -33,10 +33,10 @@ library
       Analyzer.Subtype
       Analyzer.TypeError
       Analyzer.Unify
-      Arguments
       Circuit
       Eval.Index
       Eval.Type
+      Interface
       Metric
       Metric.Global
       Metric.Global.Bits
