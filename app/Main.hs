@@ -30,7 +30,9 @@ ensureCVC5 :: IO ()
 ensureCVC5 = do
   mpath <- findExecutable "cvc5"
   case mpath of
-    Nothing -> error "Error: cvc5 is not installed or not in PATH."
+    Nothing -> error $ unlines [
+      "Error: cvc5 is not installed or not in PATH.\n",
+      "To install cvc5, follow instructions at https://cvc5.github.io/"]
     Just _  -> return ()
 
 parseCLArguments :: IO Arguments
