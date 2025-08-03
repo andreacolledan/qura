@@ -75,3 +75,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - qura
+    - filepath
