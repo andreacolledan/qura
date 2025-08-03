@@ -8,7 +8,7 @@
 # A snapshot resolver dictates the compiler version and the set of packages
 # to be used for project dependencies. For example:
 #
-resolver: lts-22.13
+resolver: lts-23.27
 # resolver: nightly-2015-09-21
 # resolver: ghc-7.10.2
 #
@@ -49,7 +49,9 @@ extra-deps:
 # extra-package-dbs: []
 
 # Control whether we use the GHC we find on the path
-# system-ghc: true
+# Stack will still install the appropriate GHC version if
+# no system ghc is available.
+system-ghc: true
 #
 # Require a specific version of Stack, using version ranges
 # require-stack-version: -any # Default
