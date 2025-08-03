@@ -58,4 +58,4 @@ For more information, refer to `qura --help`.
 
 ## Contributing
 
-If you are interested in extending QuRA with new kinds of metric analysis, consult [this guide](https://qura.readthedocs.io/en/latest/tool/extension/).
+If you are interested in extending QuRA with new kinds of metric analysis, consult [this guide](https://qura.readthedocs.io/en/latest/tool/extensions/).
