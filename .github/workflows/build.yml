@@ -1,0 +1,27 @@
+name: Build QuRA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Haskell
+        uses: haskell/actions/setup@v2
+        with:
+          enable-stack: true
+
+      - name: Build project
+        run: |
+          stack setup
+          stack build
+
+      - name: Run tests
+        run: stack test
