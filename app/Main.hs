@@ -13,9 +13,11 @@ import System.Console.ANSI
 import System.IO.Extra
 import Text.Pretty.Simple (pPrint)
 import Arguments
+import System.Directory (findExecutable)
 
 main :: IO ()
 main = do
+  ensureCVC5
   opts <- parseCLArguments
   mod <- parseSource opts
   libs <- getLibs opts
@@ -23,6 +25,13 @@ main = do
   case outcome of
     Left err -> outputError err
     Right bindings -> outputBindings opts bindings
+
+ensureCVC5 :: IO ()
+ensureCVC5 = do
+  mpath <- findExecutable "cvc5"
+  case mpath of
+    Nothing -> error "Error: cvc5 is not installed or not in PATH."
+    Just _  -> return ()
 
 parseCLArguments :: IO Arguments
 parseCLArguments = execParser cliInterface
