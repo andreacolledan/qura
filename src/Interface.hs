@@ -1,12 +1,12 @@
-module Arguments (
-    Arguments(..),
+module Interface (
+    CLArguments(..),
     cliInterface
 ) where
 
 import Metric
 import Options.Applicative
 
-data Arguments = CommandLineArguments
+data CLArguments = CommandLineArguments
   { filepath :: String,
     verbose :: Bool,
     debug :: Maybe String,
@@ -34,7 +34,7 @@ localMetricArgParser = do
     "tdepth" -> return tDepthMetric
     _ -> readerError "Supported local resources are 'depth', `tdepth`."
 
-cliInterface :: ParserInfo Arguments
+cliInterface :: ParserInfo CLArguments
 cliInterface =
   info
     (arguments <**> helper)
@@ -43,7 +43,7 @@ cliInterface =
         <> header "QuRA: a static analysis tool for the resource verification of quantum circuit description programs"
     )
   where
-    arguments :: Parser Arguments
+    arguments :: Parser CLArguments
     arguments =
       CommandLineArguments
         <$> strArgument
