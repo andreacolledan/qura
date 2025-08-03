@@ -33,6 +33,7 @@ library
       Analyzer.Subtype
       Analyzer.TypeError
       Analyzer.Unify
+      Arguments
       Circuit
       Eval.Index
       Eval.Type
