@@ -20,12 +20,12 @@ spec = do
     describe "subtype checker" $ do
       it "accepts correct programs" $ \qfh -> do
         withTests positiveDir $ \tests -> do
-          when (length tests == 0) pending
+          when (null tests) pending
           forM_ tests $ \test -> do
             widthCheckingTest [] qfh `shouldAccept` test
       it "rejects incorrect programs" $ \qfh -> do
         withTests negativeDir $ \tests -> do
-          when (length tests == 0) pending
+          when (null tests) pending
           forM_ tests $ \test -> do
             widthCheckingTest [] qfh `shouldReject` test
 

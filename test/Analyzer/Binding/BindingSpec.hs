@@ -20,11 +20,11 @@ spec = do
     describe "binding checker" $ do
       it "accepts correct programs" $ \qfh -> do
         withTests positiveDir $ \tests -> do
-          when (length tests == 0) pending
+          when (null tests) pending
           forM_ tests $ \test -> do
             typeCheckingTest [] qfh `shouldAccept` test
       it "rejects incorrect programs" $ \qfh -> do
         withTests negativeDir $ \tests -> do
-          when (length tests == 0) pending
+          when (null tests) pending
           forM_ tests $ \test -> do
             typeCheckingTest [] qfh `shouldReject` test
