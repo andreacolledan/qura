@@ -5,6 +5,7 @@ import Control.Monad (when)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, isJust)
 import Interface (CLArguments (..), cliInterface)
+import Interpreter
 import Options.Applicative (execParser)
 import PQ (Module, prelude)
 import Parser (errorBundlePretty, parseModule, runParser)
@@ -18,9 +19,9 @@ import System.Console.ANSI
     hSetSGR,
   )
 import System.Directory (findExecutable)
-import System.IO.Extra (stderr, hPutStrLn)
-import Text.Pretty.Simple (pPrint)
 import System.Directory.Internal.Prelude (exitFailure)
+import System.IO.Extra (hPutStrLn, stderr)
+import Text.Pretty.Simple (pPrint)
 
 main :: IO ()
 main = do
@@ -30,7 +31,6 @@ main = do
   libs <- getLibs opts
   analyzeModule mod libs opts
   interpretModule mod libs opts
-  
 
 ensureCVC5 :: IO ()
 ensureCVC5 = do
@@ -64,18 +64,18 @@ getLibs CommandLineArguments {noprelude = nopre} = return ([prelude | not nopre]
 
 analyzeModule :: Module -> [Module] -> CLArguments -> IO ()
 analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
-    when verb $ putStrLn $ "Inferring type for '" ++ fp ++ "'..."
-    outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
-    case outcome of
-      Left err -> abortWithMessage $ show err
-      Right bindings -> do
-        putStrLn $ "Analyzed file '" ++ fp ++ "'."
-        let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
-        putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
-        putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
+  when verb $ putStrLn $ "Inferring type for '" ++ fp ++ "'..."
+  outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+  case outcome of
+    Left err -> abortWithMessage $ show err
+    Right bindings -> do
+      putStrLn $ "Analyzed file '" ++ fp ++ "'."
+      let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
+      putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
+      putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
 
 interpretModule :: Module -> [Module] -> CLArguments -> IO ()
-interpretModule mod libs CommandLineArguments {verbose = verb, noprelude=_noprelude, filepath=fp, debug=_debug} = do
+interpretModule mod libs CommandLineArguments {verbose = verb, noprelude = _noprelude, filepath = fp, debug = _debug} = do
   when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
   case runInterpreter mod libs of
     Left err -> abortWithMessage $ show err

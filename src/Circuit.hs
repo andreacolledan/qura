@@ -1,4 +1,4 @@
-module Circuit (WireType(..), QuantumOperation(..)) where
+module Circuit (WireType(..), QuantumOperation(..), Circuit(..)) where
 import PrettyPrinter
 
 data WireType = Bit | Qubit deriving (Show, Eq)
@@ -55,3 +55,9 @@ instance Pretty QuantumOperation where
   pretty CCNot = "CCNot"
   pretty CCZ = "CCZ"
   pretty Toffoli = "Toffoli"
+
+
+-- Circuit Datatype
+
+data Circuit = Todo --TODO: define circuit buffers. This corresponds to CRL expressions in the original paper
+  deriving Show
