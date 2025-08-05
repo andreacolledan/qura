@@ -24,7 +24,7 @@ jobs:
           PLATFORM="Linux-x86_64"
           curl -L -o cvc5.zip https://github.com/cvc5/cvc5/releases/download/cvc5-${CVC5_VERSION}/cvc5-${PLATFORM}-static.zip
           unzip cvc5.zip
-          sudo mv cvc5-${PLATFORM}/bin/cvc5 /usr/local/bin/
+          sudo mv cvc5-${PLATFORM}-static/bin/cvc5 /usr/local/bin/
           sudo chmod +x /usr/local/bin/cvc5
 
       - name: Check cvc5
