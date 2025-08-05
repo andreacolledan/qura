@@ -9,6 +9,7 @@ import Options.Applicative
 data CLArguments = CommandLineArguments
   { filepath :: String,
     verbose :: Bool,
+    norun :: Bool,
     debug :: Maybe String,
     noprelude :: Bool,
     grs :: Maybe GlobalMetricModule,
@@ -54,6 +55,10 @@ cliInterface =
           ( long "verbose"
               <> short 'v'
               <> help "Print verbose output"
+          )
+        <*> switch
+          ( long "no-run"
+              <> help "Type-check only, without running the program"
           )
         <*> optional (strOption
           ( long "debug"

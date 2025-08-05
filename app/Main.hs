@@ -1,7 +1,7 @@
 module Main (main) where
 
 import Analyzer (runAnalysis)
-import Control.Monad (when)
+import Control.Monad (when, unless)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, isJust)
 import Interface (CLArguments (..), cliInterface)
@@ -75,15 +75,16 @@ analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debu
       putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
 
 interpretModule :: Module -> [Module] -> CLArguments -> IO ()
-interpretModule mod libs CommandLineArguments {verbose = verb, noprelude = _noprelude, filepath = fp, debug = _debug} = do
-  when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
-  case runInterpreter mod libs of
-    Left err -> abortWithMessage $ show err
-    Right config -> do
-      putStrLn $ "File '" ++ fp ++ "' produced circuit:\n"
-      print $ circuit config
-      putStrLn "\nwhile evaluating to:\n"
-      print $ term config
+interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp} = do
+  unless nr $ do
+    when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
+    case runInterpreter mod libs of
+      Left err -> abortWithMessage $ show err
+      Right config -> do
+        putStrLn $ "File '" ++ fp ++ "' produced circuit:\n"
+        print $ circuit config
+        putStrLn "\nwhile evaluating to:\n"
+        print $ term config
 
 abortWithMessage :: String -> IO ()
 abortWithMessage e = do
