@@ -1,4 +1,4 @@
-name: Build QuRA
+name: CI
 
 on:
   push:
