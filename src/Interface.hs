@@ -62,7 +62,7 @@ cliInterface =
               <> help "Print SMT queries to file DEBUG"
           ))
         <*> switch
-          ( long "noprelude"
+          ( long "no-prelude"
               <> help "Do not include the prelude"
           )
         <*> optional (option globalMetricArgParser
