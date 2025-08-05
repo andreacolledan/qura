@@ -1,12 +1,12 @@
 module Main (main) where
 
-import Analyzer (Type, TypeError, runAnalysis)
+import Analyzer (runAnalysis)
 import Control.Monad (when)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, isJust)
 import Interface (CLArguments (..), cliInterface)
 import Options.Applicative (execParser)
-import PQ (Module, VariableId, prelude)
+import PQ (Module, prelude)
 import Parser (errorBundlePretty, parseModule, runParser)
 import PrettyPrinter (Pretty (pretty))
 import Solver (withSolver)
@@ -18,7 +18,7 @@ import System.Console.ANSI
     hSetSGR,
   )
 import System.Directory (findExecutable)
-import System.IO.Extra (hPrint, stderr, hPutStrLn)
+import System.IO.Extra (stderr, hPutStrLn)
 import Text.Pretty.Simple (pPrint)
 import System.Directory.Internal.Prelude (exitFailure)
 
@@ -28,17 +28,15 @@ main = do
   opts <- parseCLArguments
   mod <- parseSource opts
   libs <- getLibs opts
-  outcome <- analyzeModule mod libs opts
-  case outcome of
-    Left err -> outputError $ show err
-    Right bindings -> outputBindings opts bindings
+  analyzeModule mod libs opts
+  
 
 ensureCVC5 :: IO ()
 ensureCVC5 = do
   mpath <- findExecutable "cvc5"
   case mpath of
     Nothing ->
-      outputError $
+      abortWithMessage $
         unlines
           [ "Error: cvc5 is not installed or not in PATH.",
             "To install cvc5, follow instructions at https://cvc5.github.io/"
@@ -63,25 +61,22 @@ parseSource CommandLineArguments {verbose = verb, filepath = file, grs = mgrs, l
 getLibs :: CLArguments -> IO [Module]
 getLibs CommandLineArguments {noprelude = nopre} = return ([prelude | not nopre]) -- for now, we only allow the prelude as a library
 
-analyzeModule :: Module -> [Module] -> CLArguments -> IO (Either TypeError [(VariableId, Type)])
-analyzeModule
-  mod
-  libs
-  CommandLineArguments {verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
+analyzeModule :: Module -> [Module] -> CLArguments -> IO ()
+analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
     when verb $ do
       putStrLn "Inferring type..."
-    withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+    outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+    case outcome of
+      Left err -> abortWithMessage $ show err
+      Right bindings -> do
+        putStrLn $ "Analyzed file '" ++ fp ++ "'."
+        let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
+        putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
+        putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
 
-outputError :: String -> IO ()
-outputError e = do
+abortWithMessage :: String -> IO ()
+abortWithMessage e = do
   hSetSGR stderr [SetColor Foreground Vivid Red]
   hPutStrLn stderr e
   hSetSGR stderr [Reset]
   exitFailure
-
-outputBindings :: CLArguments -> [(VariableId, Type)] -> IO ()
-outputBindings opts bindings = do
-  putStrLn $ "Analyzing file '" ++ filepath opts ++ "'."
-  let metrics = catMaybes [pretty <$> grs opts, pretty <$> lrs opts]
-  putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
-  putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
