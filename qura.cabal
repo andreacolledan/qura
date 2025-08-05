@@ -37,6 +37,9 @@ library
       Eval.Index
       Eval.Type
       Interface
+      Interpreter
+      Interpreter.Configuration
+      Interpreter.RuntimeError
       Metric
       Metric.Global
       Metric.Global.Bits

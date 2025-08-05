@@ -29,6 +29,7 @@ main = do
   mod <- parseSource opts
   libs <- getLibs opts
   analyzeModule mod libs opts
+  interpretModule mod libs opts
   
 
 ensureCVC5 :: IO ()
@@ -63,8 +64,7 @@ getLibs CommandLineArguments {noprelude = nopre} = return ([prelude | not nopre]
 
 analyzeModule :: Module -> [Module] -> CLArguments -> IO ()
 analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
-    when verb $ do
-      putStrLn "Inferring type..."
+    when verb $ putStrLn $ "Inferring type for '" ++ fp ++ "'..."
     outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
     case outcome of
       Left err -> abortWithMessage $ show err
@@ -73,6 +73,17 @@ analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debu
         let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
         putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
         putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
+
+interpretModule :: Module -> [Module] -> CLArguments -> IO ()
+interpretModule mod libs CommandLineArguments {verbose = verb, noprelude=_noprelude, filepath=fp, debug=_debug} = do
+  when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
+  case runInterpreter mod libs of
+    Left err -> abortWithMessage $ show err
+    Right config -> do
+      putStrLn $ "File '" ++ fp ++ "' produced circuit:\n"
+      print $ circuit config
+      putStrLn "\nwhile evaluating to:\n"
+      print $ term config
 
 abortWithMessage :: String -> IO ()
 abortWithMessage e = do
