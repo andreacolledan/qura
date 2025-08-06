@@ -1,5 +1,5 @@
 name:                qura
-version:             0.1.0.0
+version:             0.1.0
 github:              "andreacolledan/qura"
 license:             MIT
 author:              "Andrea Colledan"
@@ -30,10 +30,8 @@ dependencies:
 - filepath
 - megaparsec
 - parser-combinators
-- argparser
 - optparse-applicative
 - ansi-terminal
-- QuickCheck
 - directory
 - pretty-simple
 
@@ -75,4 +73,3 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - qura
-    - filepath
