@@ -20,6 +20,7 @@ jobs:
         uses: haskell-actions/setup@v2
         with:
           enable-stack: true
+          stack-no-global: true
 
       - name: Set up cvc5
         run: scripts/setup-cvc5.sh
