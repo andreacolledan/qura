@@ -7,7 +7,7 @@ if [[ "$RUNNER_OS" == "Linux" ]]; then
 elif [[ "$RUNNER_OS" == "macOS" ]]; then
   PLATFORM="macOS-arm64"  # or macOS-x86_64
 elif [[ "$RUNNER_OS" == "Windows" ]]; then
-  PLATFORM="Windows-x86_64"
+  PLATFORM="Win64-x86_64"
 else
   echo "Unsupported OS: $RUNNER_OS"
   exit 1
