@@ -30,11 +30,14 @@ jobs:
 
       - name: Check cvc5
         run: cvc5 --version
+        shell: bash
 
       - name: Build project
         run: |
           stack setup
           stack build
+        shell: bash
 
       - name: Run tests
         run: stack test
+        shell: bash
