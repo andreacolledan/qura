@@ -7,7 +7,10 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Checkout code
@@ -19,13 +22,11 @@ jobs:
           enable-stack: true
 
       - name: Set up cvc5
-        run: |
-          CVC5_VERSION=1.3.0
-          PLATFORM="Linux-x86_64"
-          curl -L -o cvc5.zip https://github.com/cvc5/cvc5/releases/download/cvc5-${CVC5_VERSION}/cvc5-${PLATFORM}-static.zip
-          unzip cvc5.zip
-          sudo mv cvc5-${PLATFORM}-static/bin/cvc5 /usr/local/bin/
-          sudo chmod +x /usr/local/bin/cvc5
+        run: scripts/setup-cvc5.sh
+        shell: bash
+        env:
+          RUNNER_OS: ${{ runner.os }}
+
 
       - name: Check cvc5
         run: cvc5 --version
