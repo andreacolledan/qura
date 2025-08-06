@@ -2,13 +2,11 @@
 
 [![CI](https://github.com/andreacolledan/qura/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/andreacolledan/qura/actions/workflows/build.yml)
 
-QuRA is a static analysis tool for the resource consumption of quantum algorithms described in PQ.
+QuRA is a static analysis tool for the resource consumption of quantum algorithms described in the PQ programming language.
 
-PQ is a quantum circuit description language that features a rich type-and-effect system, which allows programmers to include quantitative information regarding the resource requirements of a program in its type. Then, if the program type-checks in QuRA, we know for certain that it will not consume more resources than specified.
+PQ is a quantum circuit description language that features a rich type-and-effect system, which allows programmers to include quantitative information regarding the resource requirements of a program in its type. If a PQ program type-checks in QuRA, it is guaranteed to not consume more resources than specified.
 
 [Official documentation](https://qura.readthedocs.io/en/latest/)
-
-**Disclaimer:** support for resource metrics other than circuit width is still experimental.
 
 
 ## Installing
@@ -38,6 +36,12 @@ qura file.pq -g width
 ```
 To perform local metric estimation, use the `-l METRIC` option instead. Note that at most one global metric and on local metric can be analyzed at a time.
 
+Some example programs are available in the `examples` directory. For instance, you can verify the width and depth of the quantum Fourier transform algorithm by running the following in the QuRA's root directory:
+
+```
+qura examples/qft.pq -g width -l depth
+```
+
 Currently, QuRA supports the analysis of the following circuit size metrics:
 
 | Flag | Type | Description |
@@ -52,11 +56,7 @@ Currently, QuRA supports the analysis of the following circuit size metrics:
 
 Use option `--debug DEBUG` to dump a copy of all SMT queries performed during typechecking to file `DEBUG`.
 
-General usage of qura is thus
-```
-qura FILE [-v | --verbose] [-d | --debug DEBUG] [-g | --global-metric-analysis METRIC] [-l | --local-metric-analysis METRIC]
-```
-For more information, refer to `qura --help`.
+For more general usage information, refer to `qura --help`.
 
 ## Contributing
 
