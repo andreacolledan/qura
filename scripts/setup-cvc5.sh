@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -e
-
 CVC5_VERSION=1.3.0
 
 if [[ "$RUNNER_OS" == "Linux" ]]; then
