@@ -59,5 +59,5 @@ instance Pretty QuantumOperation where
 
 -- Circuit Datatype
 
-data Circuit = Todo --TODO: define circuit buffers. This corresponds to CRL expressions in the original paper
+data Circuit = CTodo --TODO: define circuit buffers. This corresponds to CRL expressions in the original paper
   deriving Show

@@ -86,7 +86,7 @@ mcnot = EIAbs "n" $ EIAbs "lctrls" $ EIAbs "ltrgt" $ EAbs (PVar "ctrls") (TList 
 rgate :: Expr
 rgate = EIAbs "n" $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) $ EApply (EConst MakeRGate `EIApp` IVar "n" `EIApp` IVar "l") (EVar "q")
 
--- | @rgate@ is the function that returns the R gate of angle -2π/2^n to a qubit.
+-- | @invrgate@ is the function that returns the R gate of angle -2π/2^n to a qubit.
 invrgate :: Expr
 invrgate = EIAbs "n" $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) $ EApply (EConst MakeRinvGate `EIApp` IVar "n" `EIApp` IVar "l") (EVar "q")
 
@@ -94,7 +94,7 @@ invrgate = EIAbs "n" $ EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l"
 cr :: Expr
 cr = EIAbs "n" $ EIAbs "lctrl" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl") (TWire Qubit (Just $ IVar "lctrl")) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeCRGate `EIApp` IVar "n" `EIApp` IVar "lctrl" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrl", EVar "trgt"])
 
--- | @cr@ is the function that returns the controlled-R gate of angle -2π/2^n to a pair of qubits.
+-- | @invcr@ is the function that returns the controlled-R gate of angle -2π/2^n to a pair of qubits.
 invcr :: Expr
 invcr = EIAbs "n" $ EIAbs "lctrl" $ EIAbs "ltrgt" $ EAbs (PVar "ctrl") (TWire Qubit (Just $ IVar "lctrl")) $ EAbs (PVar "trgt") (TWire Qubit (Just $ IVar "ltrgt")) $ EApply (EConst MakeCRinvGate `EIApp` IVar "n" `EIApp` IVar "lctrl" `EIApp` IVar "ltrgt") (ETuple [EVar "ctrl", EVar "trgt"])
 
