@@ -113,7 +113,7 @@ applyModulesMap maps (progName, startId, startDef)
           --   ++"\nWrapping output:\n> "++(pretty tldefExpr''))$ 
 
           -- finally, return the lifted function
-            Right (ELift tldefExpr'')
+          Right (ELift tldefExpr'')
 
       Right Nothing -> Right startDef -- No definition found, return the term itself
 
