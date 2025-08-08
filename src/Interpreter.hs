@@ -75,10 +75,10 @@ mergeModLibs (Module programName e i defs) libs = do
   case start of
     Just (TopLevelDefinition startId startArgs startSign sartDef) -> 
       trace ( ""
-        ++"---- start:\n"++(show (TopLevelDefinition startId startArgs startSign sartDef))
-        ++"\n---- def map:\n"++(show definitionsMap)
-      --   -- ++"-- start:\n"++(prettyTopLevelDefinition (TopLevelDefinition startId startArgs signature sartDef))
-      --   -- ++"\n"++(pretty definitionsMap)
+        -- ++"---- start:\n"++(show (TopLevelDefinition startId startArgs startSign sartDef))
+        -- ++"-- start:\n"++(prettyTopLevelDefinition (TopLevelDefinition startId startArgs signature sartDef))
+        -- ++"\n---- def map:\n"++(show definitionsMap)
+        -- ++"\n"++(pretty definitionsMap)
         ) $ 
     -- substitute in the starting tldef using the maps
       case applyModulesMap definitionsMap (programName, startId, sartDef) of
@@ -106,9 +106,14 @@ applyModulesMap maps (progName, startId, startDef)
 
           -- wrap the definition with abstractions for its vars
           let tldefExpr'' = wrapExpr tldefExpr' tldefArgs tldefSign
+          -- trace (""
+          --   ++"\nWrapping:\n> "++pretty tldefExpr'
+          --   ++"\nwith args:\n> "++show tldefArgs
+          --   ++"\nand with signature:\n> "++pretty tldefSign
+          --   ++"\nWrapping output:\n> "++(pretty tldefExpr''))$ 
 
           -- finally, return the lifted function
-          Right (ELift tldefExpr'')
+            Right (ELift tldefExpr'')
 
       Right Nothing -> Right startDef -- No definition found, return the term itself
 
@@ -222,10 +227,20 @@ searchDefinition maps userModName defName x =
                     ++ ".\nIt is defined in the following modules:\n"
                     ++ (intercalate ",\n" (map fst defs))
 
+-- At this point I give for granted that the signature has a TBang (typechecked before (right?))
 wrapExpr :: Expr -> [Pattern] -> Maybe Type -> Expr
--- I dont know if args can be empty and the type not be Nothing, and viceversa
 wrapExpr e [] _ = e
 wrapExpr e _ Nothing = e
 -- Analyze the type along with the patterns -> How do I extract the types corresponding to the patterns?
-wrapExpr expr ptrn (Just typ) = case (ptrn, typ) of
-  _ -> undefined -- TODO
+wrapExpr expr (p:ps) (Just typ) = case typ of
+  TUnit -> undefined
+  TWire _ _ -> EAbs p typ expr
+  TTensor _ -> EAbs p typ expr
+  TCirc _ _ _ -> undefined
+  TArrow typ1 _ _ _ -> wrapExpr expr (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
+  TBang _ typ -> wrapExpr expr (p:ps) (Just typ) -- remove the TBang
+  TList _ _ _ -> EAbs p typ expr
+  TVar _ -> undefined
+  TIForall ivarid typ' _ _ -> EIAbs ivarid (wrapExpr expr ps (Just typ'))
+  _ -> undefined
+
