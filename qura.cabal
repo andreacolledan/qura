@@ -39,6 +39,7 @@ library
       Interface
       Interpreter
       Interpreter.Configuration
+      Interpreter.Expr
       Interpreter.RuntimeError
       Metric
       Metric.Global

@@ -1,6 +1,7 @@
 module Interpreter.Configuration where
 
 import Interpreter.RuntimeError
+import Interpreter.Expr
 import PQ.Expr
 import Circuit
 import PrettyPrinter (Pretty (..))
@@ -23,7 +24,11 @@ data Configuration = Config {
 -- For now I left untouched the circuit and only eval the Expr.
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
-    trace ( ""
-        ++ "-- Circuit:\n"++ show circ
-        ++ "\n-- Expr:\n"++pretty expr
-        ) $ do undefined
+  trace (""
+      -- ++ "-- Circuit:\n"++ show circ
+      ++ "\n-- Full Expr:\n"++pretty expr
+      ++ "\n-- Full Expr:\n"++show expr
+    ) $ 
+    do
+      reduced <- eval expr
+      Right $ Config circ reduced
