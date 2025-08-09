@@ -21,7 +21,7 @@ data Configuration = Config {
 -- tbf idk if the circuit need to already account for all the possible qubits used,
 -- Or i could maybe use the result of the analysis.
 -- Or i can simply add new wires when encountering the operations.
--- For now I left untouched the circuit and only eval the Expr.
+-- For now I left untouched the circuit and only eval the Expr. :)
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   trace (""

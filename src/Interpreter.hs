@@ -22,11 +22,6 @@ import Debug.Trace (trace)
 import qualified Data.Map as M
 import Data.List (intercalate)
 
-
--- ghci commands
--- import System.Environment (withArgs)
--- withArgs ["examples/dumbNot.pq"] main
-
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
 runInterpreter :: Module -> [Module] -> Either RuntimeError Configuration
@@ -83,7 +78,7 @@ mergeModLibs (Module programName e i defs) libs = do
         ) $ 
     -- substitute in the starting tldef using the maps
       case applyModulesMap definitionsMap (programName, sartDef) of
-        Right expr -> Right $ wrapExpr expr startArgs startSign
+        Right e -> Right $ wrapExpr e startArgs startSign
         Left err -> Left err
 
     Nothing -> Left (RuntimeError "No definitions in the input module")
@@ -118,65 +113,65 @@ applyModulesMap maps (progName, startDef)
 
       Right Nothing -> Right startDef -- No definition found, return the term itself
 
-    ETuple exprs -> do
-      exprs' <- mapM (\e -> applyModulesMap maps (progName, e)) exprs
-      Right (ETuple exprs')
+    ETuple es -> do
+      es' <- mapM (\e -> applyModulesMap maps (progName, e)) es
+      Right (ETuple es')
 
-    EAbs ptrn typ expr -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (EAbs ptrn typ expr')
+    EAbs ptrn typ e -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (EAbs ptrn typ e')
 
-    ELift expr -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (ELift expr')
+    ELift e -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (ELift e')
 
     ENil typ -> Right (ENil typ)
 
-    ECons expr1 expr2 -> do
-      expr1' <- applyModulesMap maps (progName, expr1)
-      expr2' <- applyModulesMap maps (progName, expr2)
-      Right (ECons expr1' expr2')
+    ECons e1 e2 -> do
+      e1' <- applyModulesMap maps (progName, e1)
+      e2' <- applyModulesMap maps (progName, e2)
+      Right (ECons e1' e2')
 
     EFold _ _ _ -> Left (RuntimeError "EFold not supported yet")
 
-    EApp expr1 expr2 -> do
-      expr1' <- applyModulesMap maps (progName, expr1)
-      expr2' <- applyModulesMap maps (progName, expr2)
-      Right (EApp expr1' expr2')
+    EApp e1 e2 -> do
+      e1' <- applyModulesMap maps (progName, e1)
+      e2' <- applyModulesMap maps (progName, e2)
+      Right (EApp e1' e2')
 
-    EApply expr1 expr2 -> do
-      expr1' <- applyModulesMap maps (progName, expr1)
-      expr2' <- applyModulesMap maps (progName, expr2)
-      Right (EApply expr1' expr2')
+    EApply e1 e2 -> do
+      e1' <- applyModulesMap maps (progName, e1)
+      e2' <- applyModulesMap maps (progName, e2)
+      Right (EApply e1' e2')
 
     EBox _ _ -> Left (RuntimeError "EBox not supported yet")
 
-    EForce expr -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (EForce expr')
+    EForce e -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (EForce e')
 
-    ELet ptrn expr1 expr2 -> do
-      expr1' <- applyModulesMap maps (progName, expr1)
-      expr2' <- applyModulesMap maps (progName, expr2)
-      Right (ELet ptrn expr1' expr2')
+    ELet ptrn e1 e2 -> do
+      e1' <- applyModulesMap maps (progName, e1)
+      e2' <- applyModulesMap maps (progName, e2)
+      Right (ELet ptrn e1' e2')
 
-    EAnno expr typ -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (EAnno expr' typ)
+    EAnno e typ -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (EAnno e' typ)
 
-    EIAbs ivar expr -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (EIAbs ivar expr')
+    EIAbs ivar e -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (EIAbs ivar e')
 
-    EIApp expr i -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (EIApp expr' i)
+    EIApp e i -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (EIApp e' i)
 
     EConst c -> Right (EConst c)
 
-    EAssume expr typ -> do
-      expr' <- applyModulesMap maps (progName, expr)
-      Right (EAssume expr' typ)
+    EAssume e typ -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right (EAssume e' typ)
 
 -- Raises a run time error in case a definition appears in more than one module
 -- and we are unsure about which one to use.
