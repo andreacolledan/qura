@@ -67,7 +67,7 @@ instance Pretty QuantumOperation where
 
 type Label = String
 
-type WireBundle = [Label] -- wire bundles \bar{l}, \bar{k}
+type WireBundle = [Label] -- wire bundles
 
 type LabelContext = Map Label WireType -- Q
 
@@ -84,7 +84,7 @@ seqOp c op inLabels outLabels = CCons c op inLabels outLabels
 
 prettyWireBundle :: WireBundle -> String
 prettyWireBundle ls = case ls of
-  []  -> "∗"                          -- use star for "no wire"
+  []  -> "∗"
   [l] -> l
   _   -> "⟨" ++ intercalate "," ls ++ "⟩"
 
@@ -94,13 +94,12 @@ prettyLabelContext ctx =
       prettyPair (l, t) = l ++ ":" ++ pretty t
   in intercalate ", " (map prettyPair pairs)
 
--- Render a Circuit to multiple lines (like the paper's CRL)
-prettyCircuit :: Circuit -> String
-prettyCircuit = unlines . linesOf
-  where
-    linesOf :: Circuit -> [String]
-    linesOf (Id ctx) = ["id: " ++ prettyLabelContext ctx]
-    linesOf (CCons c op ins outs) =
-      let prev = linesOf c
-          this = pretty (op) ++ " (" ++ prettyWireBundle ins ++ ") -> " ++ prettyWireBundle outs
-      in prev ++ [this]
+instance Pretty Circuit where
+  pretty = unlines . linesOf
+    where
+      linesOf :: Circuit -> [String]
+      linesOf (Id ctx) = ["id: " ++ prettyLabelContext ctx]
+      linesOf (CCons c op ins outs) =
+        let prev = linesOf c
+            this = pretty (op) ++ " (" ++ prettyWireBundle ins ++ ") -> " ++ prettyWireBundle outs
+        in prev ++ [this]

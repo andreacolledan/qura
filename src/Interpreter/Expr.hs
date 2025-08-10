@@ -17,9 +17,9 @@ eval (EUnit) = undefined
 eval (EVar x) = Right (EVar x)
 
 -- PAIR
-eval (ETuple e) = do
-  e' <- mapM eval e -- ??
-  Right (ETuple e')
+eval (ETuple tpl) = do
+  tpl' <- mapM eval tpl -- ??
+  Right (ETuple tpl')
 
 -- ABSTRACTION
 eval (EAbs p typ e) = Right $ EAbs p typ e -- can't be reduced by themselves
@@ -50,7 +50,7 @@ eval (EFold _ _ _ ) = undefined
 --     _ -> Left "Type error: no ELift found inside the fold function in EFold"
 
 -- APPLICATION
-eval (EApp abs arg) = do -- FIXME maybe the first term needs to be first reduced into an abs instead of searchiing it immediately
+eval (EApp abs arg) = do -- FIXME maybe the first term needs to be first reduced into an abs instead of searching it immediately
   abs' <- eval abs
   case abs' of
     EAbs p _ body -> do
