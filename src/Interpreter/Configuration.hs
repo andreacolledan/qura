@@ -22,13 +22,17 @@ data Configuration = Config {
 -- Or i could maybe use the result of the analysis.
 -- Or i can simply add new wires when encountering the operations.
 -- For now I left untouched the circuit and only eval the Expr. :)
-evalConfiguration :: Configuration -> Either RuntimeError Configuration
-evalConfiguration (Config circ expr) = 
+startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
+startConfigEvaluation (Config circ expr) = 
   trace (""
-      -- ++ "-- Circuit:\n"++ show circ
-      ++ "\n-- Full Expr:\n"++pretty expr
-      ++ "\n-- Full Expr:\n"++show expr
+      ++ "-- Circuit:\n"++ show circ
+      ++ "\n\n-- Pretty Expr:\n"++pretty expr
+      ++ "\n\n-- Full Expr:\n"++show expr
     ) $ 
-    do
-      reduced <- eval expr
-      Right $ Config circ reduced
+    evalConfiguration (Config circ expr)
+
+evalConfiguration :: Configuration -> Either RuntimeError Configuration
+evalConfiguration (Config circ expr) = do
+-- TODO: move here the derivation rules from Expr and bring the circuit during evaluation
+  expr' <- eval expr
+  Right $ Config circ expr'

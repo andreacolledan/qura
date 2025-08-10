@@ -26,9 +26,8 @@ import Data.List (intercalate)
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
 runInterpreter :: Module -> [Module] -> Either RuntimeError Configuration
 runInterpreter mod libs = do
-  term <- mergeModLibs mod libs
-  circuit <- Right CTodo -- TODO
-  evalConfiguration (Config circuit term)
+  (term, circuit) <- mergeModLibs mod libs
+  startConfigEvaluation (Config circuit term)
 
 -- this is a double map for future reasons, maybe two libs uses a same names
 -- for the modules, and we can distinct them with module.function (?).
@@ -56,7 +55,30 @@ splitTLDEFs [] = ([], Nothing)
 splitTLDEFs [x] = ([], Just x)
 splitTLDEFs xs = (init xs, Just (last xs))
 
-mergeModLibs :: Module -> [Module] -> Either RuntimeError Expr
+idCircuitFromArgs :: ([Pattern], Maybe Type) -> Circuit
+idCircuitFromArgs _ = makeIdCircuit []
+-- idCircuitFromArgs :: TopLevelDefinition -> LabelContext
+-- idCircuitFromArgs (TopLevelDefinition _ a s _) = 
+--   let ctx = pairArgPattern a s
+--   in makeIdCircuit ctx
+--     where
+--       pairArgPattern :: [Pattern] -> Maybe Type -> [(Label, WireType)]
+--       pairArgPattern [] _ = []
+--       pairArgPattern _ Nothing = []
+--       pairArgPattern (p:ps) (Just typ) = case typ of
+--         TUnit -> []
+--         TWire typ _ -> 
+--           let PVar name = p
+--           in [(name ,typ)]
+--         -- TTensor _ -> EAbs p typ 
+--         -- TCirc _ _ _ -> undefined
+--         -- TArrow typ1 _ _ _ -> pairArgPattern  (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
+--         -- TBang _ typ -> pairArgPattern  (p:ps) (Just typ) -- remove the TBang
+--         -- TList _ _ _ -> EAbs p typ 
+--         -- TVar _ -> undefined
+--         -- TIForall ivarid typ' _ _ -> EIAbs ivarid (pairArgPattern  ps (Just typ'))
+
+mergeModLibs :: Module -> [Module] -> Either RuntimeError (Expr, Circuit)
 mergeModLibs (Module programName e i defs) libs = do
   -- for now I assume no dependencies inside the libraries,
   -- and of course no cross dependencies between the libraries.
@@ -67,21 +89,25 @@ mergeModLibs (Module programName e i defs) libs = do
   -- var names
   let (remaining, start) = splitTLDEFs defs
   let definitionsMap = createMapFromModules ((Module programName e i remaining) : libs)
-
+  
   case start of
-    Just (TopLevelDefinition startId startArgs startSign sartDef) -> 
-      trace ( ""
+    Just (TopLevelDefinition startId startArgs startSign sartDef) -> do
+      -- trace ( ""
         -- ++"---- start:\n"++(show (TopLevelDefinition startId startArgs startSign sartDef))
         -- ++"-- start:\n"++(prettyTopLevelDefinition (TopLevelDefinition startId startArgs signature sartDef))
         -- ++"\n---- def map:\n"++(show definitionsMap)
         -- ++"\n"++(pretty definitionsMap)
-        ) $ 
+        -- ) $ 
     -- substitute in the starting tldef using the maps
-      case applyModulesMap definitionsMap (programName, sartDef) of
-        Right e -> Right $ wrapExpr e startArgs startSign
-        Left err -> Left err
+      fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
 
-    Nothing -> Left (RuntimeError "No definitions in the input module")
+      -- also wrap the start
+      let wrappedStart = wrapExpr fullExpr startArgs startSign
+      let initialCircuit = idCircuitFromArgs (startArgs, startSign)
+           -- WIP: sooo wrong, I only use the args of the start to create the context
+      Right (wrappedStart, initialCircuit)
+
+    Nothing -> Left $ RuntimeError "No definitions in the input module."
   
 applyModulesMap :: ModulesMap -> (String, Expr) -> Either RuntimeError Expr
 applyModulesMap maps (progName, startDef) 

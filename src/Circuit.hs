@@ -1,5 +1,11 @@
-module Circuit (WireType(..), QuantumOperation(..), Circuit(..)) where
+module Circuit where
+-- module Circuit (WireType(..), QuantumOperation(..), Circuit(..)) where
+
 import PrettyPrinter
+
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
+import Data.List (intercalate)
 
 data WireType = Bit | Qubit deriving (Show, Eq)
 instance Pretty WireType where
@@ -59,5 +65,42 @@ instance Pretty QuantumOperation where
 
 -- Circuit Datatype
 
-data Circuit = CTodo --TODO: define circuit buffers. This corresponds to CRL expressions in the original paper
+type Label = String
+
+type WireBundle = [Label] -- wire bundles \bar{l}, \bar{k}
+
+type LabelContext = Map Label WireType -- Q
+
+data Circuit = -- Define circuit buffers. This corresponds to CRL expressions in the original paper
+    Id LabelContext
+  | CCons Circuit QuantumOperation WireBundle WireBundle
   deriving Show
+
+makeIdCircuit :: [(Label, WireType)] -> Circuit
+makeIdCircuit pairs = Id (Map.fromList pairs)
+
+seqOp :: Circuit -> QuantumOperation -> WireBundle -> WireBundle -> Circuit
+seqOp c op inLabels outLabels = CCons c op inLabels outLabels
+
+prettyWireBundle :: WireBundle -> String
+prettyWireBundle ls = case ls of
+  []  -> "∗"                          -- use star for "no wire"
+  [l] -> l
+  _   -> "⟨" ++ intercalate "," ls ++ "⟩"
+
+prettyLabelContext :: LabelContext -> String
+prettyLabelContext ctx =
+  let pairs = Map.toList ctx
+      prettyPair (l, t) = l ++ ":" ++ pretty t
+  in intercalate ", " (map prettyPair pairs)
+
+-- Render a Circuit to multiple lines (like the paper's CRL)
+prettyCircuit :: Circuit -> String
+prettyCircuit = unlines . linesOf
+  where
+    linesOf :: Circuit -> [String]
+    linesOf (Id ctx) = ["id: " ++ prettyLabelContext ctx]
+    linesOf (CCons c op ins outs) =
+      let prev = linesOf c
+          this = pretty (op) ++ " (" ++ prettyWireBundle ins ++ ") -> " ++ prettyWireBundle outs
+      in prev ++ [this]

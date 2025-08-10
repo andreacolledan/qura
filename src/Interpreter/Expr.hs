@@ -4,6 +4,7 @@ import PQ.Expr
 import PQ.Type
 import Interpreter.RuntimeError
 
+import Debug.Trace (trace)
 import qualified Data.Set as Set
 import Data.List (foldl')
 
@@ -58,7 +59,7 @@ eval (EApp abs arg) = do -- FIXME maybe the first term needs to be first reduced
     _ -> Left $ RuntimeError "The first argument of EApp did not reduce to an abstraction."
 
 -- APPLY
-eval (EApply _ _) = undefined
+eval (EApply e1 e2) = undefined
 
 -- BOX 
 eval (EBox _ _) = undefined
@@ -96,6 +97,7 @@ eval (ELet p e1 e2) = case p of
 -- INDEX APPLICATION
 
 -- CONSTANT
+
 
 -- TYPE ASSUMPTION
 
@@ -165,7 +167,7 @@ sub trgt new body = case body of
         
         PCons _ _ -> undefined
 
-  ELift _ -> undefined
+  ELift e -> ELift $ sub trgt new e
 
   ENil _ -> undefined
 
@@ -203,7 +205,7 @@ sub trgt new body = case body of
             e1' = ETuple e1tpl'
           in if trgt `elem` tpl
             then ELet p e1' e2
-            else ELet p e1 (sub trgt new e2)
+            else ELet p e1' (sub trgt new e2)
 
         PCons _ _ -> undefined
 
@@ -218,7 +220,7 @@ sub trgt new body = case body of
   EAssume _ _ -> undefined
 
 
--- wraps an eession with abstraction on his args in roder to be able to lift it
+-- wraps an expression with abstraction on his args in order to be able to lift it
 wrapExpr :: Expr -> [Pattern] -> Maybe Type -> Expr
 wrapExpr e [] _ = e
 wrapExpr e _ Nothing = e
