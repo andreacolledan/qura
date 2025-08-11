@@ -74,7 +74,7 @@ type LabelContext = Map Label WireType -- Q
 data Circuit = -- Define circuit buffers. This corresponds to CRL expressions in the original paper
     Id LabelContext
   | CCons Circuit QuantumOperation WireBundle WireBundle
-  deriving Show
+  deriving Show -- do I also want the wire bundle in CCons (for easier access)
 
 makeIdCircuit :: [(Label, WireType)] -> Circuit
 makeIdCircuit pairs = Id (Map.fromList pairs)

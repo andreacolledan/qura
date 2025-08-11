@@ -110,26 +110,26 @@ varsInPattern (PVar v) = Set.singleton v
 varsInPattern (PTuple ps) = Set.unions (map varsInPattern ps)
 varsInPattern (PCons p1 p2) = Set.union (varsInPattern p1) (varsInPattern p2)
 
-freeVars :: Expr -> Set.Set VariableId
-freeVars EUnit = Set.empty
-freeVars (EVar x) = Set.singleton x
-freeVars (ETuple es) = Set.unions (map freeVars es)
-freeVars (EAbs p _ body) = freeVars body `Set.difference` varsInPattern p
-freeVars (ELift e) = freeVars e
-freeVars (ENil _) = Set.empty
-freeVars (ECons e1 e2) = Set.union (freeVars e1) (freeVars e2)
-freeVars (EFold e1 e2 e3) = Set.unions (map freeVars [e1,e2,e3])
-freeVars (EApp e1 e2) = Set.union (freeVars e1) (freeVars e2)
-freeVars (EApply e1 e2) = Set.union (freeVars e1) (freeVars e2)
-freeVars (EBox _ e) = freeVars e
-freeVars (EForce e) = freeVars e
-freeVars (ELet p e1 e2) =
-  Set.union (freeVars e1) (freeVars e2 `Set.difference` varsInPattern p)
-freeVars (EAnno e _) = freeVars e
-freeVars (EIAbs _ e) = freeVars e
-freeVars (EIApp e _) = freeVars e
-freeVars (EConst _) = Set.empty
-freeVars (EAssume e _) = freeVars e
+exprFreeVars :: Expr -> Set.Set VariableId
+exprFreeVars EUnit = Set.empty
+exprFreeVars (EVar x) = Set.singleton x
+exprFreeVars (ETuple es) = Set.unions (map exprFreeVars es)
+exprFreeVars (EAbs p _ body) = exprFreeVars body `Set.difference` varsInPattern p
+exprFreeVars (ELift e) = exprFreeVars e
+exprFreeVars (ENil _) = Set.empty
+exprFreeVars (ECons e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
+exprFreeVars (EFold e1 e2 e3) = Set.unions (map exprFreeVars [e1,e2,e3])
+exprFreeVars (EApp e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
+exprFreeVars (EApply e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
+exprFreeVars (EBox _ e) = exprFreeVars e
+exprFreeVars (EForce e) = exprFreeVars e
+exprFreeVars (ELet p e1 e2) =
+  Set.union (exprFreeVars e1) (exprFreeVars e2 `Set.difference` varsInPattern p)
+exprFreeVars (EAnno e _) = exprFreeVars e
+exprFreeVars (EIAbs _ e) = exprFreeVars e
+exprFreeVars (EIApp e _) = exprFreeVars e
+exprFreeVars (EConst _) = Set.empty
+exprFreeVars (EAssume e _) = exprFreeVars e
 
 -- we rename by adding '
 freshVar :: Set.Set VariableId -> VariableId -> VariableId
@@ -155,9 +155,9 @@ sub trgt new body = case body of
     | otherwise -> case p of
         PHole -> undefined
         PVar pvar -> 
-          if pvar `Set.member` freeVars new
+          if pvar `Set.member` exprFreeVars new
             then 
-              let pvar' = freshVar (Set.union (freeVars new) (freeVars e)) pvar
+              let pvar' = freshVar (Set.union (exprFreeVars new) (exprFreeVars e)) pvar
                   e' = rename pvar pvar' e
               in EAbs (PVar pvar') typ (sub trgt new e')
             else
@@ -190,9 +190,9 @@ sub trgt new body = case body of
       else case p of
         PHole -> undefined
         PVar pvar ->
-          if pvar `Set.member` freeVars new
+          if pvar `Set.member` exprFreeVars new
             then 
-              let pvar' = freshVar (freeVars new `Set.union` freeVars e2 `Set.union` varsInPattern trgt) pvar
+              let pvar' = freshVar (exprFreeVars new `Set.union` exprFreeVars e2 `Set.union` varsInPattern trgt) pvar
                   e2' = sub p (EVar pvar') e2
               in ELet (PVar pvar') e1' (sub trgt new e2')
             else
