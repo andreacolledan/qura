@@ -10,7 +10,6 @@ module Interpreter (
 -- for now, I am simply importing what I need directly
 import Interpreter.RuntimeError
 import Interpreter.Configuration
-import Interpreter.Expr
 import PQ (Module)
 import PQ.Module
 import PQ.Expr
@@ -103,7 +102,7 @@ mergeModLibs (Module programName e i defs) libs = do
 
       -- also wrap the start
       let wrappedStart = wrapExpr fullExpr startArgs startSign
-      let initialCircuit = idCircuitFromArgs (startArgs, startSign)
+      let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- FIXME start is always identity
            -- WIP: sooo wrong, I only use the args of the start to create the context
       Right (wrappedStart, initialCircuit)
 
@@ -250,3 +249,17 @@ searchDefinition maps userModName x =
                     ++ (intercalate ",\n" (map fst defs))
 
 
+-- wraps an expression with abstraction on his args in order to be able to lift it
+wrapExpr :: Expr -> [Pattern] -> Maybe Type -> Expr
+wrapExpr e [] _ = e
+wrapExpr e _ Nothing = e
+wrapExpr e (p:ps) (Just typ) = case typ of
+  TUnit -> undefined
+  TWire _ _ -> EAbs p typ e
+  TTensor _ -> EAbs p typ e
+  TCirc _ _ _ -> undefined
+  TArrow typ1 _ _ _ -> wrapExpr e (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
+  TBang _ typ -> wrapExpr e (p:ps) (Just typ) -- remove the TBang
+  TList _ _ _ -> EAbs p typ e
+  TVar _ -> undefined
+  TIForall ivarid typ' _ _ -> EIAbs ivarid (wrapExpr e ps (Just typ'))

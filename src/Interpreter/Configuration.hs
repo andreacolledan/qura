@@ -1,10 +1,11 @@
 module Interpreter.Configuration where
 
 import Interpreter.RuntimeError
-import Interpreter.Expr(exprFreeVars)
 import PQ.Expr
 import Circuit
 import PrettyPrinter (Pretty (..))
+import PQ.Constant
+import Panic
 
 import Debug.Trace (trace)
 import qualified Data.Set as Set
@@ -19,36 +20,52 @@ data Configuration = Config {
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
   trace (""
-      -- ++ "\n\n-- Pretty Circuit:\n"++ pretty circ
-      ++ "\n\n-- Pretty Expr:\n"++pretty expr
-      ++ "\n\n-- Circuit:\n"++ pretty circ
-      -- ++ "\n\n-- Full Expr:\n"++show expr
+      ++ "-- Circuit Expr:\n"++pretty expr
     ) $ 
     evalConfiguration (Config circ expr)
+
+exprToWirebundle :: Expr -> WireBundle
+exprToWirebundle EUnit = WUnit
+exprToWirebundle (ELab l) = WLab l
+exprToWirebundle (ETuple ls) = WTuple $ map exprToWirebundle ls
+exprToWirebundle _ = error "unexpected error"
+
+wirebundleToExpr :: WireBundle -> Expr
+wirebundleToExpr (WUnit) = EUnit
+wirebundleToExpr (WLab l) = ELab l
+wirebundleToExpr (WTuple ls) = ETuple $ map wirebundleToExpr ls 
+
+
+append :: Circuit -> WireBundle -> WireBundle -> Circuit -> WireBundle -> Configuration
+append _ = undefined
+
+appendEConst :: Circuit -> WireBundle -> QuantumOperation -> Configuration
+appendEConst circ k op = 
+  let
+    t = typeOfQuantOP op
+    q = getContext circ
+    (q', l) = freshlabels t q
+    circ' = CCons circ op k l
+    circ'' = updateContext circ' q'
+  in Config circ'' (wirebundleToExpr l)
 
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   case expr of
-    EUnit -> undefined
+    EUnit -> Right $ Config circ expr
 
-    EVar x -> Right $ Config circ expr
+    EVar x -> Right $ Config circ expr -- value
 
-    ETuple tpl -> undefined -- fold on the config?
+    ETuple tpl -> Right $ Config circ expr -- value
 
-    EAbs p typ e -> 
-      -- this term does not reduce by itself, but if the pattern is a tuple
-      -- we unfold the abstraction into multiple abstractions
-      -- (maybe)
+    EAbs p typ e -> -- value
       Right $ Config circ expr
 
     ELift e -> Right $ Config circ expr
 
-    ENil e -> undefined
+    ENil e -> Right $ Config circ expr -- value
 
-    ECons e1 e2 -> do -- idk?
-      (Config circ' e1') <- evalConfiguration (Config circ e1)
-      (Config circ'' e2') <- evalConfiguration (Config circ' e2)
-      Right $ Config circ'' (ECons e1' e2')
+    ECons e1 e2 -> Right $ Config circ expr -- value
 
     EFold _ _ _ -> undefined
 
@@ -61,10 +78,14 @@ evalConfiguration (Config circ expr) =
 
         _ -> Left $ RuntimeError "The first argument of EApp did not reduce to an abstraction."
 
-    EApply e1 e2 -> undefined
-    -- EApply e1 e2 -> do
-    --   (Config circ' )
-    --   (Config circ'' e2') <- evalConfiguration (Config circ' e2)
+    EApply e1 e2 -> do
+        Config circ' e1' <- evalConfiguration (Config circ e1)
+        Config circ'' e2' <- evalConfiguration (Config circ' e2)
+        let k = exprToWirebundle e2'
+        case e1' of
+          ECirc l d l' -> Right $ append circ'' k l d l'
+          EConst (Boxed op) -> Right $ appendEConst circ'' k op
+          _ -> Left $ RuntimeError "First argument of EApply did not reduce to ECirc or EConst."
 
     EBox typ e -> undefined
 
@@ -88,8 +109,37 @@ evalConfiguration (Config circ expr) =
     EAnno _ _ -> undefined
     EIAbs _ _ -> undefined
     EIApp _ _ -> undefined
-    EConst _ -> undefined
+    EConst c -> Right $ Config circ expr
     EAssume _ _ -> undefined
+
+varsInPattern :: Pattern -> Set.Set VariableId
+varsInPattern PHole = Set.empty
+varsInPattern (PVar v) = Set.singleton v
+varsInPattern (PTuple ps) = Set.unions (map varsInPattern ps)
+varsInPattern (PCons p1 p2) = Set.union (varsInPattern p1) (varsInPattern p2)
+
+exprFreeVars :: Expr -> Set.Set VariableId
+exprFreeVars EUnit = Set.empty
+exprFreeVars (EVar x) = Set.singleton x
+exprFreeVars (ELab _) = Set.empty -- ??
+exprFreeVars (ETuple es) = Set.unions (map exprFreeVars es)
+exprFreeVars (EAbs p _ body) = exprFreeVars body `Set.difference` varsInPattern p
+exprFreeVars (ECirc _ _ _) = Set.empty -- ??
+exprFreeVars (ELift e) = exprFreeVars e
+exprFreeVars (ENil _) = Set.empty
+exprFreeVars (ECons e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
+exprFreeVars (EFold e1 e2 e3) = Set.unions (map exprFreeVars [e1,e2,e3])
+exprFreeVars (EApp e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
+exprFreeVars (EApply e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
+exprFreeVars (EBox _ e) = exprFreeVars e
+exprFreeVars (EForce e) = exprFreeVars e
+exprFreeVars (ELet p e1 e2) =
+  Set.union (exprFreeVars e1) (exprFreeVars e2 `Set.difference` varsInPattern p)
+exprFreeVars (EAnno e _) = exprFreeVars e
+exprFreeVars (EIAbs _ e) = exprFreeVars e
+exprFreeVars (EIApp e _) = exprFreeVars e
+exprFreeVars (EConst _) = Set.empty
+exprFreeVars (EAssume e _) = exprFreeVars e
 
 renameWithContext :: VariableId -> VariableId -> Configuration -> Configuration
 renameWithContext _ _ _ = undefined
@@ -101,31 +151,30 @@ freshVar _ _ = undefined
 -- I do believe that with every rename we have to update the context.
 -- (otherwise how do I know to which wire the operation is referring to?)
 subInConfiguration :: Pattern -> Expr -> Configuration -> Configuration
-subInConfiguration trgt new config = 
-  let (Config circ body) = config in
+subInConfiguration trgt new (Config circ body) = 
+  let config = (Config circ body) in
   case trgt of
-    PHole -> undefined -- typechecked?
+    PHole -> config
 
     PVar pvar -> 
       case body of
         EUnit -> config
 
-        EVar vid -> case trgt of
-          PVar y -> if vid==y
-            then Config circ new -- do I add new args to Q?
-            else config
-          _ -> undefined -- trying to match a PVar with something else than an EVar
+        EVar vid -> if vid==pvar
+          then Config circ new -- do I add new args to Q?
+          else config
+        
+        ELab _ -> config
 
+        ETuple [] -> Config circ (ETuple [])
         ETuple (et:ets) ->
           let 
-            PTuple (pt:pts) = trgt
-            (Config circ' et') = subInConfiguration pt et config
-            (Config circ'' (ETuple ets')) = subInConfiguration 
-                                    (PTuple pts)
-                                    (ETuple ets)
-                                    (Config circ' body) -- <--- whenever I do something like this, do I need to ensure that the labels are 'compatible'?
+            -- sub in the first element
+            (Config circ' et') = subInConfiguration trgt new (Config circ et)
+            -- sub in the remaining elements of the tuple
+            (Config circ'' (ETuple ets')) = 
+              subInConfiguration trgt new (Config circ' (ETuple ets))
           in Config circ'' (ETuple (et':ets'))
-        ETuple [] -> Config circ (ETuple [])
 
         EAbs p typ e
           | p == trgt -> config
@@ -139,13 +188,19 @@ subInConfiguration trgt new config =
             let (Config circ' e') = subInConfiguration trgt new (Config circ e)
             Config circ' (EAbs p typ e')
 
+        ECirc _ _ _ -> config
+
         ELift e -> 
           let (Config circ' e') = subInConfiguration trgt new (Config circ e)
           in Config circ' (ELift e')
 
         ENil e -> undefined
 
-        ECons e1 e2 -> undefined
+        ECons e1 e2 -> 
+          let
+            (Config circ' e1') = subInConfiguration trgt new (Config circ e1)
+            (Config circ'' e2') = subInConfiguration trgt new (Config circ' e2)
+          in Config circ'' (ECons e1' e2')
 
         EFold e1 e2 e3 -> undefined
 
@@ -155,7 +210,11 @@ subInConfiguration trgt new config =
             (Config circ'' e2') = subInConfiguration trgt new (Config circ' e2)
           in Config circ'' (EApp e1' e2')
 
-        EApply e1 e2 -> undefined
+        EApply e1 e2 -> 
+          let
+            (Config circ' e1') = subInConfiguration trgt new (Config circ e1)
+            (Config circ'' e2') = subInConfiguration trgt new (Config circ' e2)
+          in Config circ'' (EApply e1' e2')
 
         EBox e1 e2 -> undefined
 
@@ -178,7 +237,7 @@ subInConfiguration trgt new config =
               let (Config circ'' e2') = subInConfiguration trgt new (Config circ' e2)
               in Config circ' (ELet p e1' e2')
             
-          PTuple tpl ->
+          PTuple tpl -> -- we simply convert the let tuple expression to a chain of lets
             let 
               ETuple e1tpl = e1
               unfoldedTupleExpr = unfoldLetTuple tpl e1tpl e2
@@ -198,7 +257,7 @@ subInConfiguration trgt new config =
 
         EIApp e i -> undefined
 
-        EConst c -> undefined
+        EConst c -> config
 
         EAssume e typ -> undefined
 

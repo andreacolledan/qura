@@ -81,9 +81,9 @@ interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filep
     case runInterpreter mod libs of
       Left err -> abortWithMessage $ show err
       Right config -> do
-        putStr $ "File '" ++ fp ++ "', produced circuit:\n> "
-        print $ circuit config
-        putStr "\nwhile evaluating to:\n> "
+        putStr $ "\nFile '" ++ fp ++ "', produced circuit:\n"
+        putStr $ pretty $ circuit config
+        putStr "\n\nwhile evaluating to:\n> "
         putStr $ pretty (term config) ++"\n"
 
 abortWithMessage :: String -> IO ()

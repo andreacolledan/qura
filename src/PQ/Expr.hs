@@ -14,6 +14,8 @@ import PQ.Constant
 import PQ.Index
 import PQ.Type
 import PrettyPrinter (Pretty (..))
+import Circuit
+
 
 
 type VariableId = String
@@ -37,8 +39,10 @@ instance Pretty Pattern where
 data Expr =
   EUnit                                       -- Unit value               : ()
   | EVar VariableId                           -- Variable                 : x, y, z, ...          
+  | ELab Label                                -- Label                    : ℓ, k
   | ETuple [Expr]                             -- Pair                     : (e1, e2)
   | EAbs Pattern Type Expr                    -- Abstraction              : \p :: t . e
+  | ECirc WireBundle Circuit WireBundle       -- Box circuit              : (ℓ,D,ℓ')
   | ELift Expr                                -- Lift                     : lift e
   | ENil (Maybe Type)                         -- Nil                      : []
   | ECons Expr Expr                           -- Cons                     : e : es
@@ -58,8 +62,10 @@ data Expr =
 instance Pretty Expr where
   pretty EUnit = "()"
   pretty (EVar id) = id
+  pretty (ELab l) = l
   pretty (ETuple es) = "(" ++ intercalate ", " (map pretty es) ++ ")"
   pretty (EAbs p t e) = "(\\" ++ pretty p ++ " :: " ++ pretty t ++ " . " ++ pretty e ++ ")" 
+  pretty (ECirc ins circ outs) = "(" ++ pretty ins ++ ", " ++ "[BOXED CIRC]" ++ ", "++ pretty outs ++")" -- FIXME if we pretty circ we get a loooot of lines no?
   pretty (EApp e1 e2) = "(" ++ pretty e1 ++ " " ++ pretty e2 ++ ")"
   pretty (ELift e) = "(lift " ++ pretty e ++ ")"
   pretty (EForce e) = "(force " ++ pretty e ++ ")"
@@ -114,7 +120,3 @@ instance HasType Expr where
   tsub sub (EIApp e i) = EIApp (tsub sub e) i
   tsub _ e@(EConst _) = e
   tsub sub (EAssume e t) = EAssume (tsub sub e) (tsub sub t)
-  
-
-
-  
