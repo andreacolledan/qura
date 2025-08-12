@@ -5,7 +5,6 @@ import PQ.Expr
 import Circuit
 import PrettyPrinter (Pretty (..))
 import PQ.Constant
-import Panic
 
 import Debug.Trace (trace)
 import qualified Data.Set as Set
@@ -37,7 +36,25 @@ wirebundleToExpr (WTuple ls) = ETuple $ map wirebundleToExpr ls
 
 
 append :: Circuit -> WireBundle -> WireBundle -> Circuit -> WireBundle -> Configuration
-append _ = undefined
+append c k l d l' = 
+  let
+  -- 1) collect all the names appearing in l d l'
+    oldNames = namesInBox (l, d, l')
+    avoidNames = namesInBox (WUnit, c, k)
+
+  -- 2) create a renaming from l to t so that label in t don't appear in c
+    renaming = createRenaming oldNames avoidNames
+
+  -- 3) use the renaming to obtain l d l'-> t d' t'
+    (t, d', t') = updateBoxNames renaming (l, d, l')
+
+  -- 4) concat c::d' and obtain c'
+    c' = circConcat c d' -- is the last instruction g(t*)->t' already in d'?
+    
+  in
+  -- 5) return (c', t')
+  Config c' (wirebundleToExpr t')
+
 
 appendEConst :: Circuit -> WireBundle -> QuantumOperation -> Configuration
 appendEConst circ k op = 
@@ -194,7 +211,7 @@ subInConfiguration trgt new (Config circ body) =
           let (Config circ' e') = subInConfiguration trgt new (Config circ e)
           in Config circ' (ELift e')
 
-        ENil e -> undefined
+        ENil e -> config
 
         ECons e1 e2 -> 
           let
@@ -249,7 +266,22 @@ subInConfiguration trgt new (Config circ body) =
                 -- typechecked?
                 unfoldLetTuple _ _ _ = error "unfoldLetTuple: pattern and expression lists must have same length"                
           
-          PCons _ _ -> undefined
+          PCons _ _ -> --undefined
+            let 
+              unfoldedConsExpr = trace(show trgt)$unfoldLetCons p e1 e2
+            in subInConfiguration trgt new (Config circ unfoldedConsExpr)
+              where -- this feels a bit scuffed idk
+                unfoldLetCons :: Pattern -> Expr -> Expr -> Expr
+                unfoldLetCons _ (ENil typ) expr = error "Trying to assign to a PCons a smaller ECons"
+                -- the last pattern gets subbed with the remaining list 
+                -- (if they have the same length its gonna be the last element and ENil)
+                unfoldLetCons (PCons PHole p) e expr = e
+                
+                unfoldLetCons (PCons ps p) (ECons es e) expr =
+                  ELet p e (unfoldLetCons ps es expr)
+                
+                unfoldLetCons p e expr = expr -- cant unfold yet
+                
 
         EAnno e typ-> undefined
 

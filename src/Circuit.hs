@@ -7,6 +7,8 @@ import PrettyPrinter
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.List (intercalate)
+import qualified Data.Set as Set
+
 
 data WireType = Bit | Qubit deriving (Show, Eq)
 instance Pretty WireType where
@@ -67,7 +69,7 @@ instance Pretty QuantumOperation where
   pretty Toffoli = "Toffoli"
 
 
--- Circuit Datatype
+-- Bundles Datatype
 
 type Label = String
 
@@ -86,11 +88,28 @@ data WireBundle =
   | WCons WireBundle WireBundle 
   deriving (Eq, Show)
 
+namesInBundle :: WireBundle -> Set.Set String
+namesInBundle WUnit = Set.empty
+namesInBundle (WLab label) = Set.singleton label
+namesInBundle (WTuple ws) = Set.unions (map namesInBundle ws)
+namesInBundle (WNil _) = Set.empty
+namesInBundle (WCons w ws) = namesInBundle w `Set.union` namesInBundle ws
+
+
+typeOfBundle :: WireBundle -> BundleType
+typeOfBundle WUnit = BUnit
+typeOfBundle _ = undefined
+
+typeOfQuantOP :: QuantumOperation -> BundleType
+typeOfQuantOP (QInit _) = BWire Qubit
+typeOfQuantOP _ = undefined
+
+-- Label Context 
+
 type LabelContext = Map Label WireType -- Q
 
 insert :: LabelContext -> (Label, WireType) -> LabelContext
 insert q (l, t) = Map.insert l t q
-
 
 freshlabels :: BundleType -> LabelContext -> (LabelContext, WireBundle)
 freshlabels t q = case t of
@@ -107,19 +126,12 @@ freshlabels t q = case t of
 
   _ -> undefined
 
-typeOfBundle :: WireBundle -> BundleType
-typeOfBundle WUnit = BUnit
-typeOfBundle _ = undefined
+-- Circuit Datatype
 
-typeOfQuantOP :: QuantumOperation -> BundleType
-typeOfQuantOP (QInit _) = BWire Qubit
-typeOfQuantOP _ = undefined
-
-
-data Circuit = -- Define circuit buffers. This corresponds to CRL expressions in the original paper
+data Circuit = -- This corresponds to CRL expressions in the original paper
     Id LabelContext
   | CCons Circuit QuantumOperation WireBundle WireBundle
-  deriving (Eq, Show) -- do I also want the context in CCons (for easier access)
+  deriving (Eq, Show)
 
 makeIdCircuit :: [(Label, WireType)] -> Circuit
 makeIdCircuit pairs = Id (Map.fromList pairs)
@@ -133,7 +145,12 @@ updateContext (Id _) q = Id q
 updateContext (CCons circ op ins outs) q = CCons (updateContext circ q) op ins outs
 
 instance Pretty WireBundle where
-  pretty bundle = show bundle
+  pretty bundle = case bundle of
+    WUnit -> "*"
+    WLab l -> l
+    WTuple t -> "(" ++ intercalate ", " (map pretty t) ++ ")"
+    WNil _ -> "()" -- ?
+    WCons e1 e2 -> "(" ++ pretty e1 ++ ":" ++ pretty e2 ++ ")"
 
 instance Pretty LabelContext where
   pretty ctx =
@@ -158,3 +175,58 @@ instance Pretty Circuit where
       concatLines []     = ""
       concatLines [x]    = x ++ "."
       concatLines (x:xs) = x ++ ";\n" ++ concatLines xs
+
+-- Circuit operations and helpers
+
+namesInCircuit :: Circuit -> Set.Set String
+namesInCircuit (Id ctx) = Set.fromList (Map.keys ctx)
+namesInCircuit (CCons circ _ ins outs) =
+    Set.unions
+      [ namesInCircuit circ
+      , namesInBundle ins
+      , namesInBundle outs
+      ]
+
+namesInBox :: (WireBundle, Circuit, WireBundle) -> Set.Set String -- string bcs there are labels and variableIds
+namesInBox (ins, circ, outs) = 
+  Set.unions [namesInBundle ins, namesInCircuit circ, namesInBundle outs]
+
+circConcat :: Circuit -> Circuit -> Circuit
+circConcat c (Id _) = c
+circConcat c (CCons d g l k) = CCons (circConcat c d) g l k
+
+-- renaming
+
+type Renaming = Map String String
+
+createRenaming :: Set.Set String -> Set.Set String -> Renaming
+createRenaming old avoid =
+    Map.fromList [ (name, freshName name avoid) | name <- Set.toList old ]
+  where
+    freshName n avoidSet
+      | n `Set.notMember` avoidSet = n
+      | otherwise = freshName (n ++ "'") avoidSet
+
+renameBundle :: Renaming -> WireBundle -> WireBundle
+renameBundle _ WUnit = WUnit
+-- the default is not needed in the use case, but the general function might need it
+renameBundle rn (WLab label) = WLab (Map.findWithDefault label label rn) 
+renameBundle rn (WTuple ws) = WTuple (map (renameBundle rn) ws)
+renameBundle _ (WNil t) = WNil t
+renameBundle rn (WCons w ws) = WCons (renameBundle rn w) (renameBundle rn ws)
+
+renameLabelContext :: Renaming -> LabelContext -> LabelContext
+renameLabelContext rn ctx =
+  Map.fromList
+    [ (Map.findWithDefault label label rn, wt)
+    | (label, wt) <- Map.toList ctx
+    ]
+
+renameCircuit :: Renaming -> Circuit -> Circuit
+renameCircuit rn (Id ctx) =
+  Id (renameLabelContext rn ctx)
+renameCircuit rn (CCons c op ins outs) =
+  CCons (renameCircuit rn c) op (renameBundle rn ins) (renameBundle rn outs)
+
+updateBoxNames :: Renaming -> (WireBundle, Circuit, WireBundle) -> (WireBundle, Circuit, WireBundle)
+updateBoxNames rn (ins, circ, outs) = (renameBundle rn ins, renameCircuit rn circ, renameBundle rn outs)
