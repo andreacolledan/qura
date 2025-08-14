@@ -9,7 +9,7 @@ module PQ.Expr
     exprToWirebundle,
     wirebundleToExpr,
     renameInPattern,
-    esub
+    psub
   )
 where
 
@@ -34,6 +34,7 @@ import Circuit
 import Interpreter.RuntimeError
 
 import qualified Data.Set as Set
+import Debug.Trace (trace)
 
 
 type VariableId = String
@@ -172,6 +173,7 @@ instance HasType Expr where
 
 -- newtype IndexSubstitution = IndexSubstitution (Map.HashMap IVarId Index)
 
+-- i dont remember if i can put this on Analyzer/Unify.hs due to conflicts
 instance HasIndex Expr where
   iv :: Expr -> HSet.HashSet IVarId
   iv _ = undefined
@@ -210,55 +212,134 @@ instance HasIndex Expr where
 
 ------------------------------------------------
 
-class CanESub a where
-  esub :: a -> Expr -> Expr -> Expr
+psub :: Pattern -> Expr -> Expr -> Expr
+psub x v m = case x of
+  PHole -> m
 
-instance CanESub Pattern where
-  esub :: Pattern -> Expr -> Expr -> Expr
-  esub _ _ _ = undefined
-
--- M[V/x] (definition B.4)
-instance CanESub VariableId where
-  esub :: VariableId -> Expr -> Expr -> Expr
-  esub x v m = 
+  PVar pvar -> 
     case m of
       EUnit -> EUnit
-      EVar y
-        | x==y -> v
-        | otherwise -> EVar y
+
+      EVar y -> if pvar==y
+        then v
+        else m
+      
       ELab l -> ELab l
-      ETuple w -> case w of
-        []      -> ETuple []
-        (w1:w2) ->
-          let 
-            -- sub in the first element
-            w1' = esub x v w1
-            -- sub in the remaining elements of the tuple
-            (ETuple w2') = esub x v (ETuple w2)
-          in ETuple (w1':w2')
-      EAbs (PVar y) a m
-        | x == y -> EAbs (PVar y) a m
-        | otherwise -> -- sub y with a variable not present in v
-          let 
-            y' = freshVariableId (exprFreeVars v) y
-            m' = rename y y' m
-          in EAbs (PVar y') a (esub x v m')
-      ECirc l c k -> ECirc l c k
-      ELift m -> ELift $ esub x v m
+
+      ETuple [] -> ETuple []
+      ETuple (et:ets) ->
+        let 
+          -- sub in the first element
+          et' = psub x v et
+          -- sub in the remaining elements of the tuple
+          (ETuple ets') = psub x v (ETuple ets)
+        in ETuple (et':ets')
+
+      EAbs p typ e
+        | p == x -> EAbs p typ e
+        -- | pvar `Set.member` exprFreeVars v ->
+        | otherwise ->
+          let
+            pvar' = freshVariableId (Set.union (exprFreeVars v) (exprFreeVars e)) pvar
+            e' = rename pvar pvar' e
+            e'' = psub x v e'
+          in EAbs (PVar pvar') typ e''
+        -- | otherwise -> do
+        --   let 
+        --     e' = psub x v e
+        --   in EAbs p typ e'
+
+      ECirc l c k -> ECirc l c k 
+
+      ELift m -> ELift $ psub x v m
+
       ENil typ -> ENil typ
-      ECons w1 w2 -> ECons (esub x v w1) (esub x v w2)
-      EFold w1 w2 w3 -> EFold (esub x v w1) (esub x v w2) (esub x v w2)
-      EApp w1 w2 -> EApp (esub x v w1) (esub x v w2)
-      EApply w1 w2 -> EApply (esub x v w1) (esub x v w2)
-      EBox t w -> EBox t $ esub x v w
-      EForce w -> EForce $ esub x v w
+
+      ECons w1 w2 -> ECons (psub x v w1) (psub x v w2)
+
+      EFold w1 w2 w3 -> EFold (psub x v w1) (psub x v w2) (psub x v w3)
+
+      EApp w1 w2 -> EApp (psub x v w1) (psub x v w2)
+
+      EApply w1 w2 -> EApply (psub x v w1) (psub x v w2)
+
+      EBox t w -> EBox t $ psub x v w
+
+      EForce w -> EForce $ psub x v w
+
       ELet p e1 e2 -> case p of 
-        _ -> undefined            
-      EAnno w t -> EAnno (esub x v w) t
-      EIAbs id e -> EIAbs id $ esub x v e
-      EIApp e i -> EIApp (esub x v e) i
+        PHole -> ELet PHole (psub x v e1) (psub x v e2)
+        PVar y ->
+          let e1' = psub x v e1
+          in if y `Set.member` exprFreeVars v
+          then 
+            let y' = freshVariableId (exprFreeVars v `Set.union` exprFreeVars e2 `Set.union` Set.singleton pvar) y
+                e2' = rename y y' e2
+                e2'' = psub x v e2'
+            in ELet (PVar y') e1' e2''
+          else 
+            let e2' = psub x v e2
+            in ELet p e1' e2'
+          
+        PTuple _ -> -- we simply convert the let tuple expression to a chain of lets
+          let
+            unfoldedTupleExpr = unfoldLetTuple p e1 e2
+          in psub x v unfoldedTupleExpr
+            where
+              -- can only unfold if they are both tuples with same elements
+              unfoldLetTuple :: Pattern -> Expr -> Expr -> Expr
+              unfoldLetTuple (PTuple []) (ETuple []) m = m
+              unfoldLetTuple (PTuple (p:ps)) (ETuple (e:es)) m = ELet p e (unfoldLetTuple (PTuple ps) (ETuple es) m)
+              unfoldLetTuple (PTuple []) _ _ = error "PTuple was bugegr than PTuple." -- ??
+              unfoldLetTuple _ (ETuple []) _ = error "PTuple was smaller than ETuple." -- ??
+              unfoldLetTuple _ _ expr = expr -- cant unfold yet
+            
+        PCons _ _ -> --undefined
+          let 
+            unfoldedConsExpr = unfoldLetCons p e1 e2 --trace(show x)$
+          in psub x v unfoldedConsExpr
+            where -- this feels a bit scuffed idk
+              unfoldLetCons :: Pattern -> Expr -> Expr -> Expr
+              unfoldLetCons _ (ENil typ) expr = error "Trying to assign to a PCons a smaller ECons"
+              -- the last pattern gets subbed with the remaining list 
+              -- (if they have the same length its gonna be the last element and ENil)
+              unfoldLetCons (PCons PHole p) e expr = e
+              
+              unfoldLetCons (PCons ps p) (ECons es e) expr =
+                ELet p e (unfoldLetCons ps es expr)
+              
+              unfoldLetCons p e expr = expr -- cant unfold yet
+              
+      EAnno w typ -> EAnno (psub x v w) typ
+
+      EIAbs id e -> EIAbs id $ psub x v e
+
+      EIApp e i -> EIApp (psub x v e) i
+
       EConst c -> EConst c
-      EAssume w t -> EAssume (esub x v w) t
+
+      EAssume w typ -> EAssume (psub x v w) typ
+
+  PTuple [] -> m
+  PTuple (pt:pts) -> 
+    -- subbing a tuple is the same as having a chain of single substitutions,
+    -- but it can only be done if the `v` is also a tuple of the same length.
+    -- I truly hope that it got typechecked.
+    -- We *could* sub if the v tuple is longer, not if it is shorter, but idk.
+    
+    -- we first check if the second element is a tuple, if true
+    -- sub one element at the time inside the body
+    case v of
+      ETuple etpl -> case etpl of
+        [] -> ETuple []
+        (et:ets) -> 
+          let
+            m' = psub pt et m
+          in psub (PTuple pts) (ETuple ets) m'
+
+      _ -> error "Unexpected error: cannot sub a tuple with a non-tuple element."
+
+  PCons _ _ -> undefined
 
 ------------------------------------------------
 isBundle :: Expr -> Bool
@@ -352,5 +433,5 @@ rename old v expr =
 freshVariableId :: Set.Set VariableId -> VariableId -> VariableId
 freshVariableId used x = head $ dropWhile (`Set.member` used) candidates
   where
-    candidates = [x ++ replicate n '\'' | n <- [1..]]
+    candidates = [x ++ replicate n '\'' | n <- [0..]]
 

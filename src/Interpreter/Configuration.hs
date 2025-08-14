@@ -64,12 +64,12 @@ appendEConst circ k op =
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
-  trace("\nEvaluating:\n"++pretty config)$case expr of
-  -- case expr of
+  -- trace("\nEvaluating:\n"++pretty config)$case expr of
+  case expr of
     EUnit -> Right config
 
-    EVar x -> Left $ RuntimeError $ "The variable "++show x++" has not been assigned to any value." --"image2.png said that (C,x) evaluates to Error :)"
-    -- EVar _ -> Right config -- value
+    -- EVar x -> Left $ RuntimeError $ "The variable "++show x++" has not been assigned to any value." --"image2.png said that (C,x) evaluates to Error :)"
+    EVar _ -> Right config -- value
 
     ELab _ -> Right config -- value
 
@@ -93,7 +93,7 @@ evalConfiguration (Config circ expr) =
       case abs' of 
         EAbs p _ body -> do
           (Config circ'' arg') <- evalConfiguration (Config circ' arg)
-          evalConfiguration $ Config circ'' $ esub p arg' body
+          evalConfiguration $ Config circ'' $ psub p arg' body
 
         _ -> Left $ RuntimeError "The first argument of EApp did not reduce to an abstraction."
 
@@ -124,19 +124,9 @@ evalConfiguration (Config circ expr) =
         ELift m' -> evalConfiguration (Config circ' m')
         _ -> Left $ RuntimeError "No ELift found inside EForce."
 
-    ELet p e1 e2 -> case p of
-      PHole -> do
-        (Config circ' e1') <- evalConfiguration (Config circ e1)
-        evalConfiguration (Config circ' e2)
-
-      PVar x -> do
-        (Config circ' e1') <- evalConfiguration (Config circ e1)
-        evalConfiguration $ Config circ' $ esub p e1' e2
-      
-      PTuple _ -> -- e1 is an ETuple
-        evalConfiguration $ Config circ $ esub p e1 e2
-
-      PCons e1 e2 -> undefined
+    ELet p e1 e2 -> do
+      (Config circ' e1') <- evalConfiguration (Config circ e1)
+      evalConfiguration $ Config circ' $ psub p e1' e2
 
     EAnno _ _ -> undefined
 
@@ -146,18 +136,18 @@ evalConfiguration (Config circ expr) =
     EIApp m i -> do
       (Config circ' m') <- evalConfiguration (Config circ m)
       case m' of
-        EIAbs ivar n -> do
-          -- eval index i and obtain w
-          
-          -- sh <- gets solverHandle
-          let w = i
-
-          -- sub ivar with w in n and obtain (Config circ' n')
-          let n' = isub (isubSingleton ivar w) n
-
-          evalConfiguration (Config circ' n')
-        
-        _ -> Right $ Config circ' m'
+        EIAbs ivar n -> doFIXME PLS
+          -- eval index i and obtain wFIXME PLS
+          FIXME PLS
+          -- sh <- gets solverHandleFIXME PLS
+          let w = iFIXME PLS
+FIXME PLS
+          -- sub ivar with w in n and obtain (Config circ' n')FIXME PLS
+          let n' = isub (isubSingleton ivar w) nFIXME PLS
+FIXME PLS
+          evalConfiguration (Config circ' n')FIXME PLS
+        FIXME PLS
+        _ -> Right $ Config circ' m'FIXME PLS
         -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
         -- err -> trace("Error in M@I\nArgs:\n> M:\n "++show m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++show m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
