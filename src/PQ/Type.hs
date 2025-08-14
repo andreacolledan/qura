@@ -9,7 +9,8 @@ module PQ.Type
     WireType(..),
     HasSize(..),
     stripGlobalAnnotations,
-    stripLocalAnnotations
+    stripLocalAnnotations,
+    typeToBundleType
   )
 where
 
@@ -143,3 +144,17 @@ instance (Traversable t, HasSize a) => HasSize (t a) where
 instance HasSize a => HasSize (Maybe a) where
   typeSize Nothing = Nothing
   typeSize (Just x) = typeSize x
+
+---------------------------
+
+typeToBundleType :: Maybe Type -> BundleType
+typeToBundleType Nothing  = error "typeToBundleType: Nothing"
+typeToBundleType (Just t) = go t
+  where
+    go :: Type -> BundleType
+    go TUnit             = BUnit
+    go (TWire wt _)      = BWire wt
+    go (TTensor ts)      = BTensor (map go ts)
+    go (TCirc _ inTy _)  = go inTy
+    go (TBang _ t')      = go t'
+    go _                 = error "typeToBundleType: unsupported type"

@@ -55,11 +55,11 @@ splitTLDEFs [x] = ([], Just x)
 splitTLDEFs xs = (init xs, Just (last xs))
 
 idCircuitFromArgs :: ([Pattern], Maybe Type) -> Circuit
-idCircuitFromArgs _ = makeIdCircuit []
+idCircuitFromArgs _ = mkIdCircuit []
 -- idCircuitFromArgs :: TopLevelDefinition -> LabelContext
 -- idCircuitFromArgs (TopLevelDefinition _ a s _) = 
 --   let ctx = pairArgPattern a s
---   in makeIdCircuit ctx
+--   in mkIdCircuit ctx
 --     where
 --       pairArgPattern :: [Pattern] -> Maybe Type -> [(Label, WireType)]
 --       pairArgPattern [] _ = []
@@ -86,7 +86,7 @@ mergeModLibs (Module programName e i defs) libs = do
   -- convert the remaining to a map aswell as the libs.
   -- From this 'start', substitute with the maps, being careful with the
   -- var names
-  let (remaining, start) = splitTLDEFs defs
+  let (remaining, start) = splitTLDEFs defs -- or maybe we set that only the main is exectued
   let definitionsMap = createMapFromModules ((Module programName e i remaining) : libs)
   
   case start of
@@ -101,9 +101,8 @@ mergeModLibs (Module programName e i defs) libs = do
       fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
 
       -- also wrap the start
-      let wrappedStart = wrapExpr fullExpr startArgs startSign
-      let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- FIXME start is always identity
-           -- WIP: sooo wrong, I only use the args of the start to create the context
+      let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
+      let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
       Right (wrappedStart, initialCircuit)
 
     Nothing -> Left $ RuntimeError "No definitions in the input module."
@@ -138,6 +137,8 @@ applyModulesMap maps (progName, startDef)
 
       Right Nothing -> Right startDef -- No definition found, return the term itself
 
+    ELab _ -> Right startDef
+
     ETuple es -> do
       es' <- mapM (\e -> applyModulesMap maps (progName, e)) es
       Right (ETuple es')
@@ -145,6 +146,8 @@ applyModulesMap maps (progName, startDef)
     EAbs ptrn typ e -> do
       e' <- applyModulesMap maps (progName, e)
       Right (EAbs ptrn typ e')
+
+    ECirc _ _ _ -> Right startDef
 
     ELift e -> do
       e' <- applyModulesMap maps (progName, e)

@@ -8,6 +8,7 @@ import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import Data.List (intercalate)
 import qualified Data.Set as Set
+import Debug.Trace (trace)
 
 
 data WireType = Bit | Qubit deriving (Show, Eq)
@@ -102,11 +103,31 @@ typeOfBundle _ = undefined
 
 typeOfQuantOP :: QuantumOperation -> BundleType
 typeOfQuantOP (QInit _) = BWire Qubit
-typeOfQuantOP _ = undefined
+typeOfQuantOP (QDiscard) = BUnit
+typeOfQuantOP (Meas) = BWire Bit
+typeOfQuantOP (CInit _) = BWire Bit
+typeOfQuantOP (CDiscard) = BUnit
+typeOfQuantOP (Hadamard) = BWire Qubit
+typeOfQuantOP (PauliX) = BWire Qubit
+typeOfQuantOP (PauliY) = BWire Qubit
+typeOfQuantOP (PauliZ) = BWire Qubit
+typeOfQuantOP (T) = BWire Qubit
+typeOfQuantOP (R _) = BWire Qubit
+typeOfQuantOP (Rinv _) = BWire Qubit
+typeOfQuantOP (CNot) = BTensor [BWire Qubit, BWire Qubit]
+typeOfQuantOP (CZ) = BTensor [BWire Qubit, BWire Qubit]
+typeOfQuantOP (CR _) = BTensor [BWire Qubit, BWire Qubit]
+typeOfQuantOP (CRinv _) = BTensor [BWire Qubit, BWire Qubit]
+typeOfQuantOP (CCNot) = BTensor [BWire Bit, BWire Qubit]
+typeOfQuantOP (CCZ) = BTensor [BWire Bit, BWire Qubit]
+typeOfQuantOP (Toffoli) = BTensor [BWire Qubit, BWire Qubit, BWire Qubit]
 
 -- Label Context 
 
 type LabelContext = Map Label WireType -- Q
+
+emptyContext :: LabelContext
+emptyContext = Map.empty
 
 insert :: LabelContext -> (Label, WireType) -> LabelContext
 insert q (l, t) = Map.insert l t q
@@ -133,8 +154,8 @@ data Circuit = -- This corresponds to CRL expressions in the original paper
   | CCons Circuit QuantumOperation WireBundle WireBundle
   deriving (Eq, Show)
 
-makeIdCircuit :: [(Label, WireType)] -> Circuit
-makeIdCircuit pairs = Id (Map.fromList pairs)
+mkIdCircuit :: [(Label, WireType)] -> Circuit
+mkIdCircuit pairs = Id (Map.fromList pairs)
 
 getContext :: Circuit -> LabelContext
 getContext (Id q) = q
