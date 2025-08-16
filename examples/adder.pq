@@ -50,7 +50,7 @@ qdiscard = (force qdiscard @0)
 --- Circuits ---
 
 -- CARRY (Fig. 3.i)
-carry :: ![0]((Qubit, Qubit, Qubit, Qubit) -o[4, 0] (Qubit, Qubit, Qubit, Qubit))
+carry :: ![0]((Qubit, Qubit, Qubit, Qubit) -o[4] (Qubit, Qubit, Qubit, Qubit))
 carry (c, a, b, cnext) =
   let (a, b, cnext) = force toffoli a b cnext in
   let (a,b) = force cnot a b in
@@ -58,7 +58,7 @@ carry (c, a, b, cnext) =
   (c, a, b, cnext)
 
 -- SUM (Fig. 3.ii)
-csum :: ![0]((Qubit, Qubit, Qubit) -o[3, 0] (Qubit, Qubit, Qubit))
+csum :: ![0]((Qubit, Qubit, Qubit) -o[3] (Qubit, Qubit, Qubit))
 csum (c, a, b) =
   let (a,b) = force cnot a b in
   let (c, b) = force cnot c b in
@@ -66,7 +66,7 @@ csum (c, a, b) =
 
 -- ADDER
 -- (Fig. 2, first half)
-adderFirstPhase :: ![0](forall[0,0] n. (List[_<n+1] Qubit, List[_<n+1] Qubit) -o[3*n + 4, 0] (List[_<n+1] ((Qubit, Qubit), Qubit), Qubit))
+adderFirstPhase :: ![0](forall[0] n. (List[_<n+1] Qubit, List[_<n+1] Qubit) -o[3*n + 4] (List[_<n+1] ((Qubit, Qubit), Qubit), Qubit))
 adderFirstPhase n (a, b) =
   let ab = (force qzip @n) (a,b) in
   let abc = (force interleave @ n+1) ab in --every first position is a, every second is b, every third is c
@@ -77,7 +77,7 @@ adderFirstPhase n (a, b) =
   let (reslist,clast) = fold(adderStepFirst, ([], initialAcc), abc) in
   (reslist,clast) -- note that the output triples are reversed
 
-adderSecondPhase :: ![0](forall[0,0] n. (Qubit, List[_<n] ((Qubit, Qubit), Qubit)) -o[3*n + 1, 0] (Qubit, List[_<n] (Qubit, Qubit)))
+adderSecondPhase :: ![0](forall[0] n. (Qubit, List[_<n] ((Qubit, Qubit), Qubit)) -o[3*n + 1] (Qubit, List[_<n] (Qubit, Qubit)))
 adderSecondPhase n (cfirst, abc) =
   --subcircuit used in the second phase: carry followed by sum, carry discarded:
   let csum = lift \(c,a,b,cnext) :: (Qubit,Qubit,Qubit,Qubit). 
@@ -93,7 +93,7 @@ adderSecondPhase n (cfirst, abc) =
   in fold(adderStepSecond, (cfirst,[]), abc)
 
 --whole adder circuit:
-adder :: ![0](forall[0,0] n. (List[_<n+1] Qubit, List[_<n+1] Qubit) -o[3*(n+1) + 1, 0] (List[_<n+1] Qubit, List[_<n+2] Qubit))
+adder :: ![0](forall[0] n. (List[_<n+1] Qubit, List[_<n+1] Qubit) -o[3*(n+1) + 1] (List[_<n+1] Qubit, List[_<n+2] Qubit))
 adder n (a, b) =
   let (rest:((c,a),b),lsb) = (force adderFirstPhase @n) (a,b) in
   let (a,b) = force cnot a b in

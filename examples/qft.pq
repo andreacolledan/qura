@@ -26,7 +26,7 @@ rotate = forall d. forall iter. lift forall step.
 --- QUANTUM FOURIER TRANSFORM ---
 
 -- apply the Quantum Fourier Transform to n qubits at depth d
-qft :: ![0](forall[0,0] n. forall[0,0] d. List[i<n] Qubit{d} -o[n,0] List[i<n] Qubit{d+n+i})
+qft :: ![0](forall[0] n. forall[0] d. List[i<n] Qubit{d} -o[n] List[i<n] Qubit{d+n+i})
 qft n d reg =
     let qftIter = lift forall iter. -- define the iteration of the QFT
       \(ctrls, trg)::(List[i<iter] Qubit{d+iter+i}, Qubit{d}).

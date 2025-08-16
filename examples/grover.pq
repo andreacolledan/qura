@@ -28,7 +28,7 @@ mapMeasure = forall n. forall d. \x :: List[_<n] Qubit{d}.
 --- GROVER'S ALGORITHM ---
 
 -- the diffusion operator on n qubits with ancilla a (all qubits at depth d)
-diffusion :: ![0](forall[0,0] n. forall[0,0] d. List[_<n] Qubit{d} -o[0,0] Qubit{d} -o[4*n + 1, 0] (List[_<n] Qubit{d+5}, Qubit{d+3}))
+diffusion :: ![0](forall[0] n. forall[0] d. List[_<n] Qubit{d} -o[0] Qubit{d} -o[4*n + 1] (List[_<n] Qubit{d+5}, Qubit{d+3}))
 diffusion n d reg a =
     let reg = (force mapHadamard @ n @ d) reg in
     -- begin negatively controlled not
@@ -42,18 +42,18 @@ diffusion n d reg a =
 -- perform a single grover iteration on n qubits at depth d,
 -- using an ancilla a at depth d
 -- and an oracle of width os and depth od
-groverIteration :: ![0](forall[0,0] n. forall[0,0] d. forall[0,0] os. forall[0,0] od.
-  (forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d + od}, Qubit{d + od})))
-  -o[0,0] List[_<n] Qubit{d} -o[0,0] Qubit{d}
-  -o[os + 4*n + 1, 0] (List[_<n] Qubit{d + od + 5}, Qubit{d + od + 3}))
+groverIteration :: ![0](forall[0] n. forall[0] d. forall[0] os. forall[0] od.
+  (forall[0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d + od}, Qubit{d + od})))
+  -o[0] List[_<n] Qubit{d} -o[0] Qubit{d}
+  -o[os + 4*n + 1] (List[_<n] Qubit{d + od + 5}, Qubit{d + od + 3}))
 groverIteration n d os od oracle reg a = 
     let (reg, a) = apply(oracle @ d, (reg, a)) in
     (force diffusion @ n @ d + od) reg a
 
 -- run Grover's algorithm on an oracle of input size n, width os and depth od
-grover :: ![0](forall[0, 0] r. forall[0, 0] n. forall[0, 0] os. forall[0, 0] od.
-  (forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})))
-  -o[2*n + r*(os + 4*n + 1) + 1, 0] List[_<n] Bit{2 + r*(od+5)})
+grover :: ![0](forall[0] r. forall[0] n. forall[0] os. forall[0] od.
+  (forall[0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})))
+  -o[2*n + r*(os + 4*n + 1) + 1] List[_<n] Bit{2 + r*(od+5)})
 grover r n os od oracle =
     -- prepare working qubits
     let wqs = force qinit0Many @ n in
