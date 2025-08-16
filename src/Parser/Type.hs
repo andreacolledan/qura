@@ -6,8 +6,8 @@ where
 import Control.Monad.Combinators.Expr
 import PQ.Type
 import Parser.Core
-import Parser.Index
 import Text.Megaparsec
+import Parser.Annotation (globalMetricAnnotation, localMetricAnnotation, functionAnnotation, listLengthAnnotation)
 
 --- Delimited Types ---
 
@@ -15,7 +15,7 @@ import Text.Megaparsec
 circ :: Parser Type
 circ = do
   keyword "Circ"
-  i <- whenGlobalAnalysis $ brackets indexExpression
+  i <- globalMetricAnnotation
   (btype1, btype2) <- parens $ do
     btype1 <- typeExpression
     _ <- comma
@@ -27,15 +27,13 @@ circ = do
 bit :: Parser Type
 bit = do
   keyword "Bit"
-  i <- whenLocalAnalysis $ braces indexExpression
-  return (TWire Bit i)
+  TWire Bit <$> localMetricAnnotation
 
 -- | Parse "@Qubit@" as @TWire Qubit@.
 qubit :: Parser Type
 qubit = do
   keyword "Qubit"
-  i <- whenLocalAnalysis $ braces indexExpression
-  return (TWire Qubit i)
+  TWire Qubit <$> localMetricAnnotation
 
 -- | Parse "@()@" as @TUnit@.
 unitType :: Parser Type
@@ -57,11 +55,7 @@ tensor = do
 arrowOperator :: Parser (Type -> Type -> Type)
 arrowOperator = do
   arrow
-  resAnno <- whenGlobalAnalysis $ brackets $ do
-    i <- indexExpression
-    _ <- comma
-    j <- indexExpression
-    return (i, j)
+  resAnno <- functionAnnotation
   return $ case resAnno of
     Just (i, j) -> \t1 t2 -> TArrow t1 t2 (Just i) (Just j)
     Nothing -> \t1 t2 -> TArrow t1 t2 Nothing Nothing
@@ -70,19 +64,14 @@ arrowOperator = do
 listOperator :: Parser (Type -> Type)
 listOperator = do
   keyword "List"
-  (id, i) <- brackets $ do
-    id <- identifier <|> (underscore >> return "_") -- allow to parse "_" as a list type index
-    lessSign
-    i <- indexExpression
-    return (id, i)
+  (id, i) <- listLengthAnnotation
   return $ TList id i
 
 -- | Parse "@![i]@" as the prefix operator @TBang i@.
 bangOperator :: Parser (Type -> Type)
 bangOperator = do
   bang
-  i <- whenGlobalAnalysis $ brackets indexExpression
-  return $ TBang i
+  TBang <$> globalMetricAnnotation
 
 --- Low-precedence Prefix Operators ---
 -- These operators have the least precedence, i.e. they extend until the end of the expression.
@@ -92,11 +81,7 @@ bangOperator = do
 forallType :: Parser Type
 forallType = do
   keyword "forall"
-  resAnno <- whenGlobalAnalysis $ brackets $ do
-    i <- indexExpression
-    comma
-    j <- indexExpression
-    return (i, j)
+  resAnno <- functionAnnotation
   id <- identifier
   dot
   typ <- typeExpression

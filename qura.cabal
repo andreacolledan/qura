@@ -49,6 +49,7 @@ library
       Metric.Local.TDepth
       Panic
       Parser
+      Parser.Annotation
       Parser.Core
       Parser.Expr
       Parser.Index
