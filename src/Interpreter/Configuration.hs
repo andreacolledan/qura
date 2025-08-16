@@ -64,6 +64,7 @@ appendEConst circ k op =
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
+  -- trace("\nEvaluating:\n"++show expr)$case expr of
   -- trace("\nEvaluating:\n"++pretty config)$case expr of
   case expr of
     EUnit -> Right config
@@ -136,23 +137,28 @@ evalConfiguration (Config circ expr) =
     EIApp m i -> do
       (Config circ' m') <- evalConfiguration (Config circ m)
       case m' of
-        EIAbs ivar n -> doFIXME PLS
-          -- eval index i and obtain wFIXME PLS
-          FIXME PLS
-          -- sh <- gets solverHandleFIXME PLS
-          let w = iFIXME PLS
-FIXME PLS
-          -- sub ivar with w in n and obtain (Config circ' n')FIXME PLS
-          let n' = isub (isubSingleton ivar w) nFIXME PLS
-FIXME PLS
-          evalConfiguration (Config circ' n')FIXME PLS
-        FIXME PLS
-        _ -> Right $ Config circ' m'FIXME PLS
+        EIAbs ivar n -> do
+          -- eval index i and obtain w
+          -- let w = trace("\n\nPIPPO is evaluating i:\n>> "++show i++"\n")$i
+          let w = Number 0
+
+          -- sub ivar with w in n and obtain (Config circ' n')
+          let n' = isub (isubSingleton ivar w) n
+
+          evalConfiguration (Config circ' n')
+        
+        EConst c -> do
+          e <- handleEConst c i
+          Right $ Config circ' e
+
+        -- _ -> Right $ Config circ' m'
         -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
-        -- err -> trace("Error in M@I\nArgs:\n> M:\n "++show m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++show m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
+        err -> trace("Error in M@I\nArgs:\n> M:\n "++show m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++show m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
     EConst c -> Right $ Config circ expr
 
     EAssume _ _ -> undefined
 
 
+handleEConst :: Constant -> Index -> Either RuntimeError Expr
+handleEConst c i = Right $ EConst c

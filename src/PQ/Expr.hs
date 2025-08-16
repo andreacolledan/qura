@@ -34,6 +34,7 @@ import Circuit
 import Interpreter.RuntimeError
 
 import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 import Debug.Trace (trace)
 
 
@@ -60,7 +61,14 @@ instance Pretty Pattern where
   pretty (PCons p1 p2) = "(" ++ pretty p1 ++ ":" ++ pretty p2 ++ ")"
 
 renameInPattern :: VariableId -> VariableId -> Pattern -> Pattern
-renameInPattern _ _ _ = undefined
+renameInPattern old new pat = case pat of
+  PHole -> PHole
+  PVar v
+    | v == old -> PVar new
+    | otherwise -> PVar v
+  PTuple ps -> PTuple (map (renameInPattern old new) ps)
+  PCons p1 p2 -> PCons (renameInPattern old new p1) (renameInPattern old new p2)
+
 
 -- | The datatype of PQR expressions
 data Expr =
@@ -220,38 +228,37 @@ psub x v m = case x of
     case m of
       EUnit -> EUnit
 
-      EVar y -> if pvar==y
-        then v
-        else m
+      EVar y -> if pvar == y then v else m
       
       ELab l -> ELab l
 
       ETuple [] -> ETuple []
       ETuple (et:ets) ->
         let 
-          -- sub in the first element
           et' = psub x v et
-          -- sub in the remaining elements of the tuple
           (ETuple ets') = psub x v (ETuple ets)
         in ETuple (et':ets')
 
-      EAbs p typ e
-        | p == x -> EAbs p typ e
-        -- | pvar `Set.member` exprFreeVars v ->
-        | otherwise ->
-          let
-            pvar' = freshVariableId (Set.union (exprFreeVars v) (exprFreeVars e)) pvar
-            e' = rename pvar pvar' e
-            e'' = psub x v e'
-          in EAbs (PVar pvar') typ e''
-        -- | otherwise -> do
-        --   let 
-        --     e' = psub x v e
-        --   in EAbs p typ e'
+      EAbs p typ e ->
+        let boundVars = varsInPattern p
+            conflictVars = Set.intersection boundVars (exprFreeVars v)
+        in if Set.null conflictVars
+          then EAbs p typ (psub x v e)  -- no conflict, safe to substitute
+          else
+            -- there are conflicts, rename each conflicting variable
+            let
+              -- generate fresh names for each conflicting variable
+              freshMap = Map.fromSet (\y -> freshVariableId (exprFreeVars e `Set.union` exprFreeVars v) y) conflictVars
+              -- rename them in the body
+              e' = foldr (\(old,new) acc -> rename old new acc) e (Map.toList freshMap)
+              -- rename them in the pattern
+              p' = foldr (\(old,new) acc -> renameInPattern old new acc) p (Map.toList freshMap)
+            in EAbs p' typ (psub x v e')
+
 
       ECirc l c k -> ECirc l c k 
 
-      ELift m -> ELift $ psub x v m
+      ELift m' -> ELift $ psub x v m'
 
       ENil typ -> ENil typ
 
@@ -267,49 +274,45 @@ psub x v m = case x of
 
       EForce w -> EForce $ psub x v w
 
-      ELet p e1 e2 -> case p of 
-        PHole -> ELet PHole (psub x v e1) (psub x v e2)
-        PVar y ->
-          let e1' = psub x v e1
-          in if y `Set.member` exprFreeVars v
-          then 
-            let y' = freshVariableId (exprFreeVars v `Set.union` exprFreeVars e2 `Set.union` Set.singleton pvar) y
-                e2' = rename y y' e2
-                e2'' = psub x v e2'
-            in ELet (PVar y') e1' e2''
-          else 
-            let e2' = psub x v e2
-            in ELet p e1' e2'
-          
-        PTuple _ -> -- we simply convert the let tuple expression to a chain of lets
-          let
-            unfoldedTupleExpr = unfoldLetTuple p e1 e2
-          in psub x v unfoldedTupleExpr
-            where
-              -- can only unfold if they are both tuples with same elements
-              unfoldLetTuple :: Pattern -> Expr -> Expr -> Expr
-              unfoldLetTuple (PTuple []) (ETuple []) m = m
-              unfoldLetTuple (PTuple (p:ps)) (ETuple (e:es)) m = ELet p e (unfoldLetTuple (PTuple ps) (ETuple es) m)
-              unfoldLetTuple (PTuple []) _ _ = error "PTuple was bugegr than PTuple." -- ??
-              unfoldLetTuple _ (ETuple []) _ = error "PTuple was smaller than ETuple." -- ??
-              unfoldLetTuple _ _ expr = expr -- cant unfold yet
-            
-        PCons _ _ -> --undefined
-          let 
-            unfoldedConsExpr = unfoldLetCons p e1 e2 --trace(show x)$
-          in psub x v unfoldedConsExpr
-            where -- this feels a bit scuffed idk
-              unfoldLetCons :: Pattern -> Expr -> Expr -> Expr
-              unfoldLetCons _ (ENil typ) expr = error "Trying to assign to a PCons a smaller ECons"
-              -- the last pattern gets subbed with the remaining list 
-              -- (if they have the same length its gonna be the last element and ENil)
-              unfoldLetCons (PCons PHole p) e expr = e
-              
-              unfoldLetCons (PCons ps p) (ECons es e) expr =
-                ELet p e (unfoldLetCons ps es expr)
-              
-              unfoldLetCons p e expr = expr -- cant unfold yet
-              
+      ELet p e1 e2 ->
+        let e1'  = psub x v e1
+            fvV  = exprFreeVars v
+            bnds = varsInPattern p
+        in case p of
+          PHole ->
+            ELet PHole e1' (psub x v e2)
+
+          PVar y ->
+            if y == pvar then
+              -- binder shadows, skip substitution in e2
+              ELet (PVar y) e1' e2
+            else if y `Set.member` fvV then
+              let y'  = freshVariableId (fvV `Set.union` exprFreeVars e2) y
+                  e2' = rename y y' e2
+              in ELet (PVar y') e1' (psub x v e2')
+            else
+              ELet (PVar y) e1' (psub x v e2)
+
+          PTuple ps ->
+            case e1' of
+              ETuple es | length ps == length es ->
+                let body = psub x v e2
+                in foldr (\(pi,ei) acc -> ELet pi ei acc) body (zip ps es)
+              _ ->
+                if pvar `Set.member` bnds
+                  then ELet p e1' e2
+                  else ELet p e1' (psub x v e2)
+
+          PCons ph pt ->
+            case e1' of
+              ECons eh et ->
+                let body = psub x v e2
+                in ELet ph eh (ELet pt et body)
+              _ ->
+                if pvar `Set.member` bnds
+                  then ELet p e1' e2
+                  else ELet p e1' (psub x v e2)
+
       EAnno w typ -> EAnno (psub x v w) typ
 
       EIAbs id e -> EIAbs id $ psub x v e
@@ -322,25 +325,15 @@ psub x v m = case x of
 
   PTuple [] -> m
   PTuple (pt:pts) -> 
-    -- subbing a tuple is the same as having a chain of single substitutions,
-    -- but it can only be done if the `v` is also a tuple of the same length.
-    -- I truly hope that it got typechecked.
-    -- We *could* sub if the v tuple is longer, not if it is shorter, but idk.
-    
-    -- we first check if the second element is a tuple, if true
-    -- sub one element at the time inside the body
     case v of
       ETuple etpl -> case etpl of
         [] -> ETuple []
         (et:ets) -> 
-          let
-            m' = psub pt et m
+          let m' = psub pt et m
           in psub (PTuple pts) (ETuple ets) m'
-
-      _ -> error "Unexpected error: cannot sub a tuple with a non-tuple element."
+      _ -> error "psub: cannot substitute tuple with non-tuple"
 
   PCons _ _ -> undefined
-
 ------------------------------------------------
 isBundle :: Expr -> Bool
 isBundle EUnit = True
@@ -369,6 +362,7 @@ rename :: VariableId -> VariableId -> Expr -> Expr
 -- rename old' v' config = trace("\nSub "++show old'++" with "++show v'++" in the config:\n"++pretty config)$undefined
 -- README: I am not extracting circ' every time since it shouldnt change... hopefully
 rename old v expr = 
+  -- trace("\nRenaming "++show old++" to "++show v++" in "++pretty expr)$case expr of
   case expr of
     EUnit -> expr 
     

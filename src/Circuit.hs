@@ -135,17 +135,30 @@ insert q (l, t) = Map.insert l t q
 freshlabels :: BundleType -> LabelContext -> (LabelContext, WireBundle)
 freshlabels t q = case t of
   BUnit -> (q, WUnit)
-  
+
   BWire wt -> 
     let
       base = basename wt
       names = [base : show n | n <- [(1::Int)..]]
-      -- look in the map and pick the first name{x} available
       name = head $ filter (`Map.notMember` q) names
-      q' = insert q (name, wt)
+      q' = Map.insert name wt q
     in (q', WLab name)
 
-  _ -> undefined
+  BTensor ts ->
+    let
+      -- helper: process each element, threading the context
+      go :: LabelContext -> [BundleType] -> (LabelContext, [WireBundle])
+      go ctx [] = (ctx, [])
+      go ctx (b:bs) =
+        let (ctx', wb)  = freshlabels b ctx
+            (ctx'', wbs) = go ctx' bs
+        in (ctx'', wb:wbs)
+      
+      (q', wbs) = go q ts
+    in (q', WTuple wbs)
+    
+  err -> trace("[freshLabels] requested: "++ show err)$undefined
+
 
 -- Circuit Datatype
 
