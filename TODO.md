@@ -12,7 +12,7 @@
 - [ ] Language pragmas to enforce verification of certain resources
 - [ ] Better syntax
   - [ ] Simpler syntax for (and handling of) independent list types
-  - [ ] Syntactic sugar for null closure annotations
+  - [x] Syntactic sugar for null closure annotations
 - [ ] Proper documentation for the PQ language
 - [ ] Support for multi-module projects
 - [ ] Better error messages for type inference
