@@ -101,26 +101,26 @@ typeOfBundle :: WireBundle -> BundleType
 typeOfBundle WUnit = BUnit
 typeOfBundle _ = undefined
 
-typeOfQuantOP :: QuantumOperation -> BundleType
-typeOfQuantOP (QInit _) = BWire Qubit
-typeOfQuantOP (QDiscard) = BUnit
-typeOfQuantOP (Meas) = BWire Bit
-typeOfQuantOP (CInit _) = BWire Bit
-typeOfQuantOP (CDiscard) = BUnit
-typeOfQuantOP (Hadamard) = BWire Qubit
-typeOfQuantOP (PauliX) = BWire Qubit
-typeOfQuantOP (PauliY) = BWire Qubit
-typeOfQuantOP (PauliZ) = BWire Qubit
-typeOfQuantOP (T) = BWire Qubit
-typeOfQuantOP (R _) = BWire Qubit
-typeOfQuantOP (Rinv _) = BWire Qubit
-typeOfQuantOP (CNot) = BTensor [BWire Qubit, BWire Qubit]
-typeOfQuantOP (CZ) = BTensor [BWire Qubit, BWire Qubit]
-typeOfQuantOP (CR _) = BTensor [BWire Qubit, BWire Qubit]
-typeOfQuantOP (CRinv _) = BTensor [BWire Qubit, BWire Qubit]
-typeOfQuantOP (CCNot) = BTensor [BWire Bit, BWire Qubit]
-typeOfQuantOP (CCZ) = BTensor [BWire Bit, BWire Qubit]
-typeOfQuantOP (Toffoli) = BTensor [BWire Qubit, BWire Qubit, BWire Qubit]
+outTypeQOP :: QuantumOperation -> BundleType
+outTypeQOP (QInit _) = BWire Qubit
+outTypeQOP (QDiscard) = BUnit
+outTypeQOP (Meas) = BWire Bit
+outTypeQOP (CInit _) = BWire Bit
+outTypeQOP (CDiscard) = BUnit
+outTypeQOP (Hadamard) = BWire Qubit
+outTypeQOP (PauliX) = BWire Qubit
+outTypeQOP (PauliY) = BWire Qubit
+outTypeQOP (PauliZ) = BWire Qubit
+outTypeQOP (T) = BWire Qubit
+outTypeQOP (R _) = BWire Qubit
+outTypeQOP (Rinv _) = BWire Qubit
+outTypeQOP (CNot) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQOP (CZ) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQOP (CR _) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQOP (CRinv _) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQOP (CCNot) = BTensor [BWire Bit, BWire Qubit]
+outTypeQOP (CCZ) = BTensor [BWire Bit, BWire Qubit]
+outTypeQOP (Toffoli) = BTensor [BWire Qubit, BWire Qubit, BWire Qubit]
 
 -- Label Context 
 
@@ -146,14 +146,13 @@ freshlabels t q = case t of
 
   BTensor ts ->
     let
-      -- helper: process each element, threading the context
       go :: LabelContext -> [BundleType] -> (LabelContext, [WireBundle])
       go ctx [] = (ctx, [])
-      go ctx (b:bs) =
-        let (ctx', wb)  = freshlabels b ctx
-            (ctx'', wbs) = go ctx' bs
-        in (ctx'', wb:wbs)
-      
+      go ctx (b:bs) = 
+        let 
+          (ctx', wb) = freshlabels b ctx
+          (ctx'', wbs) = go ctx' bs
+        in (ctx'', wb : wbs)
       (q', wbs) = go q ts
     in (q', WTuple wbs)
     
@@ -174,9 +173,9 @@ getContext :: Circuit -> LabelContext
 getContext (Id q) = q
 getContext (CCons circ _ _ _ ) = getContext circ
 
-updateContext :: Circuit -> LabelContext -> Circuit
-updateContext (Id _) q = Id q
-updateContext (CCons circ op ins outs) q = CCons (updateContext circ q) op ins outs
+updateCircContext :: Circuit -> LabelContext -> Circuit
+updateCircContext (Id _) q = Id q
+updateCircContext (CCons circ op ins outs) q = CCons (updateCircContext circ q) op ins outs
 
 instance Pretty WireBundle where
   pretty bundle = case bundle of

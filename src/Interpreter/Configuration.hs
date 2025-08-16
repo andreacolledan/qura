@@ -53,11 +53,11 @@ append c k l d l' =
 appendEConst :: Circuit -> WireBundle -> QuantumOperation -> Configuration
 appendEConst circ k op = 
   let
-    t = typeOfQuantOP op
+    t = outTypeQOP op
     q = getContext circ
     (q', l) = freshlabels t q
     circ' = CCons circ op k l
-    circ'' = updateContext circ' q'
+    circ'' = updateCircContext circ' q'
     lExpr = wirebundleToExpr l
   in Config circ'' lExpr
 
@@ -103,8 +103,12 @@ evalConfiguration (Config circ expr) =
         Config circ'' e2' <- evalConfiguration (Config circ' e2)
         k <- exprToWirebundle e2'
         case e1' of
-          ECirc l d l' -> Right $ append circ'' k l d l'
-          EConst (Boxed op) -> Right $ appendEConst circ'' k op
+          ECirc l d l' -> 
+            let appended = append circ'' k l d l'
+            in Right appended
+          EConst (Boxed op) -> 
+            let appended = appendEConst circ'' k op
+            in Right appended
           _ -> Left $ RuntimeError "First argument of EApply did not reduce to ECirc or EConst."
 
     EBox typ e -> do

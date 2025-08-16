@@ -333,7 +333,14 @@ psub x v m = case x of
           in psub (PTuple pts) (ETuple ets) m'
       _ -> error "psub: cannot substitute tuple with non-tuple"
 
-  PCons _ _ -> undefined
+  PCons phead ptail ->
+    case v of
+      ECons vhead vtail ->
+        let m' = psub phead vhead m
+        in psub ptail vtail m'
+      _ -> error "psub: cannot substitute cons pattern with non-cons value"
+
+
 ------------------------------------------------
 isBundle :: Expr -> Bool
 isBundle EUnit = True
@@ -349,6 +356,7 @@ exprToWirebundle (ETuple ls) = do
   ws <- mapM exprToWirebundle ls
   return (WTuple ws)
 exprToWirebundle (ECons h t) = undefined
+-- likely caused by EApply on a non assigned label (for example if there is no main)
 exprToWirebundle e = Left $ RuntimeError ("Cannot convert the Expr:\n> "++show e++"\n to a WireBundle")
 
 wirebundleToExpr :: WireBundle -> Expr
