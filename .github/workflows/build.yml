@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Haskell
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          stack-no-global: true
+
+      - name: Set up cvc5
+        run: scripts/setup-cvc5.sh
+        shell: bash
+        env:
+          RUNNER_OS: ${{ runner.os }}
+
+
+      - name: Check cvc5
+        run: cvc5 --version
+        shell: bash
+
+      - name: Build project
+        run: |
+          stack setup
+          stack build
+        shell: bash
+
+      - name: Run tests
+        run: stack test
+        shell: bash

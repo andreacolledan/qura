@@ -12,7 +12,7 @@ data TopLevelDefinition = TopLevelDefinition{
   args :: [Pattern],
   signature :: Maybe Type,
   definition :: Expr
-}
+} deriving Show
 
 prettyTopLevelDefinition :: TopLevelDefinition -> String
 prettyTopLevelDefinition (TopLevelDefinition id args mtyp e) = 
@@ -24,7 +24,7 @@ data Module = Module {
   exports :: [VariableId],
   imports :: [Import],
   tldefs :: [TopLevelDefinition]
-}
+} deriving Show
 
 instance Pretty Module where
   pretty (Module name exports imports tldefs) = unwords $ map prettyTopLevelDefinition tldefs

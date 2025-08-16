@@ -1,129 +1,82 @@
 module Main (main) where
 
-import Analyzer
+import Analyzer (runAnalysis)
 import Control.Monad (when)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, isJust)
-import Metric
-import Options.Applicative
-import PQ
-import Parser
-import PrettyPrinter
-import Solver
+import Interface (CLArguments (..), cliInterface)
+import Options.Applicative (execParser)
+import PQ (Module, prelude)
+import Parser (errorBundlePretty, parseModule, runParser)
+import PrettyPrinter (Pretty (pretty))
+import Solver (withSolver)
 import System.Console.ANSI
-import System.IO.Extra
-
-globalMetricArgParser :: ReadM GlobalMetricModule
-globalMetricArgParser = do
-  s <- str
-  case s of
-    "width" -> return widthMetric
-    "qubits" -> return qubitsMetric
-    "bits" -> return bitsMetric
-    "gatecount" -> return gateCountMetric
-    "tcount" -> return tCountMetric
-    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
-
-localMetricArgParser :: ReadM LocalMetricModule
-localMetricArgParser = do
-  s <- str
-  case s of
-    "depth" -> return depthMetric
-    "tdepth" -> return tDepthMetric
-    _ -> readerError "Supported local resources are 'depth', `tdepth`."
-
-data Arguments = CommandLineArguments
-  { filepath :: String,
-    verbose :: Bool,
-    debug :: Maybe String,
-    noprelude :: Bool,
-    grs :: Maybe GlobalMetricModule,
-    lrs :: Maybe LocalMetricModule
-  }
-
-interface :: ParserInfo Arguments
-interface =
-  info
-    (arguments <**> helper)
-    ( fullDesc
-        <> progDesc "Verify the resource consumption of the program in FILE according to the chosen METRIC."
-        <> header "QuRA: a static analysis tool for the resource verification of quantum circuit description programs"
-    )
-  where
-    arguments :: Parser Arguments
-    arguments =
-      CommandLineArguments
-        <$> strArgument
-          ( metavar "FILE"
-              <> help "The file to type-check and analyze"
-          )
-        <*> switch
-          ( long "verbose"
-              <> short 'v'
-              <> help "Print verbose output"
-          )
-        <*> optional (strOption
-          ( long "debug"
-              <> short 'd'
-              <> metavar "DEBUG"
-              <> help "Print SMT queries to file DEBUG"
-          ))
-        <*> switch
-          ( long "noprelude"
-              <> help "Do not include the prelude"
-          )
-        <*> optional (option globalMetricArgParser
-          ( long "global-metric-analysis"
-              <> short 'g'
-              <> metavar "METRIC"
-              <> help "Analyse global METRIC"
-              ))
-        <*> optional (option localMetricArgParser
-          ( long "local-metric-analysis"
-              <> short 'l'
-              <> metavar "METRIC"
-              <> help "Analyse local METRIC"
-              ))
+  ( Color (Red),
+    ColorIntensity (Vivid),
+    ConsoleLayer (Foreground),
+    SGR (Reset, SetColor),
+    hSetSGR,
+  )
+import System.Directory (findExecutable)
+import System.IO.Extra (stderr, hPutStrLn)
+import Text.Pretty.Simple (pPrint)
+import System.Directory.Internal.Prelude (exitFailure)
 
 main :: IO ()
 main = do
-  opts <- execParser interface
+  ensureCVC5
+  opts <- parseCLArguments
   mod <- parseSource opts
   libs <- getLibs opts
-  outcome <- analyzeModule mod libs opts
-  case outcome of
-    Left err -> outputError err
-    Right bindings -> outputBindings opts bindings
+  analyzeModule mod libs opts
+  
 
-parseSource :: Arguments -> IO Module
-parseSource CommandLineArguments{verbose=verb, filepath=file, grs=mgrs, lrs=mlrs} = do
+ensureCVC5 :: IO ()
+ensureCVC5 = do
+  mpath <- findExecutable "cvc5"
+  case mpath of
+    Nothing ->
+      abortWithMessage $
+        unlines
+          [ "Error: cvc5 is not installed or not in PATH.",
+            "To install cvc5, follow instructions at https://cvc5.github.io/"
+          ]
+    Just _ -> return ()
+
+parseCLArguments :: IO CLArguments
+parseCLArguments = execParser cliInterface
+
+parseSource :: CLArguments -> IO Module
+parseSource CommandLineArguments {verbose = verb, filepath = file, grs = mgrs, lrs = mlrs} = do
   when verb $ putStrLn $ "Parsing " ++ file ++ "..."
   source <- readFile file
   case runParser parseModule (isJust mgrs) (isJust mlrs) file source of
     Left err -> error $ errorBundlePretty err
-    Right mod -> return mod
+    Right mod -> do
+      when verb $ do
+        putStrLn "Abstract Syntax Tree: \n\t"
+        pPrint mod
+      return mod
 
-getLibs :: Arguments -> IO [Module]
-getLibs CommandLineArguments{noprelude = nopre} = return $ ([prelude | not nopre]) -- for now, we only allow the prelude as a library
+getLibs :: CLArguments -> IO [Module]
+getLibs CommandLineArguments {noprelude = nopre} = return ([prelude | not nopre]) -- for now, we only allow the prelude as a library
 
-analyzeModule :: Module -> [Module] -> Arguments -> IO (Either TypeError [(VariableId, Type)])
-analyzeModule
-  mod libs CommandLineArguments{verbose=verb, debug=deb, grs=mgrs, lrs=mlrs} = do
+analyzeModule :: Module -> [Module] -> CLArguments -> IO ()
+analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
     when verb $ do
-      putStrLn $ "Parsed successfully as \n\t" ++ pretty mod
       putStrLn "Inferring type..."
-    withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+    outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+    case outcome of
+      Left err -> abortWithMessage $ show err
+      Right bindings -> do
+        putStrLn $ "Analyzed file '" ++ fp ++ "'."
+        let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
+        putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
+        putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
 
-
-outputError :: (Show a) => a -> IO ()
-outputError e = do
+abortWithMessage :: String -> IO ()
+abortWithMessage e = do
   hSetSGR stderr [SetColor Foreground Vivid Red]
-  hPrint stderr e
+  hPutStrLn stderr e
   hSetSGR stderr [Reset]
-
-outputBindings :: Arguments -> [(VariableId, Type)] -> IO ()
-outputBindings opts bindings = do
-  putStrLn $ "Analyzing file '" ++ filepath opts ++ "'."
-  let metrics = catMaybes [pretty <$> grs opts, pretty <$> lrs opts]
-  putStrLn $ "Checked " ++ intercalate ", " (["type"] ++ metrics) ++ ".\n"
-  putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
+  exitFailure

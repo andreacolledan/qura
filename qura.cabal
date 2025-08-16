@@ -1,17 +1,17 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
 name:           qura
-version:        0.1.0.0
+version:        0.1.0
 description:    Please see the README on GitHub at <https://github.com/andreacolledan/qura#readme>
 homepage:       https://github.com/andreacolledan/qura#readme
 bug-reports:    https://github.com/andreacolledan/qura/issues
 author:         Andrea Colledan
-maintainer:     andrea.colledan@unibo.it
-copyright:      2024 Andrea Colledan
+maintainer:     andreacolledan@fastmail.com
+copyright:      Copyright (c) 2024–2025 Andrea Colledan
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
@@ -36,6 +36,7 @@ library
       Circuit
       Eval.Index
       Eval.Type
+      Interface
       Metric
       Metric.Global
       Metric.Global.Bits
@@ -72,9 +73,7 @@ library
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wno-unused-top-binds -Wincomplete-patterns -Wno-name-shadowing
   build-depends:
-      QuickCheck
-    , ansi-terminal
-    , argparser
+      ansi-terminal
     , base >=4.7 && <5
     , directory
     , extra
@@ -84,6 +83,7 @@ library
     , mtl
     , optparse-applicative
     , parser-combinators
+    , pretty-simple
     , process
     , transformers
     , unordered-containers
@@ -97,9 +97,7 @@ executable qura
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wno-unused-top-binds -Wincomplete-patterns -Wno-name-shadowing -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      QuickCheck
-    , ansi-terminal
-    , argparser
+      ansi-terminal
     , base >=4.7 && <5
     , directory
     , extra
@@ -109,6 +107,7 @@ executable qura
     , mtl
     , optparse-applicative
     , parser-combinators
+    , pretty-simple
     , process
     , qura
     , transformers
@@ -129,9 +128,7 @@ test-suite qura-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -Wno-unused-top-binds -Wincomplete-patterns -Wno-name-shadowing -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      QuickCheck
-    , ansi-terminal
-    , argparser
+      ansi-terminal
     , base >=4.7 && <5
     , directory
     , extra
@@ -141,6 +138,7 @@ test-suite qura-test
     , mtl
     , optparse-applicative
     , parser-combinators
+    , pretty-simple
     , process
     , qura
     , transformers
