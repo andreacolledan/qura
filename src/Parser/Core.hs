@@ -2,6 +2,7 @@ module Parser.Core
   ( Parser,
     ParserState(..),
     whitespace,
+    symbol,
     number,
     keyword,
     identifier,

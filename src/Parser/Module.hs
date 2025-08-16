@@ -5,26 +5,51 @@ where
 
 import Control.Monad
 import PQ.Expr
-import PQ.Module (Module (..), TopLevelDefinition (..))
+import PQ.Module (Module (..), TopLevelDefinition (..), Pragma (VerifyGlobal, VerifyLocal))
 import PQ.Type
 import Parser.Core
 import Parser.Expr
 import Parser.Type
 import Text.Megaparsec
+import Metric.Global (GlobalMetricModule)
+import Metric (widthMetric, gateCountMetric, tCountMetric, bitsMetric, qubitsMetric, depthMetric, tDepthMetric)
+import Data.Functor (($>))
+import Metric.Local (LocalMetricModule)
 
 -- | Parse a PQ module, i.e. a sequence of top-level declarations.
 parseModule :: Parser Module
 parseModule = do
+  pragmas <- many pragma
   -- TODO module header
   -- TODO imports
   tldefs <- many topLevelDefinition
   eof
   return Module {
+    pragmas = pragmas,
     name = "",
     exports = [],
     imports = [],
     tldefs = tldefs
   }
+
+pragma :: Parser Pragma
+pragma = braces $ symbol "-" *> symbol "#" *> (verifyGlobalPragma <|> verifyLocalPragma) <* symbol "#" <* symbol "-"
+  where
+    verifyGlobalPragma :: Parser Pragma
+    verifyGlobalPragma = symbol "VERIFY_GLOBAL" >> VerifyGlobal <$> globalMetricName
+    globalMetricName :: Parser GlobalMetricModule
+    globalMetricName =
+      symbol "width" $> widthMetric
+      <|> symbol "gatecount" $> gateCountMetric
+      <|> symbol "tcount" $> tCountMetric
+      <|> symbol "bits" $> bitsMetric
+      <|> symbol "qubits" $> qubitsMetric
+    verifyLocalPragma :: Parser Pragma
+    verifyLocalPragma = symbol "VERIFY_LOCAL" >> VerifyLocal <$> localMetricName
+    localMetricName :: Parser LocalMetricModule
+    localMetricName =
+      symbol "depth" $> depthMetric
+      <|> symbol "tdepth" $> tDepthMetric
 
 -- | Parse a top-level declaration, i.e. an optional type signature followed by a definition
 topLevelDefinition :: Parser TopLevelDefinition
