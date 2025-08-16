@@ -44,7 +44,7 @@ prettyGlobalAnnotation (Just i) = "[" ++ pretty i ++ "]"
 prettyGlobalAnnotations :: Maybe Index -> Maybe Index -> String
 prettyGlobalAnnotations Nothing Nothing = ""
 prettyGlobalAnnotations (Just i) (Just j) = "[" ++ pretty i ++ ", " ++ pretty j ++ "]"
-prettyGlobalAnnotations _ _ = error "Internal: inconsistent annotations (prettyAnnos)"
+prettyGlobalAnnotations _ _ = error "Internal: inconsistent annotations (prettyGlobalAnnotations)"
 
 -- | @prettyLocalAnnotation i@ returns a pretty-printed version of annotation @i@
 -- within curly brackets, or the empty string if @i@ is 'Nothing'

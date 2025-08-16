@@ -24,7 +24,7 @@ analyzeExpression e = do
   inferRefinedType e'
 
 -- | Analyze a top-level function definition. Returns a type binding for the function.
--- Note that top-level definitions are always pure and effect-less.
+-- Note that top-level definitions are always lifted and effect-less.
 analyzeTopLevelDefinition :: TopLevelDefinition -> TypeDerivation (VariableId, Type)
 -- Top-level definition with arguments and type signature
 analyzeTopLevelDefinition (TopLevelDefinition id args (Just sig) e) = do
@@ -33,7 +33,8 @@ analyzeTopLevelDefinition (TopLevelDefinition id args (Just sig) e) = do
       (inferTyp, inferEff) <- withNonLinearContext $ inferTLDefType args e typ
       let atyp = TBang inferEff inferTyp
       unlessSubtype atyp sig $ throwLocalError . UnexpectedType (EVar id) sig =<< runSimplifyType atyp
-      return (id, sig)
+      finalSignature <- runSimplifyType sig -- TODO: necessary so that implicit closure annotations of Identity are desugared. Inefficient, redo.
+      return (id, finalSignature)
     typ -> throwLocalError $ UnbangedSignature id typ
   where
     -- | @inferTLDefType args e typ eff@ checks that the top-level definition of the function @id@
