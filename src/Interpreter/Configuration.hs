@@ -21,9 +21,9 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  trace (""
-      ++ "-- Circuit Expr:\n"++pretty expr
-    ) $ 
+  -- trace (""
+  --     ++ "-- Circuit Expr:\n"++pretty expr
+  --   ) $ 
     evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
@@ -88,6 +88,9 @@ evalConfiguration (Config circ expr) =
 
     ECons _ _ -> Right config -- value
 
+    -- FOLD-END rule
+    EFold _ w (ENil _) -> Right $ Config circ w
+    -- FOLD-STEP
     EFold _ _ _ -> undefined
 
     EApp abs arg -> do
@@ -112,7 +115,7 @@ evalConfiguration (Config circ expr) =
             in Right appended
           _ -> Left $ RuntimeError "First argument of EApply did not reduce to ECirc or EConst."
 
-    EBox typ e -> do
+    EBox typ e -> do -- TODO: untested
       (Config circ' e') <- evalConfiguration (Config circ e)
       case e' of
         ELift n -> do
@@ -146,8 +149,7 @@ evalConfiguration (Config circ expr) =
       case m' of
         EIAbs ivar n -> do
           -- eval index i and obtain w
-          -- let w = trace("\n\nPIPPO is evaluating i:\n>> "++show i++"\n")$i
-          let w = Number 0
+          let w = Number 0 -- TODO
 
           -- sub ivar with w in n and obtain (Config circ' n')
           let n' = isub (isubSingleton ivar w) n

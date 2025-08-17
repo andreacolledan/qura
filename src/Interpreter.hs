@@ -97,16 +97,21 @@ mergeModLibs (Module programName e i defs) libs = do
         -- ++"\n---- def map:\n"++(show definitionsMap)
         -- ++"\n"++(pretty definitionsMap)
         -- ) $ 
-    -- substitute in the starting tldef using the maps
-      fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
+      if startId /= "main"
+        then Left $ RuntimeError "No main function found in the file"
+        else do
 
-      -- also wrap the start
-      let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
-      let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
-      Right (wrappedStart, initialCircuit)
+          -- substitute in the starting tldef using the maps
+            fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
+
+            -- also wrap the start
+            let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
+            let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
+            Right (wrappedStart, initialCircuit)
 
     Nothing -> Left $ RuntimeError "No definitions in the input module."
   
+-- given the main expression, sub in variables taken from the modules, using their name
 applyModulesMap :: ModulesMap -> (String, Expr) -> Either RuntimeError Expr
 applyModulesMap maps (progName, startDef) 
   | M.null maps = Right startDef -- not really needed but would save some time
@@ -133,7 +138,7 @@ applyModulesMap maps (progName, startDef)
           --   ++"\nWrapping output:\n> "++(pretty tldefExpr''))$ 
 
           -- finally, return the lifted function
-          Right (ELift tldefExpr'')
+          Right $ ELift tldefExpr''
 
       Right Nothing -> Right startDef -- No definition found, return the term itself
 
@@ -141,73 +146,77 @@ applyModulesMap maps (progName, startDef)
 
     ETuple es -> do
       es' <- mapM (\e -> applyModulesMap maps (progName, e)) es
-      Right (ETuple es')
+      Right $ ETuple es'
 
     EAbs ptrn typ e -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (EAbs ptrn typ e')
+      Right $ EAbs ptrn typ e'
 
     ECirc _ _ _ -> Right startDef
 
     ELift e -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (ELift e')
+      Right $ ELift e'
 
-    ENil typ -> Right (ENil typ)
+    ENil typ -> Right $ ENil typ
 
     ECons e1 e2 -> do
       e1' <- applyModulesMap maps (progName, e1)
       e2' <- applyModulesMap maps (progName, e2)
-      Right (ECons e1' e2')
+      Right $ ECons e1' e2'
 
-    EFold _ _ _ -> Left (RuntimeError "EFold not supported yet")
+    EFold e1 e2 e3 -> do
+      e1' <- applyModulesMap maps (progName, e1)
+      e2' <- applyModulesMap maps (progName, e2)
+      e3' <- applyModulesMap maps (progName, e3)
+      Right $ EFold e1' e2' e3'
 
     EApp e1 e2 -> do
       e1' <- applyModulesMap maps (progName, e1)
       e2' <- applyModulesMap maps (progName, e2)
-      Right (EApp e1' e2')
+      Right $ EApp e1' e2'
 
     EApply e1 e2 -> do
       e1' <- applyModulesMap maps (progName, e1)
       e2' <- applyModulesMap maps (progName, e2)
-      Right (EApply e1' e2')
+      Right $ EApply e1' e2'
 
-    EBox _ _ -> Left (RuntimeError "EBox not supported yet")
+    EBox _ _ -> Left $ RuntimeError "EBox not supported yet"
 
     EForce e -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (EForce e')
+      Right $ EForce e'
 
     ELet ptrn e1 e2 -> do
       e1' <- applyModulesMap maps (progName, e1)
       e2' <- applyModulesMap maps (progName, e2)
-      Right (ELet ptrn e1' e2')
+      Right $ ELet ptrn e1' e2'
 
     EAnno e typ -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (EAnno e' typ)
+      Right $ EAnno e' typ
 
     EIAbs ivar e -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (EIAbs ivar e')
+      Right $ EIAbs ivar e'
 
     EIApp e i -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (EIApp e' i)
+      Right $ EIApp e' i
 
-    EConst c -> Right (EConst c)
+    EConst c -> Right $ EConst c
 
     EAssume e typ -> do
       e' <- applyModulesMap maps (progName, e)
-      Right (EAssume e' typ)
+      Right $ EAssume e' typ
 
 -- Raises a run time error in case a definition appears in more than one module
 -- and we are unsure about which one to use.
 -- For now, I am not checking if the id is in the form module.name because
 -- I dont even know if a function can be called like that in .pq
 searchDefinition :: ModulesMap -> String -> VariableId -> Either RuntimeError (Maybe (String, TopLevelDefinition))
--- modName is used to default to the user defined definition
--- defName is the name of the definition in which we are trying to substitute in
+-- modName is used to default to the user defined definition.
+-- defName is the name of the definition in which we are trying to substitute in.
 -- x is the name of the definition that we are looking for
 searchDefinition maps userModName x =
   -- trace ("\nSearching a definition for EVar "++x++", found inside the definition '"++defName++"' in the module '"++userModName++"'.")$
