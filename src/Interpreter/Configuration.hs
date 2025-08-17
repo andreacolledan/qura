@@ -64,13 +64,14 @@ appendEConst circ k op =
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
+  -- trace("\nEvaluating:\n"++pretty expr)$case expr of
   -- trace("\nEvaluating:\n"++show expr)$case expr of
   -- trace("\nEvaluating:\n"++pretty config)$case expr of
   case expr of
     EUnit -> Right config
 
-    -- EVar x -> Left $ RuntimeError $ "The variable "++show x++" has not been assigned to any value." --"image2.png said that (C,x) evaluates to Error :)"
-    EVar _ -> Right config -- value
+    EVar x -> Left $ RuntimeError $ "The variable "++show x++" has not been assigned to any value." --"image2.png said that (C,x) evaluates to Error :)"
+    -- EVar _ -> Right config -- value
 
     ELab _ -> Right config -- value
 
@@ -131,7 +132,9 @@ evalConfiguration (Config circ expr) =
 
     ELet p e1 e2 -> do
       (Config circ' e1') <- evalConfiguration (Config circ e1)
-      evalConfiguration $ Config circ' $ psub p e1' e2
+      let circ'' = Config circ' $ psub p e1' e2
+      evalConfiguration circ''
+      -- undefined
 
     EAnno _ _ -> undefined
 
@@ -159,7 +162,7 @@ evalConfiguration (Config circ expr) =
         -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
         err -> trace("Error in M@I\nArgs:\n> M:\n "++show m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++show m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
-    EConst c -> Right $ Config circ expr
+    EConst c -> Right $ Config circ $ EConst c
 
     EAssume _ _ -> undefined
 

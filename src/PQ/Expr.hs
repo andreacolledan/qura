@@ -8,7 +8,7 @@ module PQ.Expr
     isBundle,
     exprToWirebundle,
     wirebundleToExpr,
-    renameInPattern,
+    renamePattern,
     psub
   )
 where
@@ -60,14 +60,14 @@ instance Pretty Pattern where
   pretty (PTuple ps) = "(" ++ intercalate ", " (map pretty ps) ++ ")"
   pretty (PCons p1 p2) = "(" ++ pretty p1 ++ ":" ++ pretty p2 ++ ")"
 
-renameInPattern :: VariableId -> VariableId -> Pattern -> Pattern
-renameInPattern old new pat = case pat of
+renamePattern :: Map.Map VariableId VariableId -> Pattern -> Pattern
+renamePattern m pat = case pat of
   PHole -> PHole
-  PVar v
-    | v == old -> PVar new
-    | otherwise -> PVar v
-  PTuple ps -> PTuple (map (renameInPattern old new) ps)
-  PCons p1 p2 -> PCons (renameInPattern old new p1) (renameInPattern old new p2)
+  PVar x -> case Map.lookup x m of
+              Just v  -> PVar v
+              Nothing -> PVar x
+  PTuple ps -> PTuple $ map (renamePattern m) ps
+  PCons ph pt -> PCons (renamePattern m ph) (renamePattern m pt)
 
 
 -- | The datatype of PQR expressions
@@ -94,28 +94,28 @@ data Expr =
   | EAssume Expr Type                         -- Type assumption          : e !:: t
   deriving (Eq, Show)
 
-exprFreeVars :: Expr -> Set.Set VariableId
-exprFreeVars EUnit = Set.empty
-exprFreeVars (EVar x) = Set.singleton x
-exprFreeVars (ELab _) = Set.empty -- ??
-exprFreeVars (ETuple es) = Set.unions (map exprFreeVars es)
-exprFreeVars (EAbs p _ body) = exprFreeVars body `Set.difference` varsInPattern p
-exprFreeVars (ECirc _ _ _) = Set.empty -- ??
-exprFreeVars (ELift e) = exprFreeVars e
-exprFreeVars (ENil _) = Set.empty
-exprFreeVars (ECons e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
-exprFreeVars (EFold e1 e2 e3) = Set.unions (map exprFreeVars [e1,e2,e3])
-exprFreeVars (EApp e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
-exprFreeVars (EApply e1 e2) = Set.union (exprFreeVars e1) (exprFreeVars e2)
-exprFreeVars (EBox _ e) = exprFreeVars e
-exprFreeVars (EForce e) = exprFreeVars e
-exprFreeVars (ELet p e1 e2) =
-  Set.union (exprFreeVars e1) (exprFreeVars e2 `Set.difference` varsInPattern p)
-exprFreeVars (EAnno e _) = exprFreeVars e
-exprFreeVars (EIAbs _ e) = exprFreeVars e
-exprFreeVars (EIApp e _) = exprFreeVars e
-exprFreeVars (EConst _) = Set.empty
-exprFreeVars (EAssume e _) = exprFreeVars e
+varsInExpr :: Expr -> Set.Set VariableId
+varsInExpr EUnit = Set.empty
+varsInExpr (EVar x) = Set.singleton x
+varsInExpr (ELab _) = Set.empty -- ??
+varsInExpr (ETuple es) = Set.unions (map varsInExpr es)
+varsInExpr (EAbs p _ body) = varsInExpr body `Set.difference` varsInPattern p
+varsInExpr (ECirc _ _ _) = Set.empty -- ??
+varsInExpr (ELift e) = varsInExpr e
+varsInExpr (ENil _) = Set.empty
+varsInExpr (ECons e1 e2) = Set.union (varsInExpr e1) (varsInExpr e2)
+varsInExpr (EFold e1 e2 e3) = Set.unions (map varsInExpr [e1,e2,e3])
+varsInExpr (EApp e1 e2) = Set.union (varsInExpr e1) (varsInExpr e2)
+varsInExpr (EApply e1 e2) = Set.union (varsInExpr e1) (varsInExpr e2)
+varsInExpr (EBox _ e) = varsInExpr e
+varsInExpr (EForce e) = varsInExpr e
+varsInExpr (ELet p e1 e2) =
+  Set.union (varsInExpr e1) (varsInExpr e2 `Set.difference` varsInPattern p)
+varsInExpr (EAnno e _) = varsInExpr e
+varsInExpr (EIAbs _ e) = varsInExpr e
+varsInExpr (EIApp e _) = varsInExpr e
+varsInExpr (EConst _) = Set.empty
+varsInExpr (EAssume e _) = varsInExpr e
 
 instance Pretty Expr where
   pretty EUnit = "()"
@@ -218,8 +218,20 @@ instance HasIndex Expr where
   isub _ (EConst c) = EConst c
   isub sub (EAssume e t) = EAssume (isub sub e) (isub sub t)
 
-------------------------------------------------
+--------------------------------------------------------------------------------
 
+freshVariableId :: Set.Set VariableId -> VariableId -> VariableId
+freshVariableId used x = head $ dropWhile (`Set.member` used) candidates
+  where
+    candidates = [x ++ replicate n '\'' | n <- [0..]]
+
+getSetRenaming :: Set.Set VariableId -> Set.Set VariableId -> Map.Map VariableId VariableId
+getSetRenaming toRename toAvoid = fst $ foldl go (Map.empty, toAvoid) (Set.toList toRename)
+  where
+    go (m, used) x =
+      let x' = freshVariableId used x
+      in (Map.insert x x' m, Set.insert x' used)
+    
 psub :: Pattern -> Expr -> Expr -> Expr
 psub x v m = case x of
   PHole -> m
@@ -240,21 +252,15 @@ psub x v m = case x of
         in ETuple (et':ets')
 
       EAbs p typ e ->
-        let boundVars = varsInPattern p
-            conflictVars = Set.intersection boundVars (exprFreeVars v)
-        in if Set.null conflictVars
-          then EAbs p typ (psub x v e)  -- no conflict, safe to substitute
-          else
-            -- there are conflicts, rename each conflicting variable
+        let pVars = varsInPattern p in
+        if pvar `Set.member` pVars
+          then EAbs p typ e -- can't sub x in: \x . (...)
+          else -- ensure that variables in v are different from those in p
             let
-              -- generate fresh names for each conflicting variable
-              freshMap = Map.fromSet (\y -> freshVariableId (exprFreeVars e `Set.union` exprFreeVars v) y) conflictVars
-              -- rename them in the body
-              e' = foldr (\(old,new) acc -> rename old new acc) e (Map.toList freshMap)
-              -- rename them in the pattern
-              p' = foldr (\(old,new) acc -> renameInPattern old new acc) p (Map.toList freshMap)
-            in EAbs p' typ (psub x v e')
-
+              vVars = varsInExpr v
+              renaming = getSetRenaming pVars vVars -- new names map for p` (possibly empty)
+              (EAbs p' typ e') = renameExpr renaming $ EAbs p typ e
+            in EAbs p' typ $ psub x v e'
 
       ECirc l c k -> ECirc l c k 
 
@@ -274,44 +280,19 @@ psub x v m = case x of
 
       EForce w -> EForce $ psub x v w
 
-      ELet p e1 e2 ->
-        let e1'  = psub x v e1
-            fvV  = exprFreeVars v
-            bnds = varsInPattern p
-        in case p of
-          PHole ->
-            ELet PHole e1' (psub x v e2)
-
-          PVar y ->
-            if y == pvar then
-              -- binder shadows, skip substitution in e2
-              ELet (PVar y) e1' e2
-            else if y `Set.member` fvV then
-              let y'  = freshVariableId (fvV `Set.union` exprFreeVars e2) y
-                  e2' = rename y y' e2
-              in ELet (PVar y') e1' (psub x v e2')
-            else
-              ELet (PVar y) e1' (psub x v e2)
-
-          PTuple ps ->
-            case e1' of
-              ETuple es | length ps == length es ->
-                let body = psub x v e2
-                in foldr (\(pi,ei) acc -> ELet pi ei acc) body (zip ps es)
-              _ ->
-                if pvar `Set.member` bnds
-                  then ELet p e1' e2
-                  else ELet p e1' (psub x v e2)
-
-          PCons ph pt ->
-            case e1' of
-              ECons eh et ->
-                let body = psub x v e2
-                in ELet ph eh (ELet pt et body)
-              _ ->
-                if pvar `Set.member` bnds
-                  then ELet p e1' e2
-                  else ELet p e1' (psub x v e2)
+      ELet p e1 e2 -> -- really similar to EAbs
+        let 
+          e1' = psub x v e1 
+          pVars = varsInPattern p
+        in if pvar `Set.member` pVars
+          then ELet p e1' e2
+          else
+            let
+              vVars = varsInExpr v
+              renaming = getSetRenaming pVars vVars
+              e2' = renameExpr renaming e2
+              p' = renamePattern renaming p
+            in ELet p' e1' $ psub x v e2' 
 
       EAnno w typ -> EAnno (psub x v w) typ
 
@@ -331,7 +312,7 @@ psub x v m = case x of
         (et:ets) -> 
           let m' = psub pt et m
           in psub (PTuple pts) (ETuple ets) m'
-      _ -> error "psub: cannot substitute tuple with non-tuple"
+      _ -> error $ "psub: cannot substitute tuple with non-tuple\n Tried subbing:\n> "++show x++"\n with:\n> "++pretty v
 
   PCons phead ptail ->
     case v of
@@ -364,76 +345,51 @@ wirebundleToExpr (WUnit) = EUnit
 wirebundleToExpr (WLab l) = ELab l
 wirebundleToExpr (WTuple ls) = ETuple $ map wirebundleToExpr ls 
 
--- do we also update the context? isnt this a renaming inside the expr
--- before quantum operations are applied? -> i dont think ctx is needed
-rename :: VariableId -> VariableId -> Expr -> Expr
--- rename old' v' config = trace("\nSub "++show old'++" with "++show v'++" in the config:\n"++pretty config)$undefined
--- README: I am not extracting circ' every time since it shouldnt change... hopefully
-rename old v expr = 
-  -- trace("\nRenaming "++show old++" to "++show v++" in "++pretty expr)$case expr of
+renameExpr :: Map.Map VariableId VariableId -> Expr -> Expr
+renameExpr m expr =
+  -- trace("\nRenaming "++show m++" in "++pretty expr)$case expr of
   case expr of
-    EUnit -> expr 
-    
-    EVar x
-      | x==old -> EVar v
-      | otherwise -> expr
-    
-    ELab _ -> expr
-    
-    ETuple es -> 
-      let es' = map (rename old v) es
-      in ETuple es'
-    
+    EUnit -> EUnit
+
+    EVar x -> case Map.lookup x m of
+                Just v  -> EVar v
+                Nothing -> EVar x
+
+    ELab l -> ELab l
+
+    ETuple es -> ETuple $ map (renameExpr m) es
+
     EAbs p typ body ->
-      case p of 
-        PHole -> EAbs p typ $ rename old v body
-        PVar pvar
-          | pvar==old -> EAbs (PVar v) typ (rename old v body)
-          | otherwise -> EAbs (PVar pvar) typ (rename old v body)
-        PTuple _ -> 
-          let 
-            p' = renameInPattern old v p
-            body' = rename old v body
-          in EAbs p' typ body'
-        PCons _ _ -> 
-          let 
-            p' = renameInPattern old v p
-            body' = rename old v body
-          in EAbs p' typ body'
-    
-    ECirc _ _ _ -> expr
-    
-    ELift e -> ELift $ rename old v e
-    
-    ENil _ -> expr
-    
-    ECons e1 e2 -> ECons (rename old v e1) (rename old v e2)
-    
-    EFold e1 e2 e3-> EFold (rename old v e1) (rename old v e2) (rename old v e3)
-    
-    EApp e1 e2 -> EApp (rename old v e1) (rename old v e2)
-    
-    EApply e1 e2 -> EApply (rename old v e1) (rename old v e2)
-    
-    EBox typ e -> EBox typ (rename old v e)
-    
-    EForce e -> EForce $ rename old v e
-    
-    ELet p e1 e2-> ELet (renameInPattern old v p) (rename old v e1) (rename old v e2)
-    
-    EAnno e typ -> EAnno (rename old v e) typ
-    
-    EIAbs i e -> EIAbs i (rename old v e)
-    
-    EIApp e i -> EIApp (rename old v e) i
-    
-    EConst _ -> expr
-    
-    EAssume e typ -> EAssume (rename old v e) typ
+      let p' = renamePattern m p
+          body' = renameExpr m body
+      in EAbs p' typ body'
 
--- do we need the context?
-freshVariableId :: Set.Set VariableId -> VariableId -> VariableId
-freshVariableId used x = head $ dropWhile (`Set.member` used) candidates
-  where
-    candidates = [x ++ replicate n '\'' | n <- [0..]]
+    ECirc l c k -> ECirc l c k
 
+    ELift e -> ELift $ renameExpr m e
+
+    ENil typ -> ENil typ
+
+    ECons e1 e2 -> ECons (renameExpr m e1) (renameExpr m e2)
+
+    EFold e1 e2 e3 -> EFold (renameExpr m e1) (renameExpr m e2) (renameExpr m e3)
+
+    EApp e1 e2 -> EApp (renameExpr m e1) (renameExpr m e2)
+
+    EApply e1 e2 -> EApply (renameExpr m e1) (renameExpr m e2)
+
+    EBox typ e -> EBox typ (renameExpr m e)
+
+    EForce e -> EForce (renameExpr m e)
+
+    ELet p e1 e2 -> ELet (renamePattern m p) (renameExpr m e1) (renameExpr m e2)
+
+    EAnno e typ -> EAnno (renameExpr m e) typ
+
+    EIAbs i e -> EIAbs i (renameExpr m e)
+
+    EIApp e i -> EIApp (renameExpr m e) i
+
+    EConst c -> EConst c
+
+    EAssume e typ -> EAssume (renameExpr m e) typ
