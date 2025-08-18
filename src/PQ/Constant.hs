@@ -30,6 +30,14 @@ instance Pretty Constant where
   pretty MakeCRinvGate = "MakeCRGate"
   pretty MakeUnitList = "MakeUnitList"
 
+outTypeConstant :: Constant -> BundleType
+outTypeConstant (Boxed op) = outTypeQuantOP op
+outTypeConstant MakeRGate = BWire Qubit
+outTypeConstant MakeRinvGate = BWire Qubit
+outTypeConstant MakeRGate = BTensor [BWire Qubit, BWire Qubit]
+outTypeConstant MakeRinvGate = BTensor [BWire Qubit, BWire Qubit]
+outTypeConstant _ = undefined
+
 -- | @typeOf c@ returns the type of constant @c@.
 -- Metric annotations are abstract at this stage, so that one type can be used for multiple metrics.
 typeOf :: Constant -> Type

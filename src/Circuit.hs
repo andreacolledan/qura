@@ -101,26 +101,26 @@ typeOfBundle :: WireBundle -> BundleType
 typeOfBundle WUnit = BUnit
 typeOfBundle _ = undefined
 
-outTypeQOP :: QuantumOperation -> BundleType
-outTypeQOP (QInit _) = BWire Qubit
-outTypeQOP (QDiscard) = BUnit
-outTypeQOP (Meas) = BWire Bit
-outTypeQOP (CInit _) = BWire Bit
-outTypeQOP (CDiscard) = BUnit
-outTypeQOP (Hadamard) = BWire Qubit
-outTypeQOP (PauliX) = BWire Qubit
-outTypeQOP (PauliY) = BWire Qubit
-outTypeQOP (PauliZ) = BWire Qubit
-outTypeQOP (T) = BWire Qubit
-outTypeQOP (R _) = BWire Qubit
-outTypeQOP (Rinv _) = BWire Qubit
-outTypeQOP (CNot) = BTensor [BWire Qubit, BWire Qubit]
-outTypeQOP (CZ) = BTensor [BWire Qubit, BWire Qubit]
-outTypeQOP (CR _) = BTensor [BWire Qubit, BWire Qubit]
-outTypeQOP (CRinv _) = BTensor [BWire Qubit, BWire Qubit]
-outTypeQOP (CCNot) = BTensor [BWire Bit, BWire Qubit]
-outTypeQOP (CCZ) = BTensor [BWire Bit, BWire Qubit]
-outTypeQOP (Toffoli) = BTensor [BWire Qubit, BWire Qubit, BWire Qubit]
+outTypeQuantOP :: QuantumOperation -> BundleType
+outTypeQuantOP (QInit _) = BWire Qubit
+outTypeQuantOP (QDiscard) = BUnit
+outTypeQuantOP (Meas) = BWire Bit
+outTypeQuantOP (CInit _) = BWire Bit
+outTypeQuantOP (CDiscard) = BUnit
+outTypeQuantOP (Hadamard) = BWire Qubit
+outTypeQuantOP (PauliX) = BWire Qubit
+outTypeQuantOP (PauliY) = BWire Qubit
+outTypeQuantOP (PauliZ) = BWire Qubit
+outTypeQuantOP (T) = BWire Qubit
+outTypeQuantOP (R _) = BWire Qubit
+outTypeQuantOP (Rinv _) = BWire Qubit
+outTypeQuantOP (CNot) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQuantOP (CZ) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQuantOP (CR _) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQuantOP (CRinv _) = BTensor [BWire Qubit, BWire Qubit]
+outTypeQuantOP (CCNot) = BTensor [BWire Bit, BWire Qubit]
+outTypeQuantOP (CCZ) = BTensor [BWire Bit, BWire Qubit]
+outTypeQuantOP (Toffoli) = BTensor [BWire Qubit, BWire Qubit, BWire Qubit]
 
 -- Label Context 
 

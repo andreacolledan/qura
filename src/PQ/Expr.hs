@@ -9,6 +9,7 @@ module PQ.Expr
     exprToWirebundle,
     wirebundleToExpr,
     renamePattern,
+    renameExpr,
     psub
   )
 where
@@ -226,13 +227,18 @@ freshVariableId used x = head $ dropWhile (`Set.member` used) candidates
     candidates = [x ++ replicate n '\'' | n <- [0..]]
 
 getSetRenaming :: Set.Set VariableId -> Set.Set VariableId -> Map.Map VariableId VariableId
-getSetRenaming toRename toAvoid = fst $ foldl go (Map.empty, toAvoid) (Set.toList toRename)
+getSetRenaming toRename toAvoid =
+  fst $ foldl go (Map.empty, toAvoid) (Set.toList toRename)
   where
     go (m, used) x =
       let x' = freshVariableId used x
-      in (Map.insert x x' m, Set.insert x' used)
-    
+      in if x' == x
+           then (m, used)               -- no renaming needed, keep map as-is
+           else (Map.insert x x' m, Set.insert x' used)
+
+-- TODO maybe change return type to either runtimerror expr
 psub :: Pattern -> Expr -> Expr -> Expr
+-- psub x v m = trace("\n====\nsubbing: "++show x ++"\nwith: "++pretty v++"\nin:\n>>> "++pretty m)$case x of
 psub x v m = case x of
   PHole -> m
 
@@ -252,15 +258,44 @@ psub x v m = case x of
         in ETuple (et':ets')
 
       EAbs p typ e ->
+        -- trace ("\n[psub:EAbs] trying to substitute " ++ show x ++ " with " ++ pretty v
+        --       ++ "\n in expr: " ++ pretty (EAbs p typ e)) $
+
         let pVars = varsInPattern p in
+        -- trace ("[psub:EAbs] pattern vars: " ++ show pVars) $
+
         if pvar `Set.member` pVars
-          then EAbs p typ e -- can't sub x in: \x . (...)
-          else -- ensure that variables in v are different from those in p
-            let
-              vVars = varsInExpr v
-              renaming = getSetRenaming pVars vVars -- new names map for p` (possibly empty)
-              (EAbs p' typ e') = renameExpr renaming $ EAbs p typ e
-            in EAbs p' typ $ psub x v e'
+          -- then trace ("[psub:EAbs] shadowing detected: " ++ show pvar
+          --             ++ " is bound in " ++ show pVars
+          --             ++ " → skipping substitution in body") $
+          then  EAbs p typ e
+          else
+            let vVars = varsInExpr v in
+            -- trace ("[psub:EAbs] free vars in v: " ++ show vVars) $
+
+            let renaming = getSetRenaming pVars vVars in
+            -- trace ("[psub:EAbs] renaming computed: " ++ show renaming) $
+
+            let torename = (EAbs p typ e) in
+            -- trace ("[psub:EAbs] applying renaming map to: "++pretty torename) $
+            
+            let (EAbs p' typ e') = renameExpr renaming torename in
+            -- trace ("[psub:EAbs] after renaming: " ++ pretty (EAbs p' typ e')) $
+
+            let recCall = psub x v e' in
+            -- trace ("[psub:EAbs] recursive call result: " ++ pretty recCall) $
+            EAbs p' typ recCall
+
+      -- EAbs p typ e ->
+      --   let pVars = varsInPattern p in
+      --   if pvar `Set.member` pVars
+      --     then EAbs p typ e -- can't sub x in: \x . (...)
+      --     else -- ensure that variables in v are different from those in p
+      --       let
+      --         vVars = varsInExpr v
+      --         renaming = getSetRenaming pVars vVars -- new names map for p` (possibly empty)
+      --         (EAbs p' typ e') = renameExpr renaming $ EAbs p typ e
+      --       in EAbs p' typ $ psub x v e'
 
       ECirc l c k -> ECirc l c k 
 
@@ -292,7 +327,8 @@ psub x v m = case x of
               renaming = getSetRenaming pVars vVars
               e2' = renameExpr renaming e2
               p' = renamePattern renaming p
-            in ELet p' e1' $ psub x v e2' 
+              e2'' = psub x v e2'
+            in ELet p' e1' e2''
 
       EAnno w typ -> EAnno (psub x v w) typ
 
@@ -336,7 +372,11 @@ exprToWirebundle (ELab l) = Right $ WLab l
 exprToWirebundle (ETuple ls) = do
   ws <- mapM exprToWirebundle ls
   return (WTuple ws)
-exprToWirebundle (ECons h t) = undefined
+exprToWirebundle (ECons h t) = do
+  h' <- exprToWirebundle h
+  t' <- exprToWirebundle t
+  Right $ WCons h' t'
+exprToWirebundle (ENil typ) = Right $ WNil $ typeToBundleType typ
 -- likely caused by EApply on a non assigned label (for example if there is no main)
 exprToWirebundle e = Left $ RuntimeError ("Cannot convert the Expr:\n> "++show e++"\n to a WireBundle")
 
@@ -347,49 +387,52 @@ wirebundleToExpr (WTuple ls) = ETuple $ map wirebundleToExpr ls
 
 renameExpr :: Map.Map VariableId VariableId -> Expr -> Expr
 renameExpr m expr =
-  -- trace("\nRenaming "++show m++" in "++pretty expr)$case expr of
-  case expr of
-    EUnit -> EUnit
+  if Map.null m 
+    then expr
+    else
+    -- trace("\nRenaming "++show m++" in "++pretty expr)$case expr of
+    case expr of
+      EUnit -> EUnit
 
-    EVar x -> case Map.lookup x m of
-                Just v  -> EVar v
-                Nothing -> EVar x
+      EVar x -> case Map.lookup x m of
+                  Just v  -> EVar v
+                  Nothing -> EVar x
 
-    ELab l -> ELab l
+      ELab l -> ELab l
 
-    ETuple es -> ETuple $ map (renameExpr m) es
+      ETuple es -> ETuple $ map (renameExpr m) es
 
-    EAbs p typ body ->
-      let p' = renamePattern m p
-          body' = renameExpr m body
-      in EAbs p' typ body'
+      EAbs p typ body ->
+        let p' = renamePattern m p
+            body' = renameExpr m body
+        in EAbs p' typ body'
 
-    ECirc l c k -> ECirc l c k
+      ECirc l c k -> ECirc l c k
 
-    ELift e -> ELift $ renameExpr m e
+      ELift e -> ELift $ renameExpr m e
 
-    ENil typ -> ENil typ
+      ENil typ -> ENil typ
 
-    ECons e1 e2 -> ECons (renameExpr m e1) (renameExpr m e2)
+      ECons e1 e2 -> ECons (renameExpr m e1) (renameExpr m e2)
 
-    EFold e1 e2 e3 -> EFold (renameExpr m e1) (renameExpr m e2) (renameExpr m e3)
+      EFold e1 e2 e3 -> EFold (renameExpr m e1) (renameExpr m e2) (renameExpr m e3)
 
-    EApp e1 e2 -> EApp (renameExpr m e1) (renameExpr m e2)
+      EApp e1 e2 -> EApp (renameExpr m e1) (renameExpr m e2)
 
-    EApply e1 e2 -> EApply (renameExpr m e1) (renameExpr m e2)
+      EApply e1 e2 -> EApply (renameExpr m e1) (renameExpr m e2)
 
-    EBox typ e -> EBox typ (renameExpr m e)
+      EBox typ e -> EBox typ (renameExpr m e)
 
-    EForce e -> EForce (renameExpr m e)
+      EForce e -> EForce (renameExpr m e)
 
-    ELet p e1 e2 -> ELet (renamePattern m p) (renameExpr m e1) (renameExpr m e2)
+      ELet p e1 e2 -> ELet (renamePattern m p) (renameExpr m e1) (renameExpr m e2)
 
-    EAnno e typ -> EAnno (renameExpr m e) typ
+      EAnno e typ -> EAnno (renameExpr m e) typ
 
-    EIAbs i e -> EIAbs i (renameExpr m e)
+      EIAbs i e -> EIAbs i (renameExpr m e)
 
-    EIApp e i -> EIApp (renameExpr m e) i
+      EIApp e i -> EIApp (renameExpr m e) i
 
-    EConst c -> EConst c
+      EConst c -> EConst c
 
-    EAssume e typ -> EAssume (renameExpr m e) typ
+      EAssume e typ -> EAssume (renameExpr m e) typ

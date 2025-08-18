@@ -21,9 +21,9 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  -- trace (""
-  --     ++ "-- Circuit Expr:\n"++pretty expr
-  --   ) $ 
+  trace (""
+      ++ "-- Circuit Expr:\n"++pretty expr
+    ) $ 
     evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
@@ -35,25 +35,20 @@ append c k l d l' =
   -- 1) collect all the names appearing in l d l'
     oldNames = namesInBox (l, d, l')
     avoidNames = namesInBox (WUnit, c, k)
-
   -- 2) create a renaming from l to t so that label in t don't appear in c
     renaming = createRenaming oldNames avoidNames
-
   -- 3) use the renaming to obtain l d l'-> t d' t'
     (t, d', t') = updateBoxNames renaming (l, d, l')
-
   -- 4) concat c::d' and obtain c'
     c' = circConcat c d' -- is the last instruction g(t*)->t' already in d'?
-    
   in
   -- 5) return (c', t')
   Config c' (wirebundleToExpr t')
 
-
-appendEConst :: Circuit -> WireBundle -> QuantumOperation -> Configuration
-appendEConst circ k op = 
+appendQuantOP :: Circuit -> WireBundle -> QuantumOperation -> Configuration
+appendQuantOP circ k op = 
   let
-    t = outTypeQOP op
+    t = outTypeQuantOP op
     q = getContext circ
     (q', l) = freshlabels t q
     circ' = CCons circ op k l
@@ -61,12 +56,15 @@ appendEConst circ k op =
     lExpr = wirebundleToExpr l
   in Config circ'' lExpr
 
+appendConst :: Circuit -> Constant -> Configuration
+appendConst _ _ = undefined
+
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
-  -- trace("\nEvaluating:\n"++pretty expr)$case expr of
-  -- trace("\nEvaluating:\n"++show expr)$case expr of
-  -- trace("\nEvaluating:\n"++pretty config)$case expr of
+  -- trace("\nEvaluating:\n"++pretty expr)$
+  -- trace("\nEvaluating:\n"++pretty config)$
+  -- trace("\nEvaluating:\n"++show expr)$
   case expr of
     EUnit -> Right config
 
@@ -77,8 +75,7 @@ evalConfiguration (Config circ expr) =
 
     ETuple tpl -> Right config -- value
 
-    EAbs _ _ _ -> -- value
-      Right config
+    EAbs _ _ _ -> Right config -- value
 
     ECirc _ _ _ -> Right config
 
@@ -88,10 +85,31 @@ evalConfiguration (Config circ expr) =
 
     ECons _ _ -> Right config -- value
 
-    -- FOLD-END rule
     EFold _ w (ENil _) -> Right $ Config circ w
-    -- FOLD-STEP
-    EFold _ _ _ -> undefined
+    EFold fun v w -> trace("\n[EFold] Evaluating the EFold:\n > "++""++"\n > acc: "++pretty v++"\n > input: "++pretty w)$do
+      (Config circ' fun') <- evalConfiguration $ Config circ fun
+      case fun' of
+        ELift m -> do
+          foldResult <- trace("\n[EFold] fold function:\n > "++pretty m)$evalFold 0 circ' $ EFold m v w
+          trace("\n[EFold] Result:\n"++pretty foldResult)$
+            Right foldResult
+          where 
+            evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
+            -- FOLD-END rule
+            evalFold _ circ (EFold _ w (ENil _)) = Right $ Config circ w
+            -- FOLD-STEP
+            evalFold i circ (EFold m v (ECons w' w)) = do
+              -- let mi = isub (isubSingleton "i" (Number i)) m -- FIXME is it always `i`?
+              let mi = EIApp m (Number i) -- FIXME is it always `i`?
+              -- do I have to eval the index?
+              (Config d y) <- evalConfiguration $ Config circ' mi
+              (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v,w]))
+              step <- evalFold (i+1) e $ EFold m z w'
+              evalConfiguration step
+
+            evalFold i circ (EFold a b c) = trace("\nUNDEFINED:\nindex: "++show i++"\nEFold a b c\na: "++pretty a++"\nb: "++show b++"\nc: "++show c)$undefined
+
+        _ -> Left $ RuntimeError $ "First argument of EFold did not reduce to a Lift, it reduced to:\n"++pretty fun'
 
     EApp abs arg -> do
       (Config circ' abs') <- evalConfiguration (Config circ abs)
@@ -100,7 +118,7 @@ evalConfiguration (Config circ expr) =
           (Config circ'' arg') <- evalConfiguration (Config circ' arg)
           evalConfiguration $ Config circ'' $ psub p arg' body
 
-        _ -> Left $ RuntimeError "The first argument of EApp did not reduce to an abstraction."
+        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction."
 
     EApply e1 e2 -> do
         Config circ' e1' <- evalConfiguration (Config circ e1)
@@ -108,23 +126,30 @@ evalConfiguration (Config circ expr) =
         k <- exprToWirebundle e2'
         case e1' of
           ECirc l d l' -> 
-            let appended = append circ'' k l d l'
-            in Right appended
+            Right $ append circ'' k l d l'
+
           EConst (Boxed op) -> 
-            let appended = appendEConst circ'' k op
-            in Right appended
-          _ -> Left $ RuntimeError "First argument of EApply did not reduce to ECirc or EConst."
+            Right $ appendQuantOP circ'' k op
+
+          EConst c -> 
+            Right $ appendConst circ'' c
+            
+          err -> Left $ RuntimeError $ "First argument of EApply did not reduce to ECirc or EConst.\nGot "++pretty err
 
     EBox typ e -> do -- TODO: untested
       (Config circ' e') <- evalConfiguration (Config circ e)
       case e' of
-        ELift n -> do
-          let t = typeToBundleType typ
-          let (q,l) = freshlabels t emptyContext
-          let lExpr = wirebundleToExpr l
-          (Config d lExpr') <- evalConfiguration $ Config (Id q) (EApp n lExpr)
-          l' <- exprToWirebundle lExpr'
-          Right $ Config circ' (ECirc l d l')
+        ELift n -> 
+          case typeToBundleType typ of
+            Just t -> do
+              let (q,l) = freshlabels t emptyContext
+              let lExpr = wirebundleToExpr l
+              (Config d lExpr') <- evalConfiguration $ Config (Id q) (EApp n lExpr)
+              l' <- exprToWirebundle lExpr'
+              Right $ Config circ' (ECirc l d l')
+            
+            Nothing -> undefined
+            
         _ -> Left $ RuntimeError "EBox did not reduce to an ELift"
 
     EForce e -> do
@@ -135,7 +160,8 @@ evalConfiguration (Config circ expr) =
 
     ELet p e1 e2 -> do
       (Config circ' e1') <- evalConfiguration (Config circ e1)
-      let circ'' = Config circ' $ psub p e1' e2
+      let expr' = psub p e1' e2
+      let circ'' = Config circ' expr' 
       evalConfiguration circ''
       -- undefined
 
@@ -149,7 +175,7 @@ evalConfiguration (Config circ expr) =
       case m' of
         EIAbs ivar n -> do
           -- eval index i and obtain w
-          let w = Number 0 -- TODO
+          let w = Number 0 -- TODO FIXME README
 
           -- sub ivar with w in n and obtain (Config circ' n')
           let n' = isub (isubSingleton ivar w) n
@@ -168,6 +194,9 @@ evalConfiguration (Config circ expr) =
 
     EAssume _ _ -> undefined
 
+    err -> Left $ RuntimeError $ "Unhandled case:\n" ++ pretty err
+
 
 handleEConst :: Constant -> Index -> Either RuntimeError Expr
-handleEConst c i = Right $ EConst c
+handleEConst (Boxed op) i = Right $ EConst $ Boxed op
+handleEConst c i = Right $ EConst $ c

@@ -147,9 +147,9 @@ instance HasSize a => HasSize (Maybe a) where
 
 ---------------------------
 
-typeToBundleType :: Maybe Type -> BundleType
-typeToBundleType Nothing  = error "typeToBundleType: Nothing"
-typeToBundleType (Just t) = go t
+typeToBundleType :: Maybe Type -> Maybe BundleType
+typeToBundleType Nothing  = Nothing
+typeToBundleType (Just t) = Just (go t)
   where
     go :: Type -> BundleType
     go TUnit             = BUnit
