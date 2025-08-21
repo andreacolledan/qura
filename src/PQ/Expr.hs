@@ -6,7 +6,6 @@ module PQ.Expr
     Pattern (..),
     Expr (..),
     isBundle,
-    exprToWirebundle,
     wirebundleToExpr,
     renamePattern,
     renameExpr,
@@ -32,7 +31,6 @@ import PQ.Index
 import PQ.Type
 import PrettyPrinter (Pretty (..))
 import Circuit
-import Interpreter.RuntimeError
 
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
@@ -416,20 +414,6 @@ isBundle (ETuple ls) = all isBundle ls
 isBundle (ECons h t) = isBundle h && isBundle t
 isBundle (ENil _) = True -- idk... can it appear by itself? 
 isBundle _ = False
-
-exprToWirebundle :: Expr -> Either RuntimeError WireBundle
-exprToWirebundle EUnit = Right $ WUnit
-exprToWirebundle (ELab l) = Right $ WLab l
-exprToWirebundle (ETuple ls) = do
-  ws <- mapM exprToWirebundle ls
-  return (WTuple ws)
-exprToWirebundle (ECons h t) = do
-  h' <- exprToWirebundle h
-  t' <- exprToWirebundle t
-  Right $ WCons h' t'
-exprToWirebundle (ENil typ) = Right $ WNil $ typeToBundleType typ
--- likely caused by EApply on a non assigned label (for example if there is no main)
-exprToWirebundle e = Left $ RuntimeError ("Cannot convert the Expr:\n> "++show e++"\n to a WireBundle")
 
 wirebundleToExpr :: WireBundle -> Expr
 wirebundleToExpr (WUnit) = EUnit

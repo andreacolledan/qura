@@ -182,7 +182,9 @@ applyModulesMap maps (progName, startDef)
       e2' <- applyModulesMap maps (progName, e2)
       Right $ EApply e1' e2'
 
-    EBox _ _ -> Left $ RuntimeError "EBox not supported yet"
+    EBox typ e -> do
+      e' <- applyModulesMap maps (progName, e)
+      Right $ EBox typ e'
 
     EForce e -> do
       e' <- applyModulesMap maps (progName, e)
@@ -270,7 +272,13 @@ wrapExpr e (p:ps) (Just typ) = case typ of
   TUnit -> undefined
   TWire _ _ -> EAbs p typ e
   TTensor _ -> EAbs p typ e
-  TCirc _ _ _ -> undefined
+  TCirc _ _ _ ->
+    error $ unlines
+      [ "[wrapExpr] pattern mismatch"
+      , "  pattern p: " ++ pretty p
+      , "  remaining patterns ps: " ++ intercalate ", " (map pretty ps)
+      , "  expected type: " ++ pretty typ
+      ]
   TArrow typ1 _ _ _ -> wrapExpr e (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
   TBang _ typ -> wrapExpr e (p:ps) (Just typ) -- remove the TBang
   TList _ _ _ -> EAbs p typ e

@@ -64,7 +64,7 @@ evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
   -- trace("\nEvaluating:\n"++pretty expr)$
-  -- trace("\nEvaluating:\n"++pretty config)$
+  trace("\nEvaluating:\n"++pretty config)$
   -- trace("\nEvaluating:\n"++show expr)$
   case expr of
     EUnit -> Right config
@@ -247,3 +247,16 @@ handleEConst c (Number i) = case c of
       l = foldr (\_ acc -> ECons acc EUnit) (ENil niltyp) [1..i]
 handleEConst _ _ = Left $ RuntimeError "Index is not a Number."
 
+exprToWirebundle :: Expr -> Either RuntimeError WireBundle
+exprToWirebundle EUnit = Right $ WUnit
+exprToWirebundle (ELab l) = Right $ WLab l
+exprToWirebundle (ETuple ls) = do
+  ws <- mapM exprToWirebundle ls
+  return (WTuple ws)
+exprToWirebundle (ECons h t) = do
+  h' <- exprToWirebundle h
+  t' <- exprToWirebundle t
+  Right $ WCons h' t'
+exprToWirebundle (ENil typ) = Right $ WNil $ typeToBundleType typ
+-- likely caused by EApply on a non assigned label (for example if there is no main)
+exprToWirebundle e = Left $ RuntimeError ("Cannot convert the Expr:\n> "++show e++"\n to a WireBundle")

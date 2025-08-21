@@ -42,9 +42,9 @@ cdiscard = EIAbs "l" $ EAbs (PVar "c") (TWire Bit (Just $ IVar "l")) (EApply (EC
 hadamard :: Expr
 hadamard = EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) (EApply (EConst (Boxed Hadamard) `EIApp` IVar "l") (EVar "q"))
 
--- | @pauliX@ is the function that applies the Pauli-X gate to a qubit. ???
-pauliX :: Expr
-pauliX = EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) (EApply (EConst (Boxed PauliX) `EIApp` IVar "l") (EVar "q"))
+-- | @qnot@ is the function that applies the Pauli-X gate to a qubit.
+qnot :: Expr
+qnot = EIAbs "l" $ EAbs (PVar "q") (TWire Qubit (Just $ IVar "l")) (EApply (EConst (Boxed PauliX) `EIApp` IVar "l") (EVar "q"))
 
 -- | @pauliY@ is the function that applies the Pauli-Y gate to a qubit.
 pauliY :: Expr
@@ -117,7 +117,7 @@ libraryBindings = [
   TopLevelDefinition "cinit1" [] Nothing cinit1,
   TopLevelDefinition "cdiscard" [] Nothing cdiscard,
   TopLevelDefinition "hadamard" [] Nothing hadamard,
-  TopLevelDefinition "pauliX" [] Nothing pauliX,
+  TopLevelDefinition "qnot" [] Nothing qnot,
   TopLevelDefinition "pauliY" [] Nothing pauliY,
   TopLevelDefinition "pauliZ" [] Nothing pauliZ,
   TopLevelDefinition "tgate" [] Nothing tgate,
