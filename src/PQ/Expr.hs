@@ -183,13 +183,67 @@ instance HasType Expr where
 -- newtype IndexSubstitution = IndexSubstitution (Map.HashMap IVarId Index)
 
 -- i dont remember if i can put this on Analyzer/Unify.hs due to conflicts
+  -- TODO double check iv and ifv
 instance HasIndex Expr where
+  -- | @iv x@ returns the set of index variables (bound or free) that occur in @x@
   iv :: Expr -> HSet.HashSet IVarId
   iv _ = undefined
+  -- iv EUnit            = HSet.empty
+  -- iv (EVar _)         = HSet.empty
+  -- iv (ELab _)         = HSet.empty
+  -- iv (ETuple es)      = HSet.unions (map iv es)
+  -- iv (EAbs _ t e)     = iv t `HSet.union` iv e
+  -- iv (ECirc _ _ _)    = HSet.empty
+  -- iv (EApp e1 e2)     = iv e1 `HSet.union` iv e2
+  -- iv (ELift e)        = iv e
+  -- iv (EForce e)       = iv e
+  -- iv (ENil Nothing)   = HSet.empty
+  -- iv (ENil (Just t))  = iv t
+  -- iv (ECons e1 e2)    = iv e1 `HSet.union` iv e2
+  -- iv (EFold e1 e2 e3) = HSet.unions [iv e1, iv e2, iv e3]
+  -- iv (EAnno e t)      = iv e `HSet.union` iv t
+  -- iv (EApply e1 e2)   = iv e1 `HSet.union` iv e2
+  -- iv (EBox Nothing e) = iv e
+  -- iv (EBox (Just t) e)= iv t `HSet.union` iv e
+  -- iv (ELet _ e1 e2)   = iv e1 `HSet.union` iv e2
+  -- iv (EIAbs i e)      = HSet.insert i (iv e)  -- bound variable also counted
+  -- iv (EIApp e i)      = iv e `HSet.union` iv i
+  -- iv (EConst _)       = HSet.empty
+  -- iv (EAssume e t)    = iv e `HSet.union` iv t
+  -- iv _                = HSet.empty
+  -- | @ifv x@ returns the set of free index variables that occur in @x@
   ifv :: Expr -> HSet.HashSet IVarId
   ifv _ = undefined
+  -- ifv = go HSet.empty
+  --   where
+  --     go bound (EIAbs i e)      = go (HSet.insert i bound) e
+  --     go bound (EIApp e i)      = go bound e `HSet.union` ifv i
+  --     go bound (ETuple es)      = HSet.unions (map (go bound) es)
+  --     go bound (EAbs _ t e)     = ifv t `HSet.union` go bound e
+  --     go bound (EApp e1 e2)     = go bound e1 `HSet.union` go bound e2
+  --     go bound (ELift e)        = go bound e
+  --     go bound (EForce e)       = go bound e
+  --     go bound (ENil Nothing)   = HSet.empty
+  --     go bound (ENil (Just t))  = ifv t
+  --     go bound (ECons e1 e2)    = go bound e1 `HSet.union` go bound e2
+  --     go bound (EFold e1 e2 e3) = HSet.unions [go bound e1, go bound e2, go bound e3]
+  --     go bound (EAnno e t)      = go bound e `HSet.union` ifv t
+  --     go bound (EApply e1 e2)   = go bound e1 `HSet.union` go bound e2
+  --     go bound (EBox Nothing e) = go bound e
+  --     go bound (EBox (Just t) e)= ifv t `HSet.union` go bound e
+  --     go bound (ELet _ e1 e2)   = go bound e1 `HSet.union` go bound e2
+  --     go bound (EAssume e t)    = go bound e `HSet.union` ifv t
+  --     go bound (EVar _)         = HSet.empty
+  --     go bound (ELab _)         = HSet.empty
+  --     go bound (ECirc _ _ _)    = HSet.empty
+  --     go bound (EConst _)       = HSet.empty
+  --     go bound _                = HSet.empty
+-- | @isub sub x@ substitutes the index variable @id@ by the index @i@ in @x@
   isub :: IndexSubstitution -> Expr -> Expr
-  -- look for Type and Index in the Expr and sub inside them
+  isub sub (EIAbs id e) = -- bounds the index variable
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)
+        renaming = isubSingleton id (IVar id')
+    in EIAbs id' (isub sub . isub renaming $ e)
   isub _ EUnit = EUnit 
   isub _ (EVar id) = EVar id
   isub _ (ELab l) = ELab l
@@ -210,11 +264,6 @@ instance HasIndex Expr where
     Nothing -> EBox Nothing $ isub sub e
     Just t -> EBox (Just $ isub sub t) $ isub sub e
   isub sub (ELet p e1 e2) = ELet p (isub sub e1) (isub sub e2)
-  isub sub (EIAbs id e) = -- bounds the index variable
-  -- TODO: check
-    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)
-        renaming = isubSingleton id (IVar id')
-    in EIAbs id' (isub sub e)
   isub sub (EIApp e i) = EIApp (isub sub e) (isub sub i)
   isub _ (EConst c) = EConst c
   isub sub (EAssume e t) = EAssume (isub sub e) (isub sub t)

@@ -1,5 +1,6 @@
 module Eval.Index
   ( evalIndex,
+    evalIndex',
     desugarIndex,
     simplifyIndex,
     maybeSimplifyIndex,
@@ -134,3 +135,85 @@ simplifyIndex qfh grs lrs i = evalIndex qfh (desugarIndex grs lrs i)
 maybeSimplifyIndex :: SolverHandle -> Maybe GlobalMetricModule -> Maybe LocalMetricModule -> Maybe Index -> IO (Maybe Index)
 maybeSimplifyIndex _ _ _ Nothing = return Nothing
 maybeSimplifyIndex qfh grs lrs (Just i) = Just <$> simplifyIndex qfh grs lrs i
+
+
+-- maybe temporary
+evalIndex' :: Index -> Index
+evalIndex' (Number n) = Number n
+evalIndex' (IVar id) = IVar id
+
+evalIndex' (Plus i j) =
+  let i' = evalIndex' i
+      j' = evalIndex' j
+  in case (i', j') of
+       (Number n, Number m) -> Number (n + m)
+       (i', Number 0)       -> i'    -- zero is right identity
+       (Number 0, j')       -> j'    -- zero is left identity
+       (i', j')             -> Plus i' j'  -- do not reduce further
+
+evalIndex' (Max i j) =
+  let i' = evalIndex' i
+      j' = evalIndex' j
+  in case (i', j') of
+       (Number n, Number m) -> Number (max n m)
+       (i', Number 0)       -> i'  -- zero is right identity
+       (Number 0, j')       -> j'  -- zero is left identity
+       -- can't compare further without solver, leave as is
+       (i', j')             -> Max i' j'
+
+evalIndex' (Mult i j) =
+  let i' = evalIndex' i
+      j' = evalIndex' j
+  in case (i', j') of
+       (Number n, Number m) -> Number (n * m)
+       (_, Number 0)        -> Number 0 -- zero is right absorbing
+       (Number 0, _)        -> Number 0 -- zero is left absorbing
+       (i', Number 1)       -> i'       -- one is right identity
+       (Number 1, j')       -> j'       -- one is left identity
+       (i', j')             -> Mult i' j'
+
+evalIndex' (Minus i j) =
+  let i' = evalIndex' i
+      j' = evalIndex' j
+  in case (i', j') of
+       (Number n, Number m) -> Number (n-m) -- Number (max 0 (n - m))
+       (i', Number 0)       -> i'         -- zero is right identity
+       (Number 0, _)        -> Number 0   -- zero is left absorbing
+       -- can't check equality without solver, leave as is
+       (i', j')             -> Minus i' j'
+
+evalIndex' (BoundedMax id i j) =
+  let i' = evalIndex' i
+  in case i' of
+       -- if upper bound is 0, the range is empty and the maximum defaults to 0
+       Number 0 -> Number 0
+       -- if the upper bound is known, unroll the maximum into a sequence of binary maxima
+       Number n ->
+         let elems     = [evalIndex' (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
+             unrolling = foldr1 Max elems
+         in evalIndex' unrolling
+       -- otherwise, simplify inside if possible
+       i' ->
+         let j' = evalIndex' j
+         in if id `Set.member` ifv j'
+              then BoundedMax id i' j'  -- do not reduce further
+              else evalIndex' j'         -- use shortcut
+
+evalIndex' (BoundedSum id i j) =
+  let i' = evalIndex' i
+  in case i' of
+       -- if upper bound is 0, the range is empty and the sum defaults to 0
+       Number 0 -> Number 0
+       -- if the upper bound is known, unroll the bounded sum into a sequence of binary sums
+       Number n ->
+         let elems     = [evalIndex' (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
+             unrolling = foldr1 Plus elems
+         in evalIndex' unrolling
+       -- otherwise, simplify inside if possible
+       i' ->
+         let j' = evalIndex' j
+         in if id `Set.member` ifv j'
+              then BoundedSum id i' j'  -- do not reduce further
+              else evalIndex' (Mult i' j') -- use shortcut
+
+evalIndex' i = undesugaredPanic "evalIndex'" $ show i

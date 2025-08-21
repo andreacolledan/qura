@@ -21,9 +21,9 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  trace (""
-      ++ "-- Circuit Expr:\n"++pretty expr
-    ) $ 
+  -- trace (""
+  --     ++ "-- Circuit Expr:\n"++pretty expr
+  --   ) $ 
     evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
@@ -56,8 +56,9 @@ appendQuantOP circ k op =
     lExpr = wirebundleToExpr l
   in Config circ'' lExpr
 
-appendConst :: Circuit -> Constant -> Configuration
-appendConst _ _ = undefined
+appendConst :: Circuit -> WireBundle -> Constant -> Configuration
+appendConst circ k (Boxed op) = appendQuantOP circ k op
+appendConst circ k _ = undefined
 
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
@@ -86,28 +87,63 @@ evalConfiguration (Config circ expr) =
     ECons _ _ -> Right config -- value
 
     EFold _ w (ENil _) -> Right $ Config circ w
-    EFold fun v w -> trace("\n[EFold] Evaluating the EFold:\n > "++""++"\n > acc: "++pretty v++"\n > input: "++pretty w)$do
+    EFold fun v w -> do
+    -- EFold fun v w -> trace("\nEvaluating:\n"++pretty config)$do
+    -- EFold fun v w -> trace("\n[EFold] Evaluating the EFold:\n > "++""++"\n > acc: "++pretty v++"\n > input: "++pretty w)$do
       (Config circ' fun') <- evalConfiguration $ Config circ fun
       case fun' of
         ELift m -> do
-          foldResult <- trace("\n[EFold] fold function:\n > "++pretty m)$evalFold 0 circ' $ EFold m v w
-          trace("\n[EFold] Result:\n"++pretty foldResult)$
-            Right foldResult
+        -- ELift m -> trace("\n[EFold] Evaluating the EFold in:\n"++pretty circ'++"\n > acc: "++pretty v++"\n > input: "++pretty w)$trace("[EFold] fold function:\n > "++pretty m)$do
+          foldResult <- evalFold 0 circ' $ EFold m v w
+          -- foldResult <- trace("[EFold] fold function:\n > "++pretty m)$evalFold 0 circ' $ EFold m v w
+            -- trace("[EFold] Result:\n"++pretty foldResult)$
+          Right foldResult
           where 
             evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
             -- FOLD-END rule
             evalFold _ circ (EFold _ w (ENil _)) = Right $ Config circ w
             -- FOLD-STEP
             evalFold i circ (EFold m v (ECons w' w)) = do
-              -- let mi = isub (isubSingleton "i" (Number i)) m -- FIXME is it always `i`?
-              let mi = EIApp m (Number i) -- FIXME is it always `i`?
-              -- do I have to eval the index?
-              (Config d y) <- evalConfiguration $ Config circ' mi
-              (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v,w]))
-              step <- evalFold (i+1) e $ EFold m z w'
+              -- Apply index i to the lifted function
+              let mi = EIApp m (Number i)
+              -- trace ("  [evalFold] Step " ++ show i ++ ": applying index " ++ show i ++ " to fold function") $ pure ()
+
+              -- Evaluate the indexed function
+              (Config d y) <- evalConfiguration $ Config circ mi
+              -- trace ("  [evalFold] Step " ++ show i ++ ": function after applying index:\n  " ++ pretty y) $ pure ()
+
+              -- Apply the function to the accumulator and current element
+              (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v, w]))
+              -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z) $ pure ()
+
+              -- Continue folding over the rest
+              -- trace ("  [evalFold] Step " ++ show i ++ ": remaining input = " ++ pretty w') $ pure ()
+              step <- evalFold (i + 1) e $ EFold m z w'
+
+              -- Evaluate result at this step to normalize circuit state
               evalConfiguration step
 
-            evalFold i circ (EFold a b c) = trace("\nUNDEFINED:\nindex: "++show i++"\nEFold a b c\na: "++pretty a++"\nb: "++show b++"\nc: "++show c)$undefined
+            -- UNDEFINED fallback
+            evalFold i circ (EFold a b c) =
+              trace ("\nUNDEFINED:\nindex: " ++ show i ++
+                    "\nEFold a b c\n a: " ++ pretty a ++
+                    "\n b: " ++ show b ++
+                    "\n c: " ++ show c) $
+              undefined
+
+          --   evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
+          --   -- FOLD-END rule
+          --   evalFold _ circ (EFold _ w (ENil _)) = Right $ Config circ w
+          --   -- FOLD-STEP
+          --   evalFold i circ (EFold m v (ECons w' w)) = do
+          --     let mi = EIApp m (Number i)
+          --     -- do I have to eval the index?
+          --     (Config d y) <- evalConfiguration $ Config circ mi
+          --     (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v,w]))
+          --     step <- evalFold (i+1) e $ EFold m z w'
+          --     evalConfiguration step
+
+          --   evalFold i circ (EFold a b c) = trace("\nUNDEFINED:\nindex: "++show i++"\nEFold a b c\na: "++pretty a++"\nb: "++show b++"\nc: "++show c)$undefined
 
         _ -> Left $ RuntimeError $ "First argument of EFold did not reduce to a Lift, it reduced to:\n"++pretty fun'
 
@@ -128,11 +164,9 @@ evalConfiguration (Config circ expr) =
           ECirc l d l' -> 
             Right $ append circ'' k l d l'
 
-          EConst (Boxed op) -> 
-            Right $ appendQuantOP circ'' k op
-
           EConst c -> 
-            Right $ appendConst circ'' c
+            let config' = appendConst circ'' k c
+            in Right config'
             
           err -> Left $ RuntimeError $ "First argument of EApply did not reduce to ECirc or EConst.\nGot "++pretty err
 
@@ -169,18 +203,21 @@ evalConfiguration (Config circ expr) =
 
     EIAbs _ _ -> Right $ config
 
-    -- EIApp m i -> undefined
     EIApp m i -> do
       (Config circ' m') <- evalConfiguration (Config circ m)
       case m' of
         EIAbs ivar n -> do
           -- eval index i and obtain w
-          let w = Number 0 -- TODO FIXME README
+          case evalIndex' i of
+            Number w -> do
+            -- Number w -> trace("[evalConfiguration/EIapp] subbing variable "++show ivar++" with value "++show i++" (="++show w++")")$do
+              -- sub ivar with w in n and obtain (Config circ' n')
+              let n' = isub (isubSingleton ivar (Number w)) n
 
-          -- sub ivar with w in n and obtain (Config circ' n')
-          let n' = isub (isubSingleton ivar w) n
+              evalConfiguration (Config circ' n')
+              -- trace("\n> subbed "++show ivar++" with "++show w++" in\n"++pretty n++"\n> and got:\n"++pretty n')$evalConfiguration (Config circ' n')
 
-          evalConfiguration (Config circ' n')
+            _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
         
         EConst c -> do
           e <- handleEConst c i
@@ -188,7 +225,7 @@ evalConfiguration (Config circ expr) =
 
         -- _ -> Right $ Config circ' m'
         -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
-        err -> trace("Error in M@I\nArgs:\n> M:\n "++show m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++show m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
+        err -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
     EConst c -> Right $ Config circ $ EConst c
 
@@ -198,5 +235,12 @@ evalConfiguration (Config circ expr) =
 
 
 handleEConst :: Constant -> Index -> Either RuntimeError Expr
-handleEConst (Boxed op) i = Right $ EConst $ Boxed op
-handleEConst c i = Right $ EConst $ c
+handleEConst (Boxed op) _ = Right $ EConst $ Boxed op
+handleEConst c (Number i) = case c of
+  MakeRGate -> Right $ EConst $ Boxed $ R i
+  MakeRinvGate -> Right $ EConst $ Boxed $ Rinv i
+  MakeCRGate -> Right $ EConst $ Boxed $ CR i
+  MakeCRinvGate -> Right $ EConst $ Boxed $ CRinv i
+  _ -> undefined
+handleEConst _ _ = Left $ RuntimeError "Index is not a Number."
+

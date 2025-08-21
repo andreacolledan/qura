@@ -169,10 +169,12 @@ data Circuit = -- This corresponds to CRL expressions in the original paper
 mkIdCircuit :: [(Label, WireType)] -> Circuit
 mkIdCircuit pairs = Id (Map.fromList pairs)
 
+-- recurse to the id to extract the context
 getContext :: Circuit -> LabelContext
 getContext (Id q) = q
 getContext (CCons circ _ _ _ ) = getContext circ
 
+-- updates the context. it does not check if the labels are correct.
 updateCircContext :: Circuit -> LabelContext -> Circuit
 updateCircContext (Id _) q = Id q
 updateCircContext (CCons circ op ins outs) q = CCons (updateCircContext circ q) op ins outs
