@@ -12,10 +12,10 @@ import Eval.Index
 
 import Debug.Trace (trace)
 
--- TODO a configuration is a pair of a Circuit (to be defined) and a term
+-- a configuration is a pair of a Circuit and a term
 -- Corresponds to (C,M) in the original paper
 data Configuration = Config {
-    circuit :: Circuit, -- TBD
+    circuit :: Circuit,
     term :: Expr
 } deriving Show
 
@@ -125,11 +125,10 @@ evalConfiguration (Config circ expr) =
 
             -- UNDEFINED fallback
             evalFold i circ (EFold a b c) =
-              trace ("\nUNDEFINED:\nindex: " ++ show i ++
+              error ("\nUNDEFINED:\nindex: " ++ show i ++
                     "\nEFold a b c\n a: " ++ pretty a ++
                     "\n b: " ++ show b ++
-                    "\n c: " ++ show c) $
-              undefined
+                    "\n c: " ++ show c) 
 
           --   evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
           --   -- FOLD-END rule
@@ -143,7 +142,7 @@ evalConfiguration (Config circ expr) =
           --     step <- evalFold (i+1) e $ EFold m z w'
           --     evalConfiguration step
 
-          --   evalFold i circ (EFold a b c) = trace("\nUNDEFINED:\nindex: "++show i++"\nEFold a b c\na: "++pretty a++"\nb: "++show b++"\nc: "++show c)$undefined
+          --   evalFold i circ (EFold a b c) = error ("\nUNDEFINED:\nindex: "++show i++"\nEFold a b c\na: "++pretty a++"\nb: "++show b++"\nc: "++show c)
 
         _ -> Left $ RuntimeError $ "First argument of EFold did not reduce to a Lift, it reduced to:\n"++pretty fun'
 
@@ -197,9 +196,10 @@ evalConfiguration (Config circ expr) =
       let expr' = psub p e1' e2
       let circ'' = Config circ' expr' 
       evalConfiguration circ''
-      -- undefined
 
-    EAnno _ _ -> undefined
+    EAnno e typ -> do -- TODO check, I dont have a rule for this
+      Config circ' e' <- evalConfiguration $ Config circ e
+      Right $ Config circ' $ EAnno e' typ
 
     EIAbs _ _ -> Right $ config
 
@@ -225,14 +225,13 @@ evalConfiguration (Config circ expr) =
 
         -- _ -> Right $ Config circ' m'
         -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
-        err -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
+        _ -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
     EConst c -> Right $ Config circ $ EConst c
 
-    EAssume _ _ -> undefined
-
-    err -> Left $ RuntimeError $ "Unhandled case:\n" ++ pretty err
-
+    EAssume e typ -> do -- TODO check, I dont have a rule for this
+      Config circ' e' <- evalConfiguration $ Config circ e
+      Right $ Config circ' $ EAssume e' typ
 
 handleEConst :: Constant -> Index -> Either RuntimeError Expr
 handleEConst (Boxed op) _ = Right $ EConst $ Boxed op
@@ -241,6 +240,10 @@ handleEConst c (Number i) = case c of
   MakeRinvGate -> Right $ EConst $ Boxed $ Rinv i
   MakeCRGate -> Right $ EConst $ Boxed $ CR i
   MakeCRinvGate -> Right $ EConst $ Boxed $ CRinv i
-  _ -> undefined
+  MakeMCNot -> undefined
+  MakeUnitList -> Right l
+    where
+      niltyp = (Just TUnit) -- or maybe Nothing?
+      l = foldr (\_ acc -> ECons acc EUnit) (ENil niltyp) [1..i]
 handleEConst _ _ = Left $ RuntimeError "Index is not a Number."
 

@@ -36,7 +36,8 @@ outTypeConstant MakeRGate = BWire Qubit
 outTypeConstant MakeRinvGate = BWire Qubit
 outTypeConstant MakeRGate = BTensor [BWire Qubit, BWire Qubit]
 outTypeConstant MakeRinvGate = BTensor [BWire Qubit, BWire Qubit]
-outTypeConstant _ = undefined
+outTypeConstant MakeMCNot = undefined -- those might need to implement BList
+outTypeConstant MakeUnitList = undefined -- those might need to implement BList
 
 -- | @typeOf c@ returns the type of constant @c@.
 -- Metric annotations are abstract at this stage, so that one type can be used for multiple metrics.

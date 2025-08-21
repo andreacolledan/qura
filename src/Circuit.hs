@@ -97,9 +97,9 @@ namesInBundle (WNil _) = Set.empty
 namesInBundle (WCons w ws) = namesInBundle w `Set.union` namesInBundle ws
 
 
-typeOfBundle :: WireBundle -> BundleType
-typeOfBundle WUnit = BUnit
-typeOfBundle _ = undefined
+-- typeOfBundle :: WireBundle -> BundleType
+-- typeOfBundle WUnit = BUnit
+-- typeOfBundle _ = undefined
 
 outTypeQuantOP :: QuantumOperation -> BundleType
 outTypeQuantOP (QInit _) = BWire Qubit
@@ -156,7 +156,7 @@ freshlabels t q = case t of
       (q', wbs) = go q ts
     in (q', WTuple wbs)
     
-  err -> trace("[freshLabels] requested: "++ show err)$undefined
+  err -> error $ "[freshLabels] requested: "++ show err
 
 
 -- Circuit Datatype

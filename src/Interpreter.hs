@@ -54,28 +54,28 @@ splitTLDEFs [] = ([], Nothing)
 splitTLDEFs [x] = ([], Just x)
 splitTLDEFs xs = (init xs, Just (last xs))
 
-idCircuitFromArgs :: ([Pattern], Maybe Type) -> Circuit
-idCircuitFromArgs _ = mkIdCircuit []
--- idCircuitFromArgs :: TopLevelDefinition -> LabelContext
--- idCircuitFromArgs (TopLevelDefinition _ a s _) = 
---   let ctx = pairArgPattern a s
---   in mkIdCircuit ctx
---     where
---       pairArgPattern :: [Pattern] -> Maybe Type -> [(Label, WireType)]
---       pairArgPattern [] _ = []
---       pairArgPattern _ Nothing = []
---       pairArgPattern (p:ps) (Just typ) = case typ of
---         TUnit -> []
---         TWire typ _ -> 
---           let PVar name = p
---           in [(name ,typ)]
---         -- TTensor _ -> EAbs p typ 
---         -- TCirc _ _ _ -> undefined
---         -- TArrow typ1 _ _ _ -> pairArgPattern  (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
---         -- TBang _ typ -> pairArgPattern  (p:ps) (Just typ) -- remove the TBang
---         -- TList _ _ _ -> EAbs p typ 
---         -- TVar _ -> undefined
---         -- TIForall ivarid typ' _ _ -> EIAbs ivarid (pairArgPattern  ps (Just typ'))
+-- idCircuitFromArgs :: ([Pattern], Maybe Type) -> Circuit
+-- idCircuitFromArgs _ = mkIdCircuit []
+-- -- idCircuitFromArgs :: TopLevelDefinition -> LabelContext
+-- -- idCircuitFromArgs (TopLevelDefinition _ a s _) = 
+-- --   let ctx = pairArgPattern a s
+-- --   in mkIdCircuit ctx
+-- --     where
+-- --       pairArgPattern :: [Pattern] -> Maybe Type -> [(Label, WireType)]
+-- --       pairArgPattern [] _ = []
+-- --       pairArgPattern _ Nothing = []
+-- --       pairArgPattern (p:ps) (Just typ) = case typ of
+-- --         TUnit -> []
+-- --         TWire typ _ -> 
+-- --           let PVar name = p
+-- --           in [(name ,typ)]
+-- --         -- TTensor _ -> EAbs p typ 
+-- --         -- TCirc _ _ _ -> undefined
+-- --         -- TArrow typ1 _ _ _ -> pairArgPattern  (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
+-- --         -- TBang _ typ -> pairArgPattern  (p:ps) (Just typ) -- remove the TBang
+-- --         -- TList _ _ _ -> EAbs p typ 
+-- --         -- TVar _ -> undefined
+-- --         -- TIForall ivarid typ' _ _ -> EIAbs ivarid (pairArgPattern  ps (Just typ'))
 
 mergeModLibs :: Module -> [Module] -> Either RuntimeError (Expr, Circuit)
 mergeModLibs (Module programName e i defs) libs = do
@@ -106,7 +106,8 @@ mergeModLibs (Module programName e i defs) libs = do
 
             -- also wrap the start
             let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
-            let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
+            let initialCircuit = mkIdCircuit [] -- start is always identity
+            -- let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
             Right (wrappedStart, initialCircuit)
 
     Nothing -> Left $ RuntimeError "No definitions in the input module."

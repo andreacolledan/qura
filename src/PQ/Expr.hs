@@ -241,7 +241,7 @@ instance HasIndex Expr where
 -- | @isub sub x@ substitutes the index variable @id@ by the index @i@ in @x@
   isub :: IndexSubstitution -> Expr -> Expr
   isub sub (EIAbs id e) = -- bounds the index variable
-    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub) -- TODO to we need to add vars in e?
         renaming = isubSingleton id (IVar id')
     in EIAbs id' (isub sub . isub renaming $ e)
   isub _ EUnit = EUnit 
@@ -286,6 +286,7 @@ getSetRenaming toRename toAvoid =
            else (Map.insert x x' m, Set.insert x' used)
 
 -- TODO maybe change return type to either runtimerror expr
+-- (if the errors raised can even happen after type checking) (idk)
 psub :: Pattern -> Expr -> Expr -> Expr
 -- psub x v m = trace("\n====\nsubbing: "++show x ++"\nwith: "++pretty v++"\nin:\n>>> "++pretty m)$case x of
 psub x v m = case x of
@@ -412,7 +413,8 @@ isBundle :: Expr -> Bool
 isBundle EUnit = True
 isBundle (ELab _) = True
 isBundle (ETuple ls) = all isBundle ls
-isBundle (ECons _ _) = undefined -- prob needed
+isBundle (ECons h t) = isBundle h && isBundle t
+isBundle (ENil _) = True -- idk... can it appear by itself? 
 isBundle _ = False
 
 exprToWirebundle :: Expr -> Either RuntimeError WireBundle

@@ -36,3 +36,16 @@ qft n d reg =
         let trg = (force hadamard @(d+2*iter)) trg in
         ctrls:trg -- List[i<iter+1] Qubit{d+iter+1+i}
     in fold(qftIter, [], reg) -- List[i<n] Qubit{d+n+i}
+
+-- MAIN: 3-qubit QFT starting at depth 0
+main =
+  let w = force qinit0 in
+  let x = force qinit0 in
+  let y = force qinit0 in
+  -- let z = force qinit0 in
+  -- let zz = force qinit0 in
+  -- (force qft @1 @0) [w]
+  -- (force qft @2 @0) [w,x]
+  (force qft @3 @0) [w,x,y]
+  -- (force qft @4 @0) [w,x,y,z]
+  -- (force qft @5 @0) [w,x,y,z,zz]
