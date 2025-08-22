@@ -222,6 +222,16 @@ namesInCircuit (CCons circ _ ins outs) =
       , namesInBundle outs
       ]
 
+-- ignores the label context and only registers wire bundles
+namesInCircuit' :: Circuit -> Set.Set String
+namesInCircuit' (Id ctx) = Set.empty
+namesInCircuit' (CCons circ _ ins outs) =
+    Set.unions
+      [ namesInCircuit' circ
+      , namesInBundle ins
+      , namesInBundle outs
+      ]
+
 namesInBox :: (WireBundle, Circuit, WireBundle) -> Set.Set String -- string bcs there are labels and variableIds
 namesInBox (ins, circ, outs) = 
   Set.unions [namesInBundle ins, namesInCircuit circ, namesInBundle outs]

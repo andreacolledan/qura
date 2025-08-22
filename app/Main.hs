@@ -80,11 +80,14 @@ interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filep
     when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
     case runInterpreter mod libs of
       Left err -> abortWithMessage $ show err
-      Right config -> do
+      Right intResult -> do
+        let config = cfg intResult
         putStr $ "\nFile '" ++ fp ++ "', produced circuit:\n"
-        putStr $ pretty $ circuit config
-        putStr "\n\nwhile evaluating to:\n> "
-        putStr $ pretty (term config) ++"\n"
+        putStr $ pretty (circuit config) ++ "\n"
+        putStr "\nwhile evaluating to:\n> "
+        putStr $ pretty (term config) ++ "\n"
+        putStr "\nand producing the following Qasm program:\n"
+        putStr $ show (qasm intResult) ++ "\n"
 
 abortWithMessage :: String -> IO ()
 abortWithMessage e = do

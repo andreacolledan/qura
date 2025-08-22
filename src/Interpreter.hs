@@ -4,12 +4,14 @@
 module Interpreter (
     runInterpreter,
     Configuration(..),
+    InterpreterResult(..),
 ) where
 
 -- I havent understand yet how to properly import the modules,
 -- for now, I am simply importing what I need directly
 import Interpreter.RuntimeError
 import Interpreter.Configuration
+import Interpreter.Qasm
 import PQ (Module)
 import PQ.Module
 import PQ.Expr
@@ -21,14 +23,23 @@ import Debug.Trace (trace)
 import qualified Data.Map as M
 import Data.List (intercalate)
 
+data InterpreterResult = IntResult {
+  cfg :: Configuration,
+  qasm :: QasmProgram
+  -- maybe other languages
+} deriving Show
+
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
-runInterpreter :: Module -> [Module] -> Either RuntimeError Configuration
+runInterpreter :: Module -> [Module] -> Either RuntimeError InterpreterResult
 runInterpreter mod libs = do
-  (term, circuit) <- mergeModLibs mod libs
-  startConfigEvaluation (Config circuit term)
+  (term, circ) <- mergeModLibs mod libs
+  config <- startConfigEvaluation (Config circ term)
+  qasmProg <- circuitToQasm $ circuit config -- once we have the string we could save it to file
+  -- saveProgram qasmProg
+  Right $ IntResult config qasmProg
 
--- this is a double map for future reasons, maybe two libs uses a same names
+-- this is a double map for future reasons, maybe two libs uses the same names
 -- for the modules, and we can distinct them with module.function (?).
 -- For now I search the term in all the modules, if it appears in more than
 -- one, I throw an error
@@ -272,13 +283,13 @@ wrapExpr e (p:ps) (Just typ) = case typ of
   TUnit -> undefined
   TWire _ _ -> EAbs p typ e
   TTensor _ -> EAbs p typ e
-  TCirc _ _ _ ->
-    error $ unlines
-      [ "[wrapExpr] pattern mismatch"
-      , "  pattern p: " ++ pretty p
-      , "  remaining patterns ps: " ++ intercalate ", " (map pretty ps)
-      , "  expected type: " ++ pretty typ
-      ]
+  TCirc _ typ1 _ -> wrapExpr e (p:ps) (Just typ1) -- TODO check
+    -- error $ unlines
+    --   [ "[wrapExpr] pattern mismatch"
+    --   , "  pattern p: " ++ pretty p
+    --   , "  remaining patterns ps: " ++ intercalate ", " (map pretty ps)
+    --   , "  expected type: " ++ pretty typ
+    --   ]
   TArrow typ1 _ _ _ -> wrapExpr e (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
   TBang _ typ -> wrapExpr e (p:ps) (Just typ) -- remove the TBang
   TList _ _ _ -> EAbs p typ e

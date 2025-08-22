@@ -21,9 +21,9 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  -- trace (""
-  --     ++ "-- Circuit Expr:\n"++pretty expr
-  --   ) $ 
+  trace (""
+      ++ "-- Circuit Expr:\n"++pretty expr
+    ) $ 
     evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
@@ -64,7 +64,7 @@ evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
   -- trace("\nEvaluating:\n"++pretty expr)$
-  trace("\nEvaluating:\n"++pretty config)$
+  -- trace("\nEvaluating:\n"++pretty config)$
   -- trace("\nEvaluating:\n"++show expr)$
   case expr of
     EUnit -> Right config
@@ -153,7 +153,7 @@ evalConfiguration (Config circ expr) =
           (Config circ'' arg') <- evalConfiguration (Config circ' arg)
           evalConfiguration $ Config circ'' $ psub p arg' body
 
-        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction."
+        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: "-- ++pretty err
 
     EApply e1 e2 -> do
         Config circ' e1' <- evalConfiguration (Config circ e1)
@@ -214,7 +214,9 @@ evalConfiguration (Config circ expr) =
               -- sub ivar with w in n and obtain (Config circ' n')
               let n' = isub (isubSingleton ivar (Number w)) n
 
-              evalConfiguration (Config circ' n')
+              Config circ'' n'' <- evalConfiguration (Config circ' n')
+              Right $ Config circ'' n''
+              -- trace("[IEApp] EIApp m i:\n > m: "++pretty m++"\n > i: "++show i++"\n evaluated to:\n"++pretty n'') $ Right$ Config circ'' n''
               -- trace("\n> subbed "++show ivar++" with "++show w++" in\n"++pretty n++"\n> and got:\n"++pretty n')$evalConfiguration (Config circ' n')
 
             _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
