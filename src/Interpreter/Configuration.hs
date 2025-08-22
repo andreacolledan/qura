@@ -153,7 +153,7 @@ evalConfiguration (Config circ expr) =
           (Config circ'' arg') <- evalConfiguration (Config circ' arg)
           evalConfiguration $ Config circ'' $ psub p arg' body
 
-        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: "-- ++pretty err
+        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: " -- ++pretty err
 
     EApply e1 e2 -> do
         Config circ' e1' <- evalConfiguration (Config circ e1)
@@ -181,7 +181,7 @@ evalConfiguration (Config circ expr) =
               l' <- exprToWirebundle lExpr'
               Right $ Config circ' (ECirc l d l')
             
-            Nothing -> undefined
+            Nothing -> error "[eval EBox] Type of box is nothing."
             
         _ -> Left $ RuntimeError "EBox did not reduce to an ELift"
 
@@ -197,9 +197,7 @@ evalConfiguration (Config circ expr) =
       let circ'' = Config circ' expr' 
       evalConfiguration circ''
 
-    EAnno e typ -> do -- TODO check, I dont have a rule for this
-      Config circ' e' <- evalConfiguration $ Config circ e
-      Right $ Config circ' $ EAnno e' typ
+    EAnno e typ -> evalConfiguration $ Config circ e
 
     EIAbs _ _ -> Right $ config
 
@@ -231,9 +229,7 @@ evalConfiguration (Config circ expr) =
 
     EConst c -> Right $ Config circ $ EConst c
 
-    EAssume e typ -> do -- TODO check, I dont have a rule for this
-      Config circ' e' <- evalConfiguration $ Config circ e
-      Right $ Config circ' $ EAssume e' typ
+    EAssume e typ -> evalConfiguration $ Config circ e
 
 handleEConst :: Constant -> Index -> Either RuntimeError Expr
 handleEConst (Boxed op) _ = Right $ EConst $ Boxed op

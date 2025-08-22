@@ -176,7 +176,7 @@ evalIndex' (Minus i j) =
   let i' = evalIndex' i
       j' = evalIndex' j
   in case (i', j') of
-       (Number n, Number m) -> Number (n-m) -- Number (max 0 (n - m))
+       (Number n, Number m) -> Number (max 0 (n - m))
        (i', Number 0)       -> i'         -- zero is right identity
        (Number 0, _)        -> Number 0   -- zero is left absorbing
        -- can't check equality without solver, leave as is

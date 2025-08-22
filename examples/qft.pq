@@ -19,7 +19,7 @@ qrev = forall iter. forall d.
 -- apply the controlled rotation gate to the target qubit trg at iteration iter
 rotate = forall d. forall iter. lift forall step.
   \((ctrls, trg), ctrl)::((List[i<step] Qubit{d+iter+i+1}, Qubit{d+iter+step}), Qubit{d+iter+step}).
-    let (ctrl, trg) = (force cr @(iter+1-step) @(d+iter+step) @(d+iter+step)) ctrl trg in
+    let (ctrl, trg) = (force cr @((iter+1)-step) @(d+iter+step) @(d+iter+step)) ctrl trg in
     (ctrls:ctrl, trg) -- :: (List[i<step+1] Qubit{d+iter+i+1}, Qubit{d+iter+step+1})
 
 
@@ -42,10 +42,10 @@ main =
   let w = force qinit0 in
   let x = force qinit0 in
   let y = force qinit0 in
-  -- let z = force qinit0 in
-  -- let zz = force qinit0 in
+  let z = force qinit0 in
+  let zz = force qinit0 in
   -- (force qft @1 @0) [w]
   -- (force qft @2 @0) [w,x]
-  (force qft @3 @0) [w,x,y]
+  -- (force qft @3 @0) [w,x,y]
   -- (force qft @4 @0) [w,x,y,z]
-  -- (force qft @5 @0) [w,x,y,z,zz]
+  (force qft @5 @0) [w,x,y,z,zz]

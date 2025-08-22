@@ -284,13 +284,8 @@ wrapExpr e (p:ps) (Just typ) = case typ of
   TWire _ _ -> EAbs p typ e
   TTensor _ -> EAbs p typ e
   TCirc _ typ1 _ -> wrapExpr e (p:ps) (Just typ1) -- TODO check
-    -- error $ unlines
-    --   [ "[wrapExpr] pattern mismatch"
-    --   , "  pattern p: " ++ pretty p
-    --   , "  remaining patterns ps: " ++ intercalate ", " (map pretty ps)
-    --   , "  expected type: " ++ pretty typ
-    --   ]
-  TArrow typ1 _ _ _ -> wrapExpr e (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
+  TArrow typ1 typ2 _ _ -> EAbs p typ1 $ wrapExpr e ps (Just typ2)
+  -- TArrow typ1 _ _ _ -> wrapExpr e (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
   TBang _ typ -> wrapExpr e (p:ps) (Just typ) -- remove the TBang
   TList _ _ _ -> EAbs p typ e
   TVar _ -> undefined
