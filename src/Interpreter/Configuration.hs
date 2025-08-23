@@ -105,7 +105,7 @@ evalConfiguration (Config circ expr) =
             -- but we cant change the fact that ECons is a value, and we should
             -- only evaluate it inside the folds (I think FIXME)
             evalECons :: Configuration -> Either RuntimeError Configuration
-            evalECons (Config circ cons) = trace(show cons)$ case cons of
+            evalECons (Config circ cons) = case cons of
               ENil typ -> Right $ Config circ cons
               ECons e1 e2 -> do -- I had to add this otherwise cons in folds cant be evaluated
                 Config circ' e1' <- evalConfiguration (Config circ e1)
@@ -207,7 +207,7 @@ evalConfiguration (Config circ expr) =
       let circ'' = Config circ' expr' 
       evalConfiguration circ''
 
-    EAnno e typ -> evalConfiguration $ Config circ e
+    EAnno e _ -> evalConfiguration $ Config circ e
 
     EIAbs _ _ -> Right $ config
 
@@ -236,7 +236,7 @@ evalConfiguration (Config circ expr) =
 
     EConst c -> Right $ Config circ $ EConst c
 
-    EAssume e typ -> evalConfiguration $ Config circ e
+    EAssume e _ -> evalConfiguration $ Config circ e
 
 handleEConst :: Constant -> Index -> Either RuntimeError Expr
 handleEConst (Boxed op) _ = Right $ EConst $ Boxed op

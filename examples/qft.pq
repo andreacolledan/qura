@@ -39,8 +39,8 @@ qft n d reg =
 
 -- MAIN: 3-qubit QFT starting at depth 0
 main =
-  let w = force qinit0 in
-  let x = force qinit0 in
+  let w = force qinit1 in
+  let x = force qinit1 in
   let y = force qinit0 in
   let z = force qinit0 in
   let zz = force qinit0 in

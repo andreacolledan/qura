@@ -7,6 +7,7 @@ import PrettyPrinter(pretty)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Debug.Trace (trace)
+import Data.Maybe (mapMaybe)
 
 type QasmProgram = String -- maybe create a class program of saveable strings
 
@@ -47,14 +48,16 @@ getSimple ops = go ops (mkIdCircuit [])
     go :: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit -> Circuit
     go [] circ = circ
     go (step:steps) circ = 
-      let
-        (op, (ins, outs)) = step
-        renaming = getWBRenaming (ins, outs)
-        bundleRenaming = renameBundle renaming
-        steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-        ins' = bundleRenaming ins
-        outs' = bundleRenaming outs
-      in go steps' $ CCons circ op ins' outs'
+      case step of
+        (Meas, (q, c)) -> go steps $ CCons circ Meas q c
+        (op, (ins, outs)) ->
+          let
+            renaming = getWBRenaming (ins, outs)
+            bundleRenaming = renameBundle renaming
+            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            ins' = bundleRenaming ins
+            outs' = bundleRenaming outs
+          in go steps' $ CCons circ op ins' outs'
 
 -- create a list of (op,(ins,outs)) from a circuit. Ignores the label context
 circTolist :: Circuit -> [(QuantumOperation, (WireBundle, WireBundle))]
@@ -85,12 +88,64 @@ filterContext ctx labels = Map.filterWithKey (\k _ -> k `Set.member` labels) ctx
 
 getHeader :: String -> String
 getHeader v = case v of
-  "qasm3.0" -> "OPENQASM 3.0;"
+  "qasm3.0" -> "OPENQASM 3.0;\ninclude \"stdgates.inc\";"
   _ -> error "[getHeader] Unsupported version " ++ show v
 
+thetaStr :: Int -> String
+thetaStr n = "pi/" ++ show (2^(n-1))
+
+thetaInvStr :: Int -> String
+thetaInvStr n = "-" ++ thetaStr n
+
 -- README should we have a constructor for qasm terms and return that, then stringify later?
-opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> String
-opToQasm _ = "QASM operation!"
+opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Maybe String
+-- Qubit metaoperations
+opToQasm (QInit b, (_, WLab name)) =
+  let 
+    decl = "qubit " ++ name ++ ";"
+  in if b
+    then Just $ decl ++ "\nx " ++ name ++ ";"
+    else Just $ decl
+opToQasm (QDiscard, (WLab name, _)) = Just $ "reset " ++ name ++ ";"
+opToQasm (Meas, (WLab q, WLab b)) = Just $ b++ " = measure " ++ q ++ ";"
+-- Bit metaoperations
+opToQasm (CInit b, (_, WLab name)) =
+  Just $ "bit " ++ name ++ " = " ++ (if b then "1" else "0") ++ ";" -- in qiskit we cant assign values to bits
+opToQasm (CDiscard, (WLab name, _)) = Nothing -- no intruction to do so, nor a reason
+-- Single qubit gates
+opToQasm (Hadamard, (WLab name, _)) = Just $ "h " ++ name ++ ";"
+opToQasm (PauliX, (WLab name, _)) = Just $ "x " ++ name ++ ";"
+opToQasm (PauliY, (WLab name, _)) = Just $ "y " ++ name ++ ";"
+opToQasm (PauliZ, (WLab name, _)) = Just $ "z " ++ name ++ ";"
+opToQasm (T, (WLab name, _)) = Just $ "t " ++ name ++ ";"
+opToQasm (R n, (WLab name, _)) = Just $ "rz(" ++ thetaStr n ++ ") " ++ name ++ ";"
+opToQasm (Rinv n, (WLab name, _)) = Just $ "rz(" ++ thetaInvStr n ++ ") " ++ name ++ ";"
+-- Two qubit gates
+opToQasm (CNot, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cx " ++ ctrl ++ ", " ++ trgt ++ ";"
+opToQasm (CZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cz " ++ ctrl ++ ", " ++ trgt ++ ";"
+opToQasm (CR n, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "crz(" ++ thetaStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"
+opToQasm (CRinv n, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "crz(" ++ thetaInvStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"
+-- Classically controlled gates
+opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "if(" ++ ctrl ++ ") x " ++ trgt ++ ";"
+opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "if(" ++ ctrl ++ ") z " ++ trgt ++ ";"
+-- Three qubit gates
+opToQasm (CNot, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) = Just $ "ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"
+opToQasm _ = Just $ "placeolder"
+
+bitsNames :: LabelContext -> [Label]
+bitsNames ctx = [label | (label, wireType) <- Map.toList ctx, wireType == Bit]
+
+initBit :: Label -> String
+initBit name = "bit " ++ name ++ ";"
+
+-- given all the bists of the label context, remove the bits that are explicitely initialized
+filterBitLbels :: [Label] -> [(QuantumOperation, (WireBundle, WireBundle))] -> [Label]
+filterBitLbels labels ops =
+    filter (`notElem` bitsToRemove) labels
+  where
+    -- Extract labels from WLab in operations where the op is CInit
+    bitsToRemove :: [Label]
+    bitsToRemove = [label | (CInit _, (WLab label, _)) <- ops]
 
 -- Generates the string representing the program from a circuit
 -- FIXME for now we simply convert the Circuit 1 to 1.
@@ -99,7 +154,15 @@ opToQasm _ = "QASM operation!"
 getQasm :: Circuit -> QasmProgram
 getQasm circ = 
   let
-    header = getHeader "qasm3.0"
+    header = getHeader "qasm3.0" -- version, imports
+    circSeq = circTolist circ
+    -- Bits that are not explicitely initialized need to be init.
+    -- If we want to save the result of a Meas, the bit should already exist,
+    -- but we can't init all of the bits otherwise we can't assign them to a specific value
+    -- i dont know if all of this is qiskit only :)
     ctx = getContext circ
-    instructions = map opToQasm $ circTolist circ
-  in unlines $ [header] ++ instructions
+    bits = bitsNames ctx
+    bitsInits = map initBit $ filterBitLbels bits circSeq
+    -- stringify operations
+    instructions = mapMaybe opToQasm circSeq
+  in unlines $ [header] ++ bitsInits ++ instructions

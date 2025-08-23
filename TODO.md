@@ -22,3 +22,4 @@
 * [ ] adjust imports/exports lists of the new modules
 * [ ] qubit reuse option (init new qubits on prev. discarded qubits))
 * [ ] check `fresh` :)
+* [ ] in qiskit you cant initialize bits (?!?!??!), maybe add a --qiskit cla
