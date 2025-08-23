@@ -7,9 +7,36 @@ module Parser.Index
 where
 
 import Control.Monad.Combinators.Expr
+  ( Operator (InfixL),
+    makeExprParser,
+  )
 import PQ.Index
+  ( Index
+      ( BoundedMax,
+        BoundedSum,
+        IVar,
+        Max,
+        Minus,
+        Mult,
+        Number,
+        Plus
+      ),
+  )
 import Parser.Core
-import Text.Megaparsec
+  ( Parser,
+    brackets,
+    comma,
+    hyphen,
+    identifier,
+    keyword,
+    lessSign,
+    number,
+    parens,
+    plus,
+    star,
+    (<?>),
+  )
+import Text.Megaparsec (MonadParsec (try), (<|>))
 
 --- Delimited Indices ---
 
@@ -23,13 +50,13 @@ indexVariable = IVar <$> identifier <?> "index variable"
 
 -- | Parse "max(i, j)"" as @Max i j@.
 binaryMax :: Parser Index
-binaryMax = do
-    (i1,i2) <- try $ do
+binaryMax =
+  do
+    (i1, i2) <- try $ do
       keyword "max"
       parens $ (,) <$> indexExpression <* comma <*> indexExpression
     return $ Max i1 i2
     <?> "max expression"
-
 
 --- Index Operators ---
 
@@ -57,7 +84,6 @@ minusOperator =
     return Minus
     <?> "minus"
 
-
 --- Low-precedence Prefix Operators ---
 -- These operators have the least precedence, i.e. they extend until the end of the expression.
 -- The 'makeExprParser' function does not deal well with them, so it is better to define them like this.
@@ -74,11 +100,10 @@ boundedMaximum = do
 -- | Parse "sum[id < i] j" as @BoundedSum id i j@
 boundedSum :: Parser Index
 boundedSum = do
-  keyword "sum" 
+  keyword "sum"
   (iterator, bound) <- brackets $ (,) <$> identifier <* lessSign <*> indexExpression
   i <- indexExpression
   return $ BoundedSum iterator bound i
-
 
 --- Index Expression Parsing
 

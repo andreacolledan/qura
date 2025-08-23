@@ -4,10 +4,36 @@ module Parser.Type
 where
 
 import Control.Monad.Combinators.Expr
+  ( Operator (InfixR, Prefix),
+    makeExprParser,
+  )
 import PQ.Type
+  ( Type
+      ( TArrow,
+        TBang,
+        TCirc,
+        TIForall,
+        TList,
+        TTensor,
+        TUnit,
+        TWire
+      ),
+    WireType (Bit, Qubit),
+  )
+import Parser.Annotation (functionAnnotation, globalMetricAnnotation, listLengthAnnotation, localMetricAnnotation)
 import Parser.Core
-import Text.Megaparsec
-import Parser.Annotation (globalMetricAnnotation, localMetricAnnotation, functionAnnotation, listLengthAnnotation)
+  ( Parser,
+    arrow,
+    bang,
+    comma,
+    dot,
+    emptyParens,
+    identifier,
+    keyword,
+    parens,
+    (<?>),
+  )
+import Text.Megaparsec (MonadParsec (try), sepBy1, (<|>))
 
 --- Delimited Types ---
 
@@ -45,9 +71,10 @@ tensor :: Parser Type
 tensor = do
   try $ do
     elems <- parens $ sepBy1 typeExpression comma
-    return $ if length elems >= 2
-      then TTensor elems
-      else head elems -- if just (t1) default to returning t1 by itself
+    return $
+      if length elems >= 2
+        then TTensor elems
+        else head elems -- if just (t1) default to returning t1 by itself
 
 --- Type Operators ---
 
@@ -88,7 +115,6 @@ forallType = do
   return $ case resAnno of
     Just (i, j) -> TIForall id typ (Just i) (Just j)
     Nothing -> TIForall id typ Nothing Nothing
-
 
 --- Type Expression Parsing ---
 

@@ -1,14 +1,15 @@
 module Parser.Core
   ( Parser,
-    ParserState(..),
-    whitespace,
+    ParserState (..),
     symbol,
+    whitespace,
     number,
     keyword,
     identifier,
     parens,
     brackets,
     braces,
+    pragmabraces,
     comma,
     dot,
     emptyParens,
@@ -34,22 +35,23 @@ module Parser.Core
     many,
     (<?>),
     withDefault,
-    ParserError
+    ParserError,
   )
 where
 
 import Control.Monad
 import Control.Monad.State.Strict
+import Data.Maybe (fromMaybe)
 import Data.Void
 import Text.Megaparsec
 import Text.Megaparsec.Char (alphaNumChar, letterChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as Lex
-import Data.Maybe (fromMaybe)
 
 --- Custom Parser type
 
 -- | The state of the PQ parser
-data ParserState = ParserState
+data ParserState
+  = ParserState
   { -- | The current indentation level.
     baseIndent :: Pos,
     -- | Whether global metric annotations should be parsed.
@@ -67,7 +69,8 @@ type ParserError = ParseErrorBundle String Void
 
 -- | Space consumer for lexing, consumes all whitespace, including newlines
 sc :: Parser ()
-sc = Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
+sc =
+  Lex.space space1 (Lex.skipLineComment "--") (Lex.skipBlockComment "{-" "-}")
 
 -- | @lexeme p@ parses @p@, checking the indentation level and consuming all trailing whitespace.
 -- Fails if the lexeme is below the current indentation level.
@@ -75,7 +78,12 @@ lexeme :: Parser a -> Parser a
 lexeme p = do
   baseIndent <- gets baseIndent
   currentIndent <- Lex.indentLevel
-  unless (currentIndent >= baseIndent) $ fail $ "Indentation error: expected input at level " ++ show (unPos baseIndent) ++ " or greater, got level " ++ show (unPos currentIndent)
+  unless (currentIndent >= baseIndent) $
+    fail $
+      "Indentation error: expected input at level "
+        ++ show (unPos baseIndent)
+        ++ " or greater, got level "
+        ++ show (unPos currentIndent)
   Lex.lexeme sc p
 
 -- | Parse a verbatim string as a lexeme
@@ -184,20 +192,28 @@ reservedKeywords =
 -- | Parse a reserved keyword. Throws an exception if the specified keyword is not a valid keyword in 'reservedKeywords'.
 keyword :: String -> Parser ()
 keyword kw = do
-  unless (kw `elem` reservedKeywords) $ error $ "Internal error: tried to parse `" ++ kw ++ "' as a keyword, but it is not."
+  unless (kw `elem` reservedKeywords) $
+    error $
+      "Internal error: tried to parse `"
+        ++ kw
+        ++ "' as a keyword, but it is not."
   _ <- lexeme $ try $ string kw <* notFollowedBy alphaNumChar
   return ()
 
 -- | Parse an identifier. Fails without consuming anything if the identifier is a reserved keyword.
 identifier :: Parser String
-identifier = lexeme $ try $ do
-  id <- (:) <$> idStart <*> many idChar
-  when (id `elem` reservedKeywords) $ fail ("expected identifier, found reserved keyword " ++ id)
-  return id
+identifier = lexeme $
+  try $
+    do
+      id <- (:) <$> idStart <*> many idChar
+      when (id `elem` reservedKeywords) $
+        fail ("expected identifier, found reserved keyword " ++ id)
+      return id
   where
     -- \| Parse a character allowed at the start of an identifier (a letter).
     idStart :: Parser Char
     idStart = letterChar
+
     -- \| Parse a character allowed in an identifier (an alphanumerical character).
     idChar :: Parser Char
     idChar = alphaNumChar
@@ -232,6 +248,10 @@ brackets = between (symbol "[") (symbol "]")
 -- | @braces p@ parses @p@ enclosed in "{" and "}".
 braces :: Parser a -> Parser a
 braces = between (symbol "{") (symbol "}")
+
+-- | @pragmaBraces p@ parses @p@ enclosed in "{-#" and "#-}".
+pragmabraces :: Parser a -> Parser a
+pragmabraces = between (symbol "{-#") (symbol "#-}")
 
 -- | @whenGlobalAnalysis p@ parses @p@ if the parser is configured to take into account global metric annotations.
 -- Otherwise, @p@ is consumed, if present, and the parser returns 'Nothing'.

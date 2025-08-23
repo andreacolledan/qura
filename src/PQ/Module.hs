@@ -1,17 +1,19 @@
 module PQ.Module where
 
-import Data.Maybe
-import Metric (GlobalMetricModule, LocalMetricModule)
-import PQ.Expr
-import PQ.Type
+import Data.Maybe (isJust)
+import Metric.Global (GlobalMetricModule)
+import Metric.Local (LocalMetricModule)
+import PQ.Expr (Expr, Pattern, VariableId)
+import PQ.Type (Type)
 import PrettyPrinter (Pretty (..))
 
-data Pragma = VerifyGlobal GlobalMetricModule | VerifyLocal LocalMetricModule
+data Pragma
+  = VerifyGlobal GlobalMetricModule
+  | VerifyLocal LocalMetricModule
 
 instance Show Pragma where
   show (VerifyGlobal grs) = "{-# VERIFY_GLOBAL " ++ pretty grs ++ " #-}"
   show (VerifyLocal lrs) = "{-# VERIFY_LOCAL " ++ pretty lrs ++ " #-}"
-
 
 type Import = String -- Placeholder, currently unused
 

@@ -5,15 +5,63 @@ module Parser.Expr
 where
 
 import Circuit
-import Control.Monad
+  ( QuantumOperation
+      ( CCNot,
+        CCZ,
+        CDiscard,
+        CInit,
+        CNot,
+        CZ,
+        Hadamard,
+        Meas,
+        PauliX,
+        PauliY,
+        PauliZ,
+        QDiscard,
+        QInit,
+        T,
+        Toffoli
+      ),
+  )
+import Control.Monad (when)
 import Control.Monad.Combinators.Expr
-import Data.Char
+  ( Operator (InfixL, InfixR, Postfix),
+    makeExprParser,
+  )
+import Data.Char (isUpper)
 import PQ.Constant
-import PQ.Expr
+  ( Constant (Boxed, MakeCRGate, MakeMCNot, MakeRGate, MakeUnitList),
+  )
+import PQ.Expr (Expr (..), Pattern (..))
 import Parser.Core
-import Parser.Index
-import Parser.Type
+  ( Parser,
+    at,
+    backslash,
+    bangDoubleColon,
+    brackets,
+    colon,
+    comma,
+    dollarSign,
+    dot,
+    doubleColon,
+    emptyBrackets,
+    emptyParens,
+    equalSign,
+    identifier,
+    keyword,
+    parens,
+    underscore,
+    whitespace,
+    (<?>),
+  )
+import Parser.Index (indexExpression)
+import Parser.Type (typeExpression)
 import Text.Megaparsec
+  ( MonadParsec (eof, try),
+    sepBy1,
+    some,
+    (<|>),
+  )
 
 --- Delimited Expressions ---
 
@@ -112,7 +160,6 @@ apply =
     return $ EApply e1 e2
     <?> "apply"
 
-
 --- Expression Operators ---
 
 -- intercept "lift", "force" and "box" as special cases of EApp
@@ -135,10 +182,11 @@ manyAnnOp :: Parser (Expr -> Expr)
 manyAnnOp = foldr1 (flip (.)) <$> some annOp
   where
     annOp :: Parser (Expr -> Expr)
-    annOp = do
-      doubleColon
-      flip EAnno <$> typeExpression
-      <?> "type annotation"
+    annOp =
+      do
+        doubleColon
+        flip EAnno <$> typeExpression
+        <?> "type annotation"
 
 -- parse "!:: t" as the postfix operator (\e -> EAssume e t), possibly applied multiple times
 manyAssumeOp :: Parser (Expr -> Expr)
@@ -168,7 +216,6 @@ manyIappOp = foldr1 (flip (.)) <$> some iappOp
 consOp :: Parser (Expr -> Expr -> Expr)
 consOp = colon >> return ECons <?> "cons operator"
 
-
 --- Low-precedence Prefix Operators ---
 -- These operators have the least precedence, i.e. they extend until the end of the expression.
 -- The 'makeExprParser' function does not deal well with them, so it is better to define them like this.
@@ -188,7 +235,8 @@ abstraction =
 
 -- parse "let p = e1 in e2" as (ELet p e1 e2)
 letIn :: Parser Expr
-letIn = do
+letIn =
+  do
     keyword "let"
     p <- parsePattern
     equalSign
@@ -204,8 +252,6 @@ iabs =
     i <- try $ keyword "forall" *> identifier <* dot
     EIAbs i <$> parseExpr
     <?> "index abstraction"
-
-
 
 --- PATTERN AND PATTERN OPERATOR PARSERS -----------------------------------------------------------------------------------
 
@@ -241,16 +287,16 @@ pconsOp = colon >> return PCons <?> "cons operator"
 
 -- parse a destructuring pattern
 parsePattern :: Parser Pattern
-parsePattern = let
-  operatorTable =
-    [ [InfixL pconsOp]
-    ]
-  simplePattern =
-    pvariable
-    <|> ptuple
-    <|> parens parsePattern
-    <|> phole
-  in makeExprParser simplePattern operatorTable <?> "pattern"
+parsePattern =
+  let operatorTable =
+        [ [InfixL pconsOp]
+        ]
+      simplePattern =
+        pvariable
+          <|> ptuple
+          <|> parens parsePattern
+          <|> phole
+   in makeExprParser simplePattern operatorTable <?> "pattern"
 
 -- parse a PQR expression whose syntactic bounds are unambiguous
 delimitedExpr :: Parser Expr

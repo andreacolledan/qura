@@ -1,9 +1,20 @@
 module Parser.Annotation where
 
-import PQ.Index
+import Control.Applicative (Alternative ((<|>)), optional)
+import PQ.Index (IVarId, Index (Identity))
 import Parser.Core
+  ( Parser,
+    braces,
+    brackets,
+    comma,
+    identifier,
+    lessSign,
+    underscore,
+    whenGlobalAnalysis,
+    whenLocalAnalysis,
+    withDefault,
+  )
 import Parser.Index (indexExpression)
-import Control.Applicative (optional, Alternative ((<|>)))
 
 --- Effect annotations ---
 
@@ -21,7 +32,7 @@ functionAnnotation = whenGlobalAnalysis $ brackets $ do
 
 listLengthAnnotation :: Parser (IVarId, Index)
 listLengthAnnotation = brackets $ do
-    id <- identifier <|> (underscore >> return "_") -- allow to parse "_" as a list type index
-    lessSign
-    i <- indexExpression
-    return (id, i)
+  id <- identifier <|> (underscore >> return "_") -- allow to parse "_" as a list type index
+  lessSign
+  i <- indexExpression
+  return (id, i)

@@ -10,6 +10,8 @@
   - [x] Change tool interface to only consider top-level definitions
   - [x] Update README
 - [ ] Language pragmas to enforce verification of certain resources
+  - [x] Implement pragma data and parsing
+  - [ ] Add pragmas to main pipeline
 - [ ] Better syntax
   - [ ] Simpler syntax for (and handling of) independent list types
   - [x] Syntactic sugar for null closure annotations
