@@ -23,3 +23,4 @@
 * [ ] qubit reuse option (init new qubits on prev. discarded qubits))
 * [ ] check `fresh` :)
 * [ ] in qiskit you cant initialize bits (?!?!??!), maybe add a --qiskit cla
+* [ ] i cant find other backends beside qiskit, but it is limited

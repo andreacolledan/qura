@@ -49,7 +49,7 @@ getSimple ops = go ops (mkIdCircuit [])
     go [] circ = circ
     go (step:steps) circ = 
       case step of
-        (Meas, (q, c)) -> go steps $ CCons circ Meas q c
+        (Meas, (q, c)) -> go steps $ CCons circ Meas q c -- ins =/= outs
         (op, (ins, outs)) ->
           let
             renaming = getWBRenaming (ins, outs)
