@@ -87,7 +87,7 @@ interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filep
         putStr "\nwhile evaluating to:\n> "
         putStr $ pretty (term config) ++ "\n"
         putStr "\nand producing the following Qasm program:\n"
-        putStr $ show (qasm intResult) ++ "\n"
+        putStr $ qasm intResult ++ "\n"
 
 abortWithMessage :: String -> IO ()
 abortWithMessage e = do

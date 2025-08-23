@@ -239,7 +239,7 @@ instance HasIndex Expr where
 -- | @isub sub x@ substitutes the index variable @id@ by the index @i@ in @x@
   isub :: IndexSubstitution -> Expr -> Expr
   isub sub (EIAbs id e) = -- bounds the index variable
-    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub ++ (IVar <$> (HSet.toList $ ifv e))) -- TODO to we need to add vars in e?
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub) -- ++ (IVar <$> (HSet.toList $ ifv e))) -- TODO to we need to add vars in e?
         renaming = isubSingleton id (IVar id')
     in EIAbs id' (isub sub . isub renaming $ e)
   isub _ EUnit = EUnit 

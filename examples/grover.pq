@@ -53,7 +53,7 @@ groverIteration n d os od oracle reg a =
 -- run Grover's algorithm on an oracle of input size n, width os and depth od
 grover :: ![0](forall[0, 0] r. forall[0, 0] n. forall[0, 0] os. forall[0, 0] od.
   (forall[0,0] d. Circ[os]((List[_<n] Qubit{d}, Qubit{d}), (List[_<n] Qubit{d+od}, Qubit{d+od})))
-  -o[2*n + r*(os + 4*n + 1) + 1, 0] List[_<n] Bit{2 + r*(od+5)})
+  -o[2*n + r*(os + 4*n + 1) + 1, 0] List[_<n] Bit{2 + r*(od+5)})  
 grover r n os od oracle =
     -- prepare working qubits
     let wqs = force qinit0Many @ n in
@@ -80,3 +80,11 @@ conj = forall d.
 and = forall d.
   box $ lift \(reg, a) :: (List[_<2] Qubit{d}, Qubit{d}).
     (force mcnot @ 2 @ d @ d) reg a -- Ancilla is flipped iff reg is 111
+
+--- MAIN ---
+
+-- MAIN 1: Grover on conj (n = 3, r = 2, os = 1, od = 1)
+main = ((force grover) @ 2 @ 3 @ 1 @ 1) (force conj)
+
+-- MAIN 2: Grover on and (n = 2, r = 1, os = 2, od = 1)
+-- main = (force grover @1 @2 @2 @1) (force and)

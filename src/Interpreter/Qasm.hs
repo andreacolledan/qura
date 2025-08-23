@@ -17,7 +17,7 @@ circuitToQasm circ =
     simplified = simplifyCircuit circ
     -- simplified = trace("\nInput Circuit:\n"++pretty circ)$simplifyCircuit circ
     -- qasmProg = getQasm simplified
-    qasmProg = trace("\nSimplified Circuit:\n"++pretty simplified)$getQasm simplified
+    qasmProg = trace("\nSimplified Circuit:\n"++pretty simplified++"\n\nActual Program:\n")$getQasm simplified
   in Right qasmProg
 
 -- | convert a circuit to have the same input and output names and update label context.
@@ -81,6 +81,25 @@ getWBRenaming _ = error "[getWBRenaming] Unexpected error."
 filterContext :: LabelContext -> Set.Set String -> LabelContext
 filterContext ctx labels = Map.filterWithKey (\k _ -> k `Set.member` labels) ctx
 
+--- STRING GENERATION ---
+
+getHeader :: String -> String
+getHeader v = case v of
+  "qasm3.0" -> "OPENQASM 3.0;"
+  _ -> error "[getHeader] Unsupported version " ++ show v
+
+-- README should we have a constructor for qasm terms and return that, then stringify later?
+opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> String
+opToQasm _ = "QASM operation!"
+
 -- Generates the string representing the program from a circuit
+-- FIXME for now we simply convert the Circuit 1 to 1.
+-- Later, we might want to add a toggle to prefer width/depth on qubit inits
+-- README maybe add the version as a command line arg (and maybe add errors along the way)
 getQasm :: Circuit -> QasmProgram
-getQasm _ = "Coming soon..."
+getQasm circ = 
+  let
+    header = getHeader "qasm3.0"
+    ctx = getContext circ
+    instructions = map opToQasm $ circTolist circ
+  in unlines $ [header] ++ instructions

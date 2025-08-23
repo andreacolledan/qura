@@ -102,24 +102,24 @@ mergeModLibs (Module programName e i defs) libs = do
   
   case start of
     Just (TopLevelDefinition startId startArgs startSign sartDef) -> do
-      -- trace ( ""
+      trace ( ""
         -- ++"---- start:\n"++(show (TopLevelDefinition startId startArgs startSign sartDef))
         -- ++"-- start:\n"++(prettyTopLevelDefinition (TopLevelDefinition startId startArgs signature sartDef))
         -- ++"\n---- def map:\n"++(show definitionsMap)
         -- ++"\n"++(pretty definitionsMap)
-        -- ) $ 
-      if startId /= "main"
-        then Left $ RuntimeError "No main function found in the file"
-        else do
+        ) $ 
+        if startId /= "main"
+          then Left $ RuntimeError "No main function found in the file"
+          else do
 
-          -- substitute in the starting tldef using the maps
-            fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
+            -- substitute in the starting tldef using the maps
+              fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
 
-            -- also wrap the start
-            let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
-            let initialCircuit = mkIdCircuit [] -- start is always identity
-            -- let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
-            Right (wrappedStart, initialCircuit)
+              -- also wrap the start
+              let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
+              let initialCircuit = mkIdCircuit [] -- start is always identity
+              -- let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
+              Right (wrappedStart, initialCircuit)
 
     Nothing -> Left $ RuntimeError "No definitions in the input module."
   

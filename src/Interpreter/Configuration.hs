@@ -21,10 +21,8 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  trace (""
-      ++ "-- Circuit Expr:\n"++pretty expr
-    ) $ 
-    evalConfiguration (Config circ expr)
+  trace ("-- Circuit Expr:\n"++show expr) $ 
+  evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
   pretty (Config circ expr) = pretty circ ++"\n> Expression:\n"++ pretty expr
@@ -84,7 +82,8 @@ evalConfiguration (Config circ expr) =
 
     ENil _ -> Right config -- value
 
-    ECons _ _ -> Right config -- value
+    ECons e1 e2 -> Right config
+
 
     EFold _ w (ENil _) -> Right $ Config circ w
     EFold fun v w -> do
@@ -92,13 +91,36 @@ evalConfiguration (Config circ expr) =
     -- EFold fun v w -> trace("\n[EFold] Evaluating the EFold:\n > "++""++"\n > acc: "++pretty v++"\n > input: "++pretty w)$do
       (Config circ' fun') <- evalConfiguration $ Config circ fun
       case fun' of
+        -- ELift m -> do
         ELift m -> do
-        -- ELift m -> trace("\n[EFold] Evaluating the EFold in:\n"++pretty circ'++"\n > acc: "++pretty v++"\n > input: "++pretty w)$trace("[EFold] fold function:\n > "++pretty m)$do
-          foldResult <- evalFold 0 circ' $ EFold m v w
-          -- foldResult <- trace("[EFold] fold function:\n > "++pretty m)$evalFold 0 circ' $ EFold m v w
-            -- trace("[EFold] Result:\n"++pretty foldResult)$
+          -- try to reduce the input to a ECons first
+          Config circ'' w' <- evalConfiguration $ Config circ' w
+          -- then evaluate the fold
+          foldResult <- evalFold 0 circ'' $ EFold m v w'
+          -- foldResult <- trace("\n[EFold] Evaluating the EFold in:\n"++pretty circ''++"\n > acc: "++pretty v++"\n > input: "++pretty w'++"\n > fold function: "++pretty m)$evalFold 0 circ'' $ EFold m v w'
+          -- trace("[EFold] Result:\n"++pretty foldResult)$Right foldResult
           Right foldResult
           where 
+            -- we have this because the result of the fold should be evaluated
+            -- but we cant change the fact that ECons is a value, and we should
+            -- only evaluate it inside the folds (I think FIXME)
+            evalECons :: Configuration -> Either RuntimeError Configuration
+            evalECons (Config circ cons) = trace(show cons)$ case cons of
+              ENil typ -> Right $ Config circ cons
+              ECons e1 e2 -> do -- I had to add this otherwise cons in folds cant be evaluated
+                Config circ' e1' <- evalConfiguration (Config circ e1)
+                Config circ'' e2' <- evalConfiguration (Config circ' e2)
+                Right $ Config circ'' $ ECons e1' e2'
+              ETuple [] -> Right $ Config circ cons
+              ETuple (e:es) -> do
+                (Config circ' e') <- evalConfiguration $ Config circ e
+                case evalConfiguration $ Config circ' $ ETuple es of
+                  Right (Config circ'' (ETuple es')) -> 
+                    Right $ Config circ'' $ ETuple (e':es')
+                  Right (Config _ err) -> error $ "[evalECons] Unexpected error.\n"++show err
+                  Left err -> Left err
+              err -> error $ "[evalECons] Unexpected error.\n"++show err
+
             evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
             -- FOLD-END rule
             evalFold _ circ (EFold _ w (ENil _)) = Right $ Config circ w
@@ -114,11 +136,12 @@ evalConfiguration (Config circ expr) =
 
               -- Apply the function to the accumulator and current element
               (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v, w]))
-              -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z) $ pure ()
+              (Config e' z') <- evalECons $ Config e z
+              -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z') $ pure ()
 
               -- Continue folding over the rest
               -- trace ("  [evalFold] Step " ++ show i ++ ": remaining input = " ++ pretty w') $ pure ()
-              step <- evalFold (i + 1) e $ EFold m z w'
+              step <- evalFold (i + 1) e' $ EFold m z' w'
 
               -- Evaluate result at this step to normalize circuit state
               evalConfiguration step
@@ -130,20 +153,6 @@ evalConfiguration (Config circ expr) =
                     "\n b: " ++ show b ++
                     "\n c: " ++ show c) 
 
-          --   evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
-          --   -- FOLD-END rule
-          --   evalFold _ circ (EFold _ w (ENil _)) = Right $ Config circ w
-          --   -- FOLD-STEP
-          --   evalFold i circ (EFold m v (ECons w' w)) = do
-          --     let mi = EIApp m (Number i)
-          --     -- do I have to eval the index?
-          --     (Config d y) <- evalConfiguration $ Config circ mi
-          --     (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v,w]))
-          --     step <- evalFold (i+1) e $ EFold m z w'
-          --     evalConfiguration step
-
-          --   evalFold i circ (EFold a b c) = error ("\nUNDEFINED:\nindex: "++show i++"\nEFold a b c\na: "++pretty a++"\nb: "++show b++"\nc: "++show c)
-
         _ -> Left $ RuntimeError $ "First argument of EFold did not reduce to a Lift, it reduced to:\n"++pretty fun'
 
     EApp abs arg -> do
@@ -151,7 +160,8 @@ evalConfiguration (Config circ expr) =
       case abs' of 
         EAbs p _ body -> do
           (Config circ'' arg') <- evalConfiguration (Config circ' arg)
-          evalConfiguration $ Config circ'' $ psub p arg' body
+          let body' = psub p arg' body
+          evalConfiguration $ Config circ'' body'
 
         err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: " -- ++pretty err
 
@@ -169,7 +179,7 @@ evalConfiguration (Config circ expr) =
             
           err -> Left $ RuntimeError $ "First argument of EApply did not reduce to ECirc or EConst.\nGot "++pretty err
 
-    EBox typ e -> do -- TODO: untested
+    EBox typ e -> trace("[EBox] Evaluating box of type "++show typ)$do -- TODO: untested
       (Config circ' e') <- evalConfiguration (Config circ e)
       case e' of
         ELift n -> 
@@ -181,7 +191,7 @@ evalConfiguration (Config circ expr) =
               l' <- exprToWirebundle lExpr'
               Right $ Config circ' (ECirc l d l')
             
-            Nothing -> error "[eval EBox] Type of box is nothing."
+            Nothing -> error "[eval EBox] Type of box is Nothing."
             
         _ -> Left $ RuntimeError "EBox did not reduce to an ELift"
 
@@ -208,14 +218,11 @@ evalConfiguration (Config circ expr) =
           -- eval index i and obtain w
           case evalIndex' i of
             Number w -> do
-            -- Number w -> trace("[evalConfiguration/EIapp] subbing variable "++show ivar++" with value "++show i++" (="++show w++")")$do
               -- sub ivar with w in n and obtain (Config circ' n')
               let n' = isub (isubSingleton ivar (Number w)) n
 
               Config circ'' n'' <- evalConfiguration (Config circ' n')
               Right $ Config circ'' n''
-              -- trace("[IEApp] EIApp m i:\n > m: "++pretty m++"\n > i: "++show i++"\n evaluated to:\n"++pretty n'') $ Right$ Config circ'' n''
-              -- trace("\n> subbed "++show ivar++" with "++show w++" in\n"++pretty n++"\n> and got:\n"++pretty n')$evalConfiguration (Config circ' n')
 
             _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
         

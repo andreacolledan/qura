@@ -21,3 +21,4 @@
 * [ ] clean the code
 * [ ] adjust imports/exports lists of the new modules
 * [ ] qubit reuse option (init new qubits on prev. discarded qubits))
+* [ ] check `fresh` :)
