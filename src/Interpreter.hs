@@ -18,6 +18,8 @@ import PQ.Expr
 import PQ.Type
 import Circuit
 import PrettyPrinter (Pretty (..))
+import Prelude hiding (id)
+
 
 import Debug.Trace (trace)
 import qualified Data.Map as M
@@ -60,10 +62,15 @@ createMapFromModules modules =
     buildDefMap :: [TopLevelDefinition] -> M.Map VariableId TopLevelDefinition
     buildDefMap defs = M.fromList [(id', d) | d@(TopLevelDefinition id' _ _ _) <- defs]
 
-splitTLDEFs :: [TopLevelDefinition] -> ([TopLevelDefinition], Maybe TopLevelDefinition)
-splitTLDEFs [] = ([], Nothing)
-splitTLDEFs [x] = ([], Just x)
-splitTLDEFs xs = (init xs, Just (last xs))
+-- extract the top level definition from a module and return it and the remainaing definitions
+extractDefFromModule :: VariableId -> [TopLevelDefinition] -> Either RuntimeError (TopLevelDefinition, [TopLevelDefinition])
+extractDefFromModule vid defs =
+  case break ((== vid) . id) defs of
+      (before, def:after) ->
+          Right (def, before ++ after)
+      _ ->
+          Left $ RuntimeError $
+              "Definition not found: " ++ show vid
 
 -- idCircuitFromArgs :: ([Pattern], Maybe Type) -> Circuit
 -- idCircuitFromArgs _ = mkIdCircuit []
@@ -90,38 +97,25 @@ splitTLDEFs xs = (init xs, Just (last xs))
 
 mergeModLibs :: Module -> [Module] -> Either RuntimeError (Expr, Circuit)
 mergeModLibs (Module programName e i defs) libs = do
-  -- for now I assume no dependencies inside the libraries,
+  -- for now I assume no dependencies inside the libraries, (a function of the lib uses another one from the same lib)
   -- and of course no cross dependencies between the libraries.
-
-  -- take the last element of the tldefs and use it as 'start'
-  -- convert the remaining to a map aswell as the libs.
-  -- From this 'start', substitute with the maps, being careful with the
-  -- var names
-  let (remaining, start) = splitTLDEFs defs -- or maybe we set that only the main is exectued
-  let definitionsMap = createMapFromModules ((Module programName e i remaining) : libs)
+  (main, otherDefs) <- extractDefFromModule "main" defs -- TODO extract the main
+  let definitionsMap = createMapFromModules ((Module programName e i otherDefs) : libs)
+  let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
+  -- substitute in the maining tldef using the maps
+  completeProgramExpr <- 
+    trace ( ""
+      -- ++"---- main:\n"++(show (TopLevelDefinition mainId mainArgs mainSign sartDef))
+      -- ++"-- main:\n"++(prettyTopLevelDefinition (TopLevelDefinition mainId mainArgs signature sartDef))
+      -- ++"\n---- def map:\n"++(show definitionsMap)
+      -- ++"\n"++(pretty definitionsMap)
+    ) $ 
+      applyModulesMap definitionsMap (programName, sartDef)
   
-  case start of
-    Just (TopLevelDefinition startId startArgs startSign sartDef) -> do
-      trace ( ""
-        -- ++"---- start:\n"++(show (TopLevelDefinition startId startArgs startSign sartDef))
-        -- ++"-- start:\n"++(prettyTopLevelDefinition (TopLevelDefinition startId startArgs signature sartDef))
-        -- ++"\n---- def map:\n"++(show definitionsMap)
-        -- ++"\n"++(pretty definitionsMap)
-        ) $ 
-        if startId /= "main"
-          then Left $ RuntimeError "No main function found in the file"
-          else do
-
-            -- substitute in the starting tldef using the maps
-              fullExpr <- applyModulesMap definitionsMap (programName, sartDef)
-
-              -- also wrap the start
-              let wrappedStart = fullExpr--wrapExpr fullExpr startArgs startSign
-              let initialCircuit = mkIdCircuit [] -- start is always identity
-              -- let initialCircuit = idCircuitFromArgs (startArgs, startSign) -- start is always identity
-              Right (wrappedStart, initialCircuit)
-
-    Nothing -> Left $ RuntimeError "No definitions in the input module."
+  -- also wrap the main
+  let initialCircuit = mkIdCircuit [] -- starting label context is always empty
+  -- let initialCircuit = idCircuitFromArgs (mainArgs, mainSign) -- main is always identity
+  Right (completeProgramExpr, initialCircuit)
   
 -- given the main expression, sub in variables taken from the modules, using their name
 applyModulesMap :: ModulesMap -> (String, Expr) -> Either RuntimeError Expr

@@ -19,8 +19,9 @@
 ### Interpreter
 
 * [ ] clean the code
-* [ ] adjust imports/exports lists of the new modules
-* [ ] qubit reuse option (init new qubits on prev. discarded qubits))
+* [ ] adjust imports/exports lists of the new haskel modules
+* [X] qubit reuse option (init new qubits on prev. discarded qubits))
 * [ ] check `fresh` :)
 * [ ] in qiskit you cant initialize bits (?!?!??!), maybe add a --qiskit cla
 * [ ] i cant find other backends beside qiskit, but it is limited
+* [X] for now we execute the last definition if it is the main. we could maybe avoid wanting that it is the last possible definition (even if we will have an error if it uses functions defined later, so it wil most of the times be the last one) but still)
