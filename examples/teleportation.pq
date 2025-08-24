@@ -36,5 +36,5 @@ teleport q =
 
 main :: ![0] Qubit{0}
 main =
-    let q = force qinit1        -- initialize the qubit to |1>
+    let q = force qinit1       -- initialize the qubit to |1>
     in (force teleport) q      -- teleport it
