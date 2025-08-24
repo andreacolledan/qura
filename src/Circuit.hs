@@ -139,7 +139,7 @@ freshlabels t q = case t of
   BWire wt -> 
     let
       base = basename wt
-      names = [base : show n | n <- [(1::Int)..]]
+      names = [base : show n | n <- [(0::Int)..]]
       name = head $ filter (`Map.notMember` q) names
       q' = Map.insert name wt q
     in (q', WLab name)

@@ -13,7 +13,8 @@ data CLArguments = CommandLineArguments
     debug :: Maybe String,
     noprelude :: Bool,
     grs :: Maybe GlobalMetricModule,
-    lrs :: Maybe LocalMetricModule
+    lrs :: Maybe LocalMetricModule,
+    preferWidth :: Bool
   }
 
 globalMetricArgParser :: ReadM GlobalMetricModule
@@ -82,3 +83,7 @@ cliInterface =
               <> metavar "METRIC"
               <> help "Analyse local METRIC"
               ))
+        <*> flag True False
+          ( long "no-prefer-width"
+              <> help "Do not prefer width when choosing metrics (default: prefer width)"
+          )

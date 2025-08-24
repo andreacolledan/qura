@@ -23,7 +23,7 @@ import Debug.Trace (trace)
 import qualified Data.Map as M
 import Data.List (intercalate)
 
-data InterpreterResult = IntResult {
+data InterpreterResult = InterpResult {
   cfg :: Configuration,
   qasm :: QasmProgram
   -- maybe other languages
@@ -31,13 +31,13 @@ data InterpreterResult = IntResult {
 
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
-runInterpreter :: Module -> [Module] -> Either RuntimeError InterpreterResult
-runInterpreter mod libs = do
+runInterpreter :: Module -> [Module] -> Bool -> Either RuntimeError InterpreterResult
+runInterpreter mod libs pw = do
   (term, circ) <- mergeModLibs mod libs
   config <- startConfigEvaluation (Config circ term)
-  qasmProg <- circuitToQasm $ circuit config -- once we have the string we could save it to file
+  qasmProg <- circuitToQasm pw $ circuit config -- once we have the string we could save it to file
   -- saveProgram qasmProg
-  Right $ IntResult config qasmProg
+  Right $ InterpResult config qasmProg
 
 -- this is a double map for future reasons, maybe two libs uses the same names
 -- for the modules, and we can distinct them with module.function (?).

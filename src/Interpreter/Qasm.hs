@@ -12,13 +12,11 @@ import Data.Maybe (mapMaybe)
 type QasmProgram = String -- maybe create a class program of saveable strings
 
 -- converts a circuit to a qasm program.
-circuitToQasm :: Circuit -> Either RuntimeError QasmProgram
-circuitToQasm circ =
+circuitToQasm :: Bool -> Circuit -> Either RuntimeError QasmProgram
+circuitToQasm pw circ =
   let 
-    simplified = simplifyCircuit circ
-    -- simplified = trace("\nInput Circuit:\n"++pretty circ)$simplifyCircuit circ
-    -- qasmProg = getQasm simplified
-    qasmProg = trace("\nSimplified Circuit:\n"++pretty simplified++"\n\nActual Program:\n")$getQasm simplified
+    simplified = simplifyCircuit pw circ
+    qasmProg = trace("> Preferring width: "++show pw++"\nSimplified Circuit:\n"++pretty simplified++"\n\nActual Program:\n")$getQasm simplified
   in Right qasmProg
 
 -- | convert a circuit to have the same input and output names and update label context.
@@ -26,13 +24,13 @@ circuitToQasm circ =
 -- > CNot ((q2, q1)) -> (q3, q4);
 -- to:
 -- > CNot ((q2, q1)) -> (q2, q1);
-simplifyCircuit :: Circuit -> Circuit
-simplifyCircuit circ = 
-  -- listify the operatinos
+simplifyCircuit :: Bool -> Circuit -> Circuit
+simplifyCircuit pw circ = 
   let 
+  -- listify the operations
     circSeq = circTolist circ
   -- update names such that ins=outs and propagate the renamings
-    circ' = getSimple circSeq
+    circ' = getSimple pw circSeq
   -- extract the actual labels
     labels = namesInCircuit' circ'
   -- update tthe label context
@@ -40,16 +38,63 @@ simplifyCircuit circ =
     circ'' = updateCircContext circ' newCtx
   in circ''
 
--- changes the names of the wirebundles and reconstructs the circuit
-getSimple:: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
-getSimple [] = mkIdCircuit []
-getSimple ops = go ops (mkIdCircuit [])
+-- changes the names of the wirebundles and reconstructs the circuit.
+getSimple :: Bool -> [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
+getSimple True seq = getSimplePW seq
+getSimple False seq = getSimpleNoPW seq
+
+-- initializes new qubits trying to reset unused qubits.
+getSimplePW:: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
+getSimplePW [] = mkIdCircuit []
+getSimplePW ops = go ops Set.empty (mkIdCircuit [])
+  where 
+    go :: [(QuantumOperation, (WireBundle, WireBundle))] -> Set.Set Label -> Circuit -> Circuit
+    go [] _ circ = circ
+    go (step:steps) discarded circ = 
+      case step of
+        (Meas, (q, c)) -> -- we apply the renaming BUT we keep outputs
+          let
+            renaming = getWBRenaming (q, c)
+            bundleRenaming = renameBundle renaming
+            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            q' = bundleRenaming q
+          in go steps' discarded $ CCons circ Meas q' c
+        (QDiscard, (WLab disc, _)) -> 
+          go steps (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) (WLab disc)
+        (QInit v, (_, WLab name)) ->
+          let 
+            (name', discarded') = pickOrDefault name discarded
+            renaming = getWBRenaming (WLab name', WLab name)
+            bundleRenaming = renameBundle renaming
+            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+          -- if the renaming is empty, it means that we are initalizing a new qubit,
+          -- if a renaming occured, it means that we are reusing a discarded qubit
+          in go steps' discarded' $ CCons circ (QInit v) (if Map.null renaming then WUnit else WLab name') (WLab name')
+        (op, (ins, outs)) ->
+          let
+            renaming = getWBRenaming (ins, outs)
+            bundleRenaming = renameBundle renaming
+            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            ins' = bundleRenaming ins
+            outs' = bundleRenaming outs
+          in go steps' discarded $ CCons circ op ins' outs'
+
+-- Initializes new qubit at depth 0.
+getSimpleNoPW:: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
+getSimpleNoPW [] = mkIdCircuit []
+getSimpleNoPW ops = go ops (mkIdCircuit [])
   where 
     go :: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit -> Circuit
     go [] circ = circ
     go (step:steps) circ = 
       case step of
-        (Meas, (q, c)) -> go steps $ CCons circ Meas q c -- ins =/= outs
+        (Meas, (q, c)) -> -- we apply the renaming BUT we keep outputs
+          let
+            renaming = getWBRenaming (q, c)
+            bundleRenaming = renameBundle renaming
+            steps' =  map (\(op, (q, c)) -> (op, (bundleRenaming q, bundleRenaming c))) steps
+            q' = bundleRenaming q
+          in go steps' $ CCons circ Meas q' c
         (op, (ins, outs)) ->
           let
             renaming = getWBRenaming (ins, outs)
@@ -64,12 +109,23 @@ circTolist :: Circuit -> [(QuantumOperation, (WireBundle, WireBundle))]
 circTolist (Id _) = []
 circTolist (CCons circ op ins outs) = circTolist circ ++ [(op, (ins, outs))]
 
+-- | Picks one element from the set if available,
+-- otherwise returns the default value.
+-- Also returns the updated set without the picked element.
+pickOrDefault :: (Ord a) => a -> Set.Set a -> (a, Set.Set a)
+pickOrDefault def s =
+    case Set.minView s of
+        Just (x, s') -> (x, s')    -- take smallest element and remaining set
+        Nothing -> (def, s)   -- set is empty, use default
 
 -- awful name
+-- create a renaming from the second wire bundle to the first wire bundle
 getWBRenaming :: (WireBundle, WireBundle) -> Renaming
 getWBRenaming (WUnit, _) = Map.empty
 getWBRenaming (_, WUnit) = Map.empty
-getWBRenaming (WLab ins, WLab outs) = Map.fromList [(outs, ins)]
+getWBRenaming (WLab ins, WLab outs)
+  | ins == outs = Map.empty
+  | otherwise = Map.fromList [(outs, ins)]
 getWBRenaming (WTuple ins, WTuple outs) =
     Map.unions $ zipWith getWBRenamingPair ins outs
   where
@@ -98,14 +154,21 @@ thetaInvStr :: Int -> String
 thetaInvStr n = "-" ++ thetaStr n
 
 -- README should we have a constructor for qasm terms and return that, then stringify later?
+-- to avoid empty lines we return Nothing
 opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Maybe String
 -- Qubit metaoperations
-opToQasm (QInit b, (_, WLab name)) =
-  let 
-    decl = "qubit " ++ name ++ ";"
-  in if b
-    then Just $ decl ++ "\nx " ++ name ++ ";"
-    else Just $ decl
+opToQasm (QInit b, (init, WLab name)) = -- check the input to know if the qubit needs initialization
+  case init of
+    WUnit -> 
+      let 
+        decl = "qubit " ++ name ++ ";"
+      in if b
+        then Just $ decl ++ "\nx " ++ name ++ ";"
+        else Just $ decl
+    WLab _ -> 
+      if b
+        then Just $ "x " ++ name ++ ";" -- already init, so we set to 1
+        else Nothing -- already set to 0, no need to init
 opToQasm (QDiscard, (WLab name, _)) = Just $ "reset " ++ name ++ ";"
 opToQasm (Meas, (WLab q, WLab b)) = Just $ b++ " = measure " ++ q ++ ";"
 -- Bit metaoperations
@@ -126,8 +189,9 @@ opToQasm (CZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cz " ++ ctrl ++ ", "
 opToQasm (CR n, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "crz(" ++ thetaStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"
 opToQasm (CRinv n, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "crz(" ++ thetaInvStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"
 -- Classically controlled gates
-opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "if(" ++ ctrl ++ ") x " ++ trgt ++ ";"
-opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "if(" ++ ctrl ++ ") z " ++ trgt ++ ";"
+-- README Actually, we treat those as quantum-controlled gates
+opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cx " ++ ctrl ++ ", " ++ trgt ++ ";" -- README we are using quantum gates!
+opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cz " ++ ctrl ++ ", " ++ trgt ++ ";" -- README we are using quantum gates!
 -- Three qubit gates
 opToQasm (CNot, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) = Just $ "ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"
 opToQasm _ = Just $ "placeolder"

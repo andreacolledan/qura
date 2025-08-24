@@ -75,10 +75,10 @@ analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debu
       putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
 
 interpretModule :: Module -> [Module] -> CLArguments -> IO ()
-interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp} = do
+interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp, preferWidth = pw} = do
   unless nr $ do
     when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
-    case runInterpreter mod libs of
+    case runInterpreter mod libs pw of -- passing pw not wrapped in the cli
       Left err -> abortWithMessage $ show err
       Right intResult -> do
         let config = cfg intResult
