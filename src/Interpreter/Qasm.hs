@@ -19,7 +19,11 @@ data QasmProgram = QasmProg {
 
 instance Pretty QasmProgram where
   pretty QasmProg {metrics = m, instructions = i} =
-    "> Qasm " ++ pretty m ++ "> Code:\n" ++ unlines i
+    "> Qasm " ++ pretty m ++ 
+    "> Code:\n" ++ 
+    "// ========================\n" ++ 
+    unlines i ++ 
+    "// ========================"
 
 -- converts a circuit to a qasm program.
 circuitToQasm :: Bool -> Circuit -> QasmProgram
@@ -27,7 +31,9 @@ circuitToQasm pw circ =
   let 
     simplified = simplifyCircuit pw circ
     -- qasmProg = getQasm simplified
-    qasmProg = trace("> Preferring width: "++show pw++"\n> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$getQasm simplified
+    qasmProg = 
+      -- trace("> Preferring width: "++show pw++"\n> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
+        getQasm simplified
     qasmMetrics = computeQasmMetrics simplified
   in QasmProg qasmMetrics qasmProg
 
