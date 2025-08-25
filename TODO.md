@@ -25,3 +25,6 @@
 * [ ] in qiskit you cant initialize bits (?!?!??!), maybe add a --qiskit cla
 * [ ] i cant find other backends beside qiskit, but it is limited
 * [X] for now we execute the last definition if it is the main. we could maybe avoid wanting that it is the last possible definition (even if we will have an error if it uses functions defined later, so it wil most of the times be the last one) but still)
+* [ ] README note that to compute the depth of classically controlled gates in qasm, we use qubits isnstead of bits, so idk maybe something could change slightly
+* [ ] **check all the CHECKME !!!!**
+* [ ] maybe to compute the depth we defer to qiskit depth... or in any case we analyze the qasm maybe using qiskit and we only keep metrics of the simplified circuit to double check

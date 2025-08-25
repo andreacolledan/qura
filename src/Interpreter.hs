@@ -5,6 +5,7 @@ module Interpreter (
     runInterpreter,
     Configuration(..),
     InterpreterResult(..),
+    QasmProgram(..)
 ) where
 
 -- I havent understand yet how to properly import the modules,
@@ -37,7 +38,7 @@ runInterpreter :: Module -> [Module] -> Bool -> Either RuntimeError InterpreterR
 runInterpreter mod libs pw = do
   (term, circ) <- mergeModLibs mod libs
   config <- startConfigEvaluation (Config circ term)
-  qasmProg <- circuitToQasm pw $ circuit config -- once we have the string we could save it to file
+  let qasmProg = circuitToQasm pw $ circuit config -- once we have the string we could save it to file
   -- saveProgram qasmProg
   Right $ InterpResult config qasmProg
 

@@ -21,7 +21,7 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  trace ("-- Circuit Expr:\n"++show expr) $ 
+  -- trace ("-- Circuit Expr:\n"++show expr) $ 
   evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where

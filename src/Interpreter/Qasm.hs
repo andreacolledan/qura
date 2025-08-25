@@ -1,23 +1,35 @@
 module Interpreter.Qasm where
 
 import Interpreter.RuntimeError
+import Interpreter.Metric
 import Circuit
-import PrettyPrinter(pretty)
+import PrettyPrinter
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import Debug.Trace (trace)
 import Data.Maybe (mapMaybe)
 
-type QasmProgram = String -- maybe create a class program of saveable strings
+type QasmInstruction = String -- maybe create a class program of saveable strings
+
+data QasmProgram = QasmProg {
+  metrics :: ProgramMetrics,
+  instructions :: [QasmInstruction]
+} deriving Show
+
+instance Pretty QasmProgram where
+  pretty QasmProg {metrics = m, instructions = i} =
+    "> Qasm " ++ pretty m ++ "> Code:\n" ++ unlines i
 
 -- converts a circuit to a qasm program.
-circuitToQasm :: Bool -> Circuit -> Either RuntimeError QasmProgram
+circuitToQasm :: Bool -> Circuit -> QasmProgram
 circuitToQasm pw circ =
   let 
     simplified = simplifyCircuit pw circ
-    qasmProg = trace("> Preferring width: "++show pw++"\nSimplified Circuit:\n"++pretty simplified++"\n\nActual Program:\n")$getQasm simplified
-  in Right qasmProg
+    -- qasmProg = getQasm simplified
+    qasmProg = trace("> Preferring width: "++show pw++"\n> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$getQasm simplified
+    qasmMetrics = computeQasmMetrics simplified
+  in QasmProg qasmMetrics qasmProg
 
 -- | convert a circuit to have the same input and output names and update label context.
 -- So, going from:
@@ -140,34 +152,24 @@ getWBRenaming _ = error "[getWBRenaming] Unexpected error."
 filterContext :: LabelContext -> Set.Set String -> LabelContext
 filterContext ctx labels = Map.filterWithKey (\k _ -> k `Set.member` labels) ctx
 
---- STRING GENERATION ---
+--- INSTRUCTION GENERATION ---
 
 getHeader :: String -> [String]
 getHeader v = case v of
   "qasm3.0" -> ["OPENQASM 3.0;","include \"stdgates.inc\";"]
   -- _ -> error "[getHeader] Unsupported version: " ++ show v
 
-
--- Generates the string representing the program from a circuit
+-- Generates the instructions representing the program from a circuit
 -- FIXME for now we simply convert the Circuit 1 to 1.
 -- Later, we might want to add a toggle to prefer width/depth on qubit inits
 -- README maybe add the version as a command line arg (and maybe add errors along the way)
-getQasm :: Circuit -> QasmProgram
+getQasm :: Circuit -> [QasmInstruction]
 getQasm circ = 
   let
     header = getHeader "qasm3.0" -- version, imports
     circSeq = circTolist circ
-    -- Bits that are not explicitely initialized need to be init.
-    -- If we want to save the result of a Meas, the bit should already exist,
-    -- but we can't init all of the bits otherwise we can't assign them to a specific value
-    -- i dont know if all of this is qiskit only :)
-    -- ctx = getContext circ
-    -- bits = bitsNames ctx
-    -- bitsInits = map initBit $ filterBitLbels bits circSeq
-    -- stringify operations
     instructions = opsToQasm circSeq
-  in unlines $ header ++ instructions
-  -- in unlines $ [header] ++ bitsInits ++ instructions
+  in header ++ instructions
 
 --- PROGRAM CONVERSION -- 
 
@@ -178,7 +180,7 @@ thetaInvStr :: Int -> String
 thetaInvStr n = "-" ++ thetaStr n
 
 -- convert a list of quantum operations and labels to a list of qasm instructions
-opsToQasm :: [(QuantumOperation, (WireBundle, WireBundle))] -> [QasmProgram]
+opsToQasm :: [(QuantumOperation, (WireBundle, WireBundle))] -> [QasmInstruction]
 opsToQasm = fst . foldl step ([], Set.empty)
   where
     step (acc, labels) op =
@@ -187,7 +189,7 @@ opsToQasm = fst . foldl step ([], Set.empty)
 
 -- Convert a quantum operation to a list of qasm instructions. A list is used to keep trace of
 -- initialized qubits.
-opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Set.Set Label -> ([QasmProgram], Set.Set Label)
+opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Set.Set Label -> ([QasmInstruction], Set.Set Label)
 -- Qubit metaoperations
 opToQasm (QInit b, (_, WLab name)) existing =
   let 
@@ -246,3 +248,127 @@ opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) existing =
 opToQasm (CNot, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) existing = 
   (["ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"], existing)
 opToQasm _ e = (["placeolder"], e)
+
+
+--- METRICS CALCULATION ---
+
+-- README
+-- > width: qubits in the label context. This should be true because it is updated with 
+--          the used wires of the simplified circuit.
+--
+-- > depth: we take the maximum number of operaitons applied to a single wire. 
+--          Recall that we switch classically controlled gates for quantum controlled gates 
+--          using a measured qubit. Depth is bigger because we are not using the bit wire...
+--
+-- > gatecount: straightforward, we simply count the gates.
+
+computeQasmMetrics :: Circuit -> ProgramMetrics
+computeQasmMetrics circ = 
+  let 
+    w = length $ wireNames (getContext circ) Qubit
+    d = getDepth circ
+    gc = getGateCount circ
+  in InstanceMetric w d gc
+
+wireNames :: LabelContext -> WireType -> [Label]
+wireNames ctx typ = [label | (label, wireType) <- Map.toList ctx, wireType == typ]
+
+-- DEPTH
+
+type LabelCounts = Map.Map Label Int
+emptyCounter :: LabelCounts
+emptyCounter = Map.empty
+initCounter :: LabelContext -> LabelCounts
+initCounter ctx = Map.fromList [(label, 0) | label <- Map.keys ctx]
+-- When computing the depth, we don't simply add one to the counts of each label of the gate, but we have
+-- to take the maximum depth of the labels in the gates, add one and then update all the labels with this new depth.
+increaseCounter :: LabelCounts -> Set.Set Label -> LabelCounts
+increaseCounter lc labels
+  | Set.null labels = lc
+  | otherwise = foldr (\label acc -> Map.insert label newVal acc) lc labels
+  where
+    currentMax = maximum $ 0 : [ Map.findWithDefault 0 label lc | label <- Set.toList labels ]
+    newVal = currentMax + 1
+maxCount :: LabelCounts -> Int
+maxCount lc
+  | Map.null lc = 0
+  | otherwise = maximum (Map.elems lc)
+
+getDepth :: Circuit -> Int
+getDepth circ = 
+  let
+    lc = go circ $ initCounter $ getContext circ
+    d = maxCount lc
+  in d
+  where
+    go :: Circuit -> LabelCounts -> LabelCounts
+    go (Id _) lc = lc
+    go (CCons circ op ins outs) lc = case op of
+      -- QInit:
+      --    in Qasm, a qubit is init to 0 with depth 0. To have it set to 1 we use an X gate,
+      --    hence depth is 1. Gatecount behaves the same. -- CHECKME is this fine?
+      QInit b -> 
+        if b 
+          then
+            let
+              lc' = increaseCounter lc $ namesInBundle outs
+            in go circ lc'
+          else go circ lc
+      QDiscard ->
+        let
+          lc' = increaseCounter lc $ namesInBundle ins
+        in go circ lc'
+      Meas ->
+        let
+          lc' = increaseCounter lc $ namesInBundle ins
+        in go circ lc'
+      CInit _ -> go circ lc
+      CDiscard -> go circ lc
+      _ -> 
+        let
+          lc' = increaseCounter lc $ namesInBundle ins
+        in go circ lc'
+
+-- GATECOUNT
+
+type GateCount = Int
+emptyGateCount :: GateCount
+emptyGateCount = 0
+increaseGateCount :: GateCount -> Int -> GateCount
+increaseGateCount gc n = gc + n
+increaseGateCount1 :: GateCount -> GateCount
+increaseGateCount1 gc = increaseGateCount gc 1
+
+getGateCount :: Circuit -> Int
+getGateCount circ = 
+  let
+    gc = go circ emptyGateCount
+  in gc
+  where
+    go :: Circuit -> GateCount -> GateCount
+    go (Id _) gc = gc
+    go (CCons circ op ins outs) gc = case op of
+      -- QInit:
+      --    in Qasm, a qubit is init to 0 with depth 0. To have it set to 1 we use an X gate,
+      --    hence depth is 1. Gatecount behaves the same. -- CHECKME is this fine?
+      QInit b -> 
+        if b 
+          then
+            let
+              gc' = increaseGateCount1 gc
+            in go circ gc'
+          else go circ gc
+      QDiscard -> -- discarding wouldn't account for gatecounts, but in qasm resetting does
+        let
+          gc' = increaseGateCount1 gc
+        in go circ gc'
+      Meas ->
+        let
+          gc' = increaseGateCount1 gc
+        in go circ gc'
+      CInit _ -> go circ gc
+      CDiscard -> go circ gc
+      _ -> 
+        let
+          gc' = increaseGateCount1 gc
+        in go circ gc'
