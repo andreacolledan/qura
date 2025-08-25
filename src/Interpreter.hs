@@ -20,7 +20,7 @@ import PQ.Type
 import Circuit
 import PrettyPrinter (Pretty (..))
 import Prelude hiding (id)
-
+import Interface
 
 import Debug.Trace (trace)
 import qualified Data.Map as M
@@ -34,12 +34,12 @@ data InterpreterResult = InterpResult {
 
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
-runInterpreter :: Module -> [Module] -> Bool -> Either RuntimeError InterpreterResult
-runInterpreter mod libs pw = do
+runInterpreter :: Module -> [Module] -> CLArguments -> Either RuntimeError InterpreterResult
+runInterpreter mod libs cla = do
   (term, circ) <- mergeModLibs mod libs
   config <- startConfigEvaluation (Config circ term)
-  let qasmProg = circuitToQasm pw $ circuit config -- once we have the string we could save it to file
-  -- saveProgram qasmProg
+  let qasmProg = circuitToQasm (circuit config) cla -- once we have the string we could save it to file
+  -- saveProgram qasmProg -- maybe
   Right $ InterpResult config qasmProg
 
 -- this is a double map for future reasons, maybe two libs uses the same names

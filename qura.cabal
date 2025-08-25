@@ -39,6 +39,7 @@ library
       Interface
       Interpreter
       Interpreter.Configuration
+      Interpreter.Metric
       Interpreter.Qasm
       Interpreter.RuntimeError
       Metric

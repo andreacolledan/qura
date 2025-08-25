@@ -4,6 +4,7 @@ import Interpreter.RuntimeError
 import Interpreter.Metric
 import Circuit
 import PrettyPrinter
+import Interface
 
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
@@ -13,21 +14,22 @@ import Data.Maybe (mapMaybe)
 type QasmInstruction = String -- maybe create a class program of saveable strings
 
 data QasmProgram = QasmProg {
+  filename :: String,
   metrics :: ProgramMetrics,
   instructions :: [QasmInstruction]
 } deriving Show
 
 instance Pretty QasmProgram where
-  pretty QasmProg {metrics = m, instructions = i} =
-    "> Qasm " ++ pretty m ++ 
-    "> Code:\n" ++ 
-    "// ========================\n" ++ 
-    unlines i ++ 
-    "// ========================"
+  pretty QasmProg {filename = fp, metrics = m, instructions = i} =
+    "/*\n========================================================================\n" ++ 
+    "Program generated from the ProtoQuipper file \"" ++ fp ++ "\"\n" ++
+    pretty m ++ 
+    "========================================================================\n*/\n\n" ++ 
+    unlines i
 
 -- converts a circuit to a qasm program.
-circuitToQasm :: Bool -> Circuit -> QasmProgram
-circuitToQasm pw circ =
+circuitToQasm :: Circuit -> CLArguments -> QasmProgram
+circuitToQasm circ CommandLineArguments {filepath=fp, preferWidth=pw} = -- TODO bring the cla to here with the filename
   let 
     simplified = simplifyCircuit pw circ
     -- qasmProg = getQasm simplified
@@ -35,7 +37,7 @@ circuitToQasm pw circ =
       -- trace("> Preferring width: "++show pw++"\n> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
         getQasm simplified
     qasmMetrics = computeQasmMetrics simplified
-  in QasmProg qasmMetrics qasmProg
+  in QasmProg fp qasmMetrics qasmProg
 
 -- | convert a circuit to have the same input and output names and update label context.
 -- So, going from:

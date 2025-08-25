@@ -78,7 +78,7 @@ interpretModule :: Module -> [Module] -> CLArguments -> IO ()
 interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp, preferWidth = pw} = do
   unless nr $ do
     when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
-    case runInterpreter mod libs pw of -- passing pw not wrapped in the cli
+    case runInterpreter mod libs CommandLineArguments {filepath=fp, preferWidth=pw} of
       Left err -> abortWithMessage $ show err
       Right intResult -> do
         let config = cfg intResult
