@@ -60,7 +60,7 @@ getSimplePW ops = go ops Set.empty (mkIdCircuit [])
             q' = bundleRenaming q
           in go steps' discarded $ CCons circ Meas q' c
         (QDiscard, (WLab disc, _)) -> 
-          go steps (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) (WLab disc)
+          go steps (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) WUnit
         (QInit v, (_, WLab name)) ->
           let 
             (name', discarded') = pickOrDefault name discarded
@@ -69,7 +69,7 @@ getSimplePW ops = go ops Set.empty (mkIdCircuit [])
             steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
           -- if the renaming is empty, it means that we are initalizing a new qubit,
           -- if a renaming occured, it means that we are reusing a discarded qubit
-          in go steps' discarded' $ CCons circ (QInit v) (if Map.null renaming then WUnit else WLab name') (WLab name')
+          in go steps' discarded' $ CCons circ (QInit v) WUnit (WLab name')
         (op, (ins, outs)) ->
           let
             renaming = getWBRenaming (ins, outs)
@@ -142,74 +142,11 @@ filterContext ctx labels = Map.filterWithKey (\k _ -> k `Set.member` labels) ctx
 
 --- STRING GENERATION ---
 
-getHeader :: String -> String
+getHeader :: String -> [String]
 getHeader v = case v of
-  "qasm3.0" -> "OPENQASM 3.0;\ninclude \"stdgates.inc\";"
-  _ -> error "[getHeader] Unsupported version " ++ show v
+  "qasm3.0" -> ["OPENQASM 3.0;","include \"stdgates.inc\";"]
+  -- _ -> error "[getHeader] Unsupported version: " ++ show v
 
-thetaStr :: Int -> String
-thetaStr n = "pi/" ++ show (2^(n-1))
-
-thetaInvStr :: Int -> String
-thetaInvStr n = "-" ++ thetaStr n
-
--- README should we have a constructor for qasm terms and return that, then stringify later?
--- to avoid empty lines we return Nothing
-opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Maybe String
--- Qubit metaoperations
-opToQasm (QInit b, (init, WLab name)) = -- check the input to know if the qubit needs initialization
-  case init of
-    WUnit -> 
-      let 
-        decl = "qubit " ++ name ++ ";"
-      in if b
-        then Just $ decl ++ "\nx " ++ name ++ ";"
-        else Just $ decl
-    WLab _ -> 
-      if b
-        then Just $ "x " ++ name ++ ";" -- already init, so we set to 1
-        else Nothing -- already set to 0, no need to init
-opToQasm (QDiscard, (WLab name, _)) = Just $ "reset " ++ name ++ ";"
-opToQasm (Meas, (WLab q, WLab b)) = Just $ b++ " = measure " ++ q ++ ";"
--- Bit metaoperations
-opToQasm (CInit b, (_, WLab name)) =
-  Just $ "bit " ++ name ++ " = " ++ (if b then "1" else "0") ++ ";" -- in qiskit we cant assign values to bits
-opToQasm (CDiscard, (WLab name, _)) = Nothing -- no intruction to do so, nor a reason
--- Single qubit gates
-opToQasm (Hadamard, (WLab name, _)) = Just $ "h " ++ name ++ ";"
-opToQasm (PauliX, (WLab name, _)) = Just $ "x " ++ name ++ ";"
-opToQasm (PauliY, (WLab name, _)) = Just $ "y " ++ name ++ ";"
-opToQasm (PauliZ, (WLab name, _)) = Just $ "z " ++ name ++ ";"
-opToQasm (T, (WLab name, _)) = Just $ "t " ++ name ++ ";"
-opToQasm (R n, (WLab name, _)) = Just $ "rz(" ++ thetaStr n ++ ") " ++ name ++ ";"
-opToQasm (Rinv n, (WLab name, _)) = Just $ "rz(" ++ thetaInvStr n ++ ") " ++ name ++ ";"
--- Two qubit gates
-opToQasm (CNot, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cx " ++ ctrl ++ ", " ++ trgt ++ ";"
-opToQasm (CZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cz " ++ ctrl ++ ", " ++ trgt ++ ";"
-opToQasm (CR n, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "crz(" ++ thetaStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"
-opToQasm (CRinv n, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "crz(" ++ thetaInvStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"
--- Classically controlled gates
--- README Actually, we treat those as quantum-controlled gates
-opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cx " ++ ctrl ++ ", " ++ trgt ++ ";" -- README we are using quantum gates!
-opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) = Just $ "cz " ++ ctrl ++ ", " ++ trgt ++ ";" -- README we are using quantum gates!
--- Three qubit gates
-opToQasm (CNot, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) = Just $ "ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"
-opToQasm _ = Just $ "placeolder"
-
-bitsNames :: LabelContext -> [Label]
-bitsNames ctx = [label | (label, wireType) <- Map.toList ctx, wireType == Bit]
-
-initBit :: Label -> String
-initBit name = "bit " ++ name ++ ";"
-
--- given all the bists of the label context, remove the bits that are explicitely initialized
-filterBitLbels :: [Label] -> [(QuantumOperation, (WireBundle, WireBundle))] -> [Label]
-filterBitLbels labels ops =
-    filter (`notElem` bitsToRemove) labels
-  where
-    -- Extract labels from WLab in operations where the op is CInit
-    bitsToRemove :: [Label]
-    bitsToRemove = [label | (CInit _, (WLab label, _)) <- ops]
 
 -- Generates the string representing the program from a circuit
 -- FIXME for now we simply convert the Circuit 1 to 1.
@@ -224,9 +161,88 @@ getQasm circ =
     -- If we want to save the result of a Meas, the bit should already exist,
     -- but we can't init all of the bits otherwise we can't assign them to a specific value
     -- i dont know if all of this is qiskit only :)
-    ctx = getContext circ
-    bits = bitsNames ctx
-    bitsInits = map initBit $ filterBitLbels bits circSeq
+    -- ctx = getContext circ
+    -- bits = bitsNames ctx
+    -- bitsInits = map initBit $ filterBitLbels bits circSeq
     -- stringify operations
-    instructions = mapMaybe opToQasm circSeq
-  in unlines $ [header] ++ bitsInits ++ instructions
+    instructions = opsToQasm circSeq
+  in unlines $ header ++ instructions
+  -- in unlines $ [header] ++ bitsInits ++ instructions
+
+--- PROGRAM CONVERSION -- 
+
+thetaStr :: Int -> String
+thetaStr n = "pi/" ++ show (2^(n-1))
+
+thetaInvStr :: Int -> String
+thetaInvStr n = "-" ++ thetaStr n
+
+-- convert a list of quantum operations and labels to a list of qasm instructions
+opsToQasm :: [(QuantumOperation, (WireBundle, WireBundle))] -> [QasmProgram]
+opsToQasm = fst . foldl step ([], Set.empty)
+  where
+    step (acc, labels) op =
+      let (instr, labels') = opToQasm op labels
+      in (acc ++ instr, labels')
+
+-- Convert a quantum operation to a list of qasm instructions. A list is used to keep trace of
+-- initialized qubits.
+opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Set.Set Label -> ([QasmProgram], Set.Set Label)
+-- Qubit metaoperations
+opToQasm (QInit b, (_, WLab name)) existing =
+  let 
+    decl = if name `Set.member` existing
+             then []
+             else ["qubit " ++ name ++ ";"]
+  in (decl ++ if b then ["x " ++ name ++ ";"] else [],Set.insert name existing)
+opToQasm (QDiscard, (WLab name, _)) existing = 
+  (["reset " ++ name ++ ";"], existing)
+opToQasm (Meas, (WLab q, WLab b)) existing = 
+  let 
+    decl = if b `Set.member` existing
+      then []
+      else ["bit " ++ b ++ ";"]
+  in (decl ++ [b ++ " = measure " ++ q ++ ";"], Set.insert b existing)
+-- Bit metaoperations
+opToQasm (CInit b, (_, WLab name)) existing =
+  let 
+    decl = if name `Set.member` existing
+      then []
+      else ["bit "]
+  in (decl ++ [name ++ " = " ++ (if b then "1" else "0") ++ ";"], Set.insert name existing)
+opToQasm (CDiscard, (WLab name, _)) existing = 
+  ([], existing) -- no intruction exists to discard a bit, nor the need to do it
+-- Single qubit gates
+opToQasm (Hadamard, (WLab name, _)) existing = 
+  (["h " ++ name ++ ";"], existing)
+opToQasm (PauliX, (WLab name, _)) existing = 
+  (["x " ++ name ++ ";"], existing)
+opToQasm (PauliY, (WLab name, _)) existing = 
+  (["y " ++ name ++ ";"], existing)
+opToQasm (PauliZ, (WLab name, _)) existing = 
+  (["z " ++ name ++ ";"], existing)
+opToQasm (T, (WLab name, _)) existing = 
+  (["t " ++ name ++ ";"], existing)
+opToQasm (R n, (WLab name, _)) existing = 
+  (["rz(" ++ thetaStr n ++ ") " ++ name ++ ";"], existing)
+opToQasm (Rinv n, (WLab name, _)) existing = 
+  (["rz(" ++ thetaInvStr n ++ ") " ++ name ++ ";"], existing)
+-- Two qubit gates
+opToQasm (CNot, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
+  (["cx " ++ ctrl ++ ", " ++ trgt ++ ";"], existing)
+opToQasm (CZ, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
+  (["cz " ++ ctrl ++ ", " ++ trgt ++ ";"], existing)
+opToQasm (CR n, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
+  (["crz(" ++ thetaStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"], existing)
+opToQasm (CRinv n, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
+  (["crz(" ++ thetaInvStr n ++ ") " ++ ctrl ++ ", " ++ trgt ++ ";"], existing)
+-- Classically controlled gates
+-- README Actually, we treat those as quantum-controlled gates
+opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
+  (["cx " ++ ctrl ++ ", " ++ trgt ++ ";"], existing) -- README we are using quantum gates!
+opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
+  (["cz " ++ ctrl ++ ", " ++ trgt ++ ";"], existing) -- README we are using quantum gates!
+-- Three qubit gates
+opToQasm (CNot, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) existing = 
+  (["ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"], existing)
+opToQasm _ e = (["placeolder"], e)
