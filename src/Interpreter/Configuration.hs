@@ -21,7 +21,7 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  -- trace ("-- Circuit Expr:\n"++show expr) $ 
+  trace ("-- Circuit Expr:\n"++show expr) $ 
   evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
@@ -70,20 +70,19 @@ evalConfiguration (Config circ expr) =
     EVar x -> Left $ RuntimeError $ "The variable "++show x++" has not been assigned to any value." --"image2.png said that (C,x) evaluates to Error :)"
     -- EVar _ -> Right config -- value
 
-    ELab _ -> Right config -- value
+    ELab _ -> Right config
 
-    ETuple tpl -> Right config -- value
+    ETuple _ -> Right config
 
-    EAbs _ _ _ -> Right config -- value
+    EAbs _ _ _ -> Right config
 
     ECirc _ _ _ -> Right config
 
     ELift _ -> Right config
 
-    ENil _ -> Right config -- value
+    ENil _ -> Right config
 
-    ECons e1 e2 -> Right config
-
+    ECons _ _ -> Right config 
 
     EFold _ w (ENil _) -> Right $ Config circ w
     EFold fun v w -> do
@@ -91,7 +90,6 @@ evalConfiguration (Config circ expr) =
     -- EFold fun v w -> trace("\n[EFold] Evaluating the EFold:\n > "++""++"\n > acc: "++pretty v++"\n > input: "++pretty w)$do
       (Config circ' fun') <- evalConfiguration $ Config circ fun
       case fun' of
-        -- ELift m -> do
         ELift m -> do
           -- try to reduce the input to a ECons first
           Config circ'' w' <- evalConfiguration $ Config circ' w
@@ -117,9 +115,9 @@ evalConfiguration (Config circ expr) =
                 case evalConfiguration $ Config circ' $ ETuple es of
                   Right (Config circ'' (ETuple es')) -> 
                     Right $ Config circ'' $ ETuple (e':es')
-                  Right (Config _ err) -> error $ "[evalECons] Unexpected error.\n"++show err
+                  Right (Config _ err) -> error $ "[evalECons] Unexpected error 1.\n"++show err
                   Left err -> Left err
-              err -> error $ "[evalECons] Unexpected error.\n"++show err
+              err -> error $ "[evalECons] Unexpected error 2.\n"++show err
 
             evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
             -- FOLD-END rule
@@ -168,7 +166,7 @@ evalConfiguration (Config circ expr) =
     EApply e1 e2 -> do
         Config circ' e1' <- evalConfiguration (Config circ e1)
         Config circ'' e2' <- evalConfiguration (Config circ' e2)
-        k <- exprToWirebundle e2'
+        k <- exprToWirebundle e2' -- raises an error if the boxed cirucit did not porudec a wirebundle
         case e1' of
           ECirc l d l' -> 
             Right $ append circ'' k l d l'
@@ -180,29 +178,29 @@ evalConfiguration (Config circ expr) =
           err -> Left $ RuntimeError $ "First argument of EApply did not reduce to ECirc or EConst.\nGot "++pretty err
 
     EBox typ e -> trace("[EBox] Evaluating box of type "++show typ)$do -- TODO: untested
-      (Config circ' e') <- evalConfiguration (Config circ e)
+      (Config circ' e') <- evalConfiguration $ Config circ e
       case e' of
         ELift n -> 
           case typeToBundleType typ of
             Just t -> do
-              let (q,l) = freshlabels t emptyContext
+              let (q,l) = freshBoxLabels t
               let lExpr = wirebundleToExpr l
               (Config d lExpr') <- evalConfiguration $ Config (Id q) (EApp n lExpr)
-              l' <- exprToWirebundle lExpr'
-              Right $ Config circ' (ECirc l d l')
+              l' <- exprToWirebundle lExpr' -- raises an error if the boxed cirucit did not porudec a wirebundle
+              Right $ Config circ' $ ECirc l d l'
             
             Nothing -> error "[eval EBox] Type of box is Nothing."
             
         _ -> Left $ RuntimeError "EBox did not reduce to an ELift"
 
     EForce e -> do
-      (Config circ' e') <- evalConfiguration (Config circ e)
+      (Config circ' e') <- evalConfiguration $ Config circ e
       case e' of
-        ELift m' -> evalConfiguration (Config circ' m')
+        ELift m' -> evalConfiguration $ Config circ' m'
         _ -> Left $ RuntimeError "No ELift found inside EForce."
 
     ELet p e1 e2 -> do
-      (Config circ' e1') <- evalConfiguration (Config circ e1)
+      (Config circ' e1') <- evalConfiguration $ Config circ e1
       let expr' = psub p e1' e2
       let circ'' = Config circ' expr' 
       evalConfiguration circ''
@@ -227,14 +225,14 @@ evalConfiguration (Config circ expr) =
             _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
         
         EConst c -> do
-          e <- handleEConst c i
+          e <- handleEConst c i -- CHECKME is it okay that we do not evaluate the index here?
           Right $ Config circ' e
 
         -- _ -> Right $ Config circ' m'
         -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
         _ -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
-    EConst c -> Right $ Config circ $ EConst c
+    EConst c -> Right config
 
     EAssume e _ -> evalConfiguration $ Config circ e
 

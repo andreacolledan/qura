@@ -363,7 +363,7 @@ getGateCount circ =
         if b 
           then
             let
-              gc' = increaseGateCount1 gc
+              gc' = increaseGateCount1 gc -- CHECKME: or maybe not??? qura doesnt not account for this
             in go circ gc'
           else go circ gc
       QDiscard -> -- discarding wouldn't account for gatecounts, but in qasm resetting does

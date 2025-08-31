@@ -158,6 +158,8 @@ freshlabels t q = case t of
     
   err -> error $ "[freshLabels] requested: "++ show err
 
+freshBoxLabels :: BundleType -> (LabelContext, WireBundle)
+freshBoxLabels t = freshlabels t emptyContext
 
 -- Circuit Datatype
 
