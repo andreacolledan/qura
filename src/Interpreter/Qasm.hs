@@ -29,12 +29,12 @@ instance Pretty QasmProgram where
 
 -- converts a circuit to a qasm program.
 circuitToQasm :: Circuit -> CLArguments -> QasmProgram
-circuitToQasm circ CommandLineArguments {filepath=fp, preferWidth=pw} = -- TODO bring the cla to here with the filename
+circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} = -- TODO bring the cla to here with the filename
   let 
-    simplified = simplifyCircuit pw circ
+    simplified = simplifyCircuit r circ
     -- qasmProg = getQasm simplified
     qasmProg = 
-      -- trace("> Preferring width: "++show pw++"\n> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
+      -- trace("> Preferring width: "++show r++"\n> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
         getQasm simplified
     qasmMetrics = computeQasmMetrics simplified
   in QasmProg fp qasmMetrics qasmProg
@@ -45,12 +45,12 @@ circuitToQasm circ CommandLineArguments {filepath=fp, preferWidth=pw} = -- TODO 
 -- to:
 -- > CNot ((q2, q1)) -> (q2, q1);
 simplifyCircuit :: Bool -> Circuit -> Circuit
-simplifyCircuit pw circ = 
+simplifyCircuit r circ = 
   let 
   -- listify the operations
     circSeq = circTolist circ
   -- update names such that ins=outs and propagate the renamings
-    circ' = getSimple pw circSeq
+    circ' = getSimple r circSeq
   -- extract the actual labels
     labels = namesInCircuit' circ'
   -- update tthe label context

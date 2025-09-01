@@ -21,8 +21,8 @@ data Configuration = Config {
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
 startConfigEvaluation (Config circ expr) = 
-  trace ("-- Circuit Expr:\n"++show expr) $ 
-  evalConfiguration (Config circ expr)
+  trace ("> Circuit Expression:\n"++pretty expr) $ 
+    evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
   pretty (Config circ expr) = pretty circ ++"\n> Expression:\n"++ pretty expr
@@ -133,6 +133,7 @@ evalConfiguration (Config circ expr) =
               -- trace ("  [evalFold] Step " ++ show i ++ ": function after applying index:\n  " ++ pretty y) $ pure ()
 
               -- Apply the function to the accumulator and current element
+              -- FIXME maybe we are able to use pattern matching to get the last element of the cons eand evaluate it singularly without using evalcons
               (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v, w]))
               (Config e' z') <- evalECons $ Config e z
               -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z') $ pure ()
@@ -211,44 +212,43 @@ evalConfiguration (Config circ expr) =
 
     EIApp m i -> do
       (Config circ' m') <- evalConfiguration (Config circ m)
-      case m' of
-        EIAbs ivar n -> do
-          -- eval index i and obtain w
-          case evalIndex' i of
-            Number w -> do
+      -- eval index i and obtain w
+      case evalIndex' i of
+        Number w -> case m' of
+          EIAbs ivar n -> do
               -- sub ivar with w in n and obtain (Config circ' n')
               let n' = isub (isubSingleton ivar (Number w)) n
 
               Config circ'' n'' <- evalConfiguration (Config circ' n')
               Right $ Config circ'' n''
 
-            _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
+          EConst c -> do
+            let e = handleEConst c w
+            Right $ Config circ' e
         
-        EConst c -> do
-          e <- handleEConst c i -- CHECKME is it okay that we do not evaluate the index here?
-          Right $ Config circ' e
+          -- _ -> Right $ Config circ' m'
+          -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
+          _ -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
+          
+        _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
 
-        -- _ -> Right $ Config circ' m'
-        -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
-        _ -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
 
     EConst c -> Right config
 
     EAssume e _ -> evalConfiguration $ Config circ e
 
-handleEConst :: Constant -> Index -> Either RuntimeError Expr
-handleEConst (Boxed op) _ = Right $ EConst $ Boxed op
-handleEConst c (Number i) = case c of
-  MakeRGate -> Right $ EConst $ Boxed $ R i
-  MakeRinvGate -> Right $ EConst $ Boxed $ Rinv i
-  MakeCRGate -> Right $ EConst $ Boxed $ CR i
-  MakeCRinvGate -> Right $ EConst $ Boxed $ CRinv i
+handleEConst :: Constant -> Int -> Expr
+handleEConst (Boxed op) _ = EConst $ Boxed op
+handleEConst c i = case c of
+  MakeRGate -> EConst $ Boxed $ R i
+  MakeRinvGate -> EConst $ Boxed $ Rinv i
+  MakeCRGate -> EConst $ Boxed $ CR i
+  MakeCRinvGate -> EConst $ Boxed $ CRinv i
   MakeMCNot -> undefined
-  MakeUnitList -> Right l
+  MakeUnitList -> l
     where
-      niltyp = (Just TUnit) -- or maybe Nothing?
+      niltyp = (Just TUnit) -- FIXME   or maybe Nothing?
       l = foldr (\_ acc -> ECons acc EUnit) (ENil niltyp) [1..i]
-handleEConst _ _ = Left $ RuntimeError "Index is not a Number."
 
 exprToWirebundle :: Expr -> Either RuntimeError WireBundle
 exprToWirebundle EUnit = Right $ WUnit

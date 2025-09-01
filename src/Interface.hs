@@ -14,7 +14,7 @@ data CLArguments = CommandLineArguments
     noprelude :: Bool,
     grs :: Maybe GlobalMetricModule,
     lrs :: Maybe LocalMetricModule,
-    preferWidth :: Bool
+    qubitRecycling :: Bool
   }
 
 globalMetricArgParser :: ReadM GlobalMetricModule
@@ -84,6 +84,6 @@ cliInterface =
               <> help "Analyse local METRIC"
               ))
         <*> flag True False
-          ( long "no-prefer-width"
-              <> help "Do not prefer width when choosing metrics (default: prefer width)"
+          ( long "no-recycling"
+              <> help "Do not use discarded qubits for new initializations"
           )

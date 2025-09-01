@@ -190,17 +190,21 @@ instance Pretty WireBundle where
     WCons e1 e2 -> "(" ++ pretty e1 ++ ":" ++ pretty e2 ++ ")"
 
 instance Pretty LabelContext where
-  pretty ctx =
-    let pairs = Map.toList ctx
-        prettyPair (l, t) = l ++ ":" ++ pretty t
-    in intercalate ", " (map prettyPair pairs)
+  pretty ctx
+    | Map.null ctx = "[empty]"
+    | otherwise    =
+        let pairs = Map.toList ctx
+            prettyPair (l, t) = l ++ ":" ++ pretty t
+        in intercalate ", " (map prettyPair pairs)
 
 instance Pretty Circuit where
-  pretty circ = 
-    let 
-      circLines = linesOf circ
-      circId = head circLines
-      circOps = concatLines (drop 1 circLines)
+  pretty circ =
+    let circLines = linesOf circ
+        circId    = head circLines
+        opsLines  = drop 1 circLines
+        circOps   = if null opsLines
+                    then "[no operations]"
+                    else concatLines opsLines
     in circId ++ "\n> Operations:\n" ++ circOps
     where
       linesOf :: Circuit -> [String]
@@ -209,9 +213,10 @@ instance Pretty Circuit where
         linesOf c ++ [pretty op ++ " (" ++ pretty ins ++ ") -> " ++ pretty outs]
 
       concatLines :: [String] -> String
-      concatLines []     = ""
+      concatLines []     = "[no operations]" -- safety fallback
       concatLines [x]    = x ++ "."
       concatLines (x:xs) = x ++ ";\n" ++ concatLines xs
+
 
 -- Circuit operations and helpers
 
