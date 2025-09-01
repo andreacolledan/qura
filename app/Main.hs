@@ -88,7 +88,7 @@ interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filep
         putStrLn "\nwhile evaluating to:\n"
         print $ term config
 
-abortWithMessage :: String -> IO ()
+abortWithMessage :: String -> IO a
 abortWithMessage e = do
   hSetSGR stderr [SetColor Foreground Vivid Red]
   hPutStrLn stderr e
