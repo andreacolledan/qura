@@ -28,3 +28,9 @@ data Module = Module {
 
 instance Pretty Module where
   pretty (Module name exports imports tldefs) = unwords $ map prettyTopLevelDefinition tldefs
+
+toTypeBindings :: Module -> [(VariableId, Type)]
+toTypeBindings (Module _ _ _ tldefs) = foldr collect [] tldefs
+  where
+    collect (TopLevelDefinition id _ (Just typ) _) acc = (id, typ) : acc
+    collect (TopLevelDefinition _ _ Nothing _) acc = acc
