@@ -7,7 +7,7 @@ import Data.Maybe (catMaybes, isJust)
 import Interface (CLArguments (..), cliInterface)
 import Interpreter
 import Options.Applicative (execParser)
-import PQ (Module, prelude)
+import PQ (Module, prelude, toTypeBindings)
 import Parser (errorBundlePretty, parseModule, runParser)
 import PrettyPrinter (Pretty (pretty))
 import Solver (withSolver)
@@ -29,8 +29,8 @@ main = do
   opts <- parseCLArguments
   mod <- parseSource opts
   libs <- getLibs opts
-  analyzeModule mod libs opts
-  interpretModule mod libs opts
+  analyzedModule <- analyzeModule mod libs opts
+  interpretModule analyzedModule libs opts
 
 ensureCVC5 :: IO ()
 ensureCVC5 = do
@@ -62,17 +62,19 @@ parseSource CommandLineArguments {verbose = verb, filepath = file, grs = mgrs, l
 getLibs :: CLArguments -> IO [Module]
 getLibs CommandLineArguments {noprelude = nopre} = return ([prelude | not nopre]) -- for now, we only allow the prelude as a library
 
-analyzeModule :: Module -> [Module] -> CLArguments -> IO ()
+analyzeModule :: Module -> [Module] -> CLArguments -> IO Module
 analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
   when verb $ putStrLn $ "Inferring type for '" ++ fp ++ "'..."
   outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
   case outcome of
     Left err -> abortWithMessage $ show err
-    Right bindings -> do
+    Right analyzedModule -> do
       putStrLn $ "Analyzed file '" ++ fp ++ "'."
       let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
       putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
-      putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
+      putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") $ toTypeBindings analyzedModule
+      return analyzedModule
+
 
 interpretModule :: Module -> [Module] -> CLArguments -> IO ()
 interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp, qubitRecycling = r} = do
@@ -91,7 +93,7 @@ interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filep
         -- putStr "\nProduced OTHER program:\n"
         -- putStr $ pretty (OTHER intResult) ++ "\n"
 
-abortWithMessage :: String -> IO ()
+abortWithMessage :: String -> IO a
 abortWithMessage e = do
   hSetSGR stderr [SetColor Foreground Vivid Red]
   hPutStrLn stderr e

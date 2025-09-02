@@ -2,7 +2,8 @@ module PQ (
   VariableId,
   --re-exports
   Module,
-  prelude
+  prelude,
+  toTypeBindings
 ) where
 
 import PQ.Expr
