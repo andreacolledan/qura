@@ -10,7 +10,7 @@ module PQ.Type
     HasSize(..),
     stripGlobalAnnotations,
     stripLocalAnnotations,
-    typeToBundleType
+    maybeTypeToBundleType
   )
 where
 
@@ -18,6 +18,8 @@ import PQ.Index
 import PrettyPrinter
 import Data.List (intercalate)
 import Circuit
+
+import Debug.Trace (trace)
 
 type TVarId = String
 
@@ -147,14 +149,17 @@ instance HasSize a => HasSize (Maybe a) where
 
 ---------------------------
 
-typeToBundleType :: Maybe Type -> Maybe BundleType
-typeToBundleType Nothing  = Nothing
-typeToBundleType (Just t) = Just (go t)
+maybeTypeToBundleType :: Maybe Type -> Maybe BundleType
+maybeTypeToBundleType Nothing  = Nothing
+maybeTypeToBundleType (Just typ) = Just (go typ)
   where
     go :: Type -> BundleType
-    go TUnit             = BUnit
-    go (TWire wt _)      = BWire wt
-    go (TTensor ts)      = BTensor (map go ts)
-    go (TCirc _ inTy _)  = go inTy
-    go (TBang _ t')      = go t'
-    go _                 = error "typeToBundleType: unsupported type"
+    go TUnit = BUnit
+    go (TWire wt i) = BWire wt
+    go (TTensor typs) = BTensor (map go typs)
+    go (TCirc i typ1 typ2) = go typ1
+    go (TArrow typ1 typ2 i j) = trace("[TArrow] "++show typ1++", "++show typ2++", "++show i++", "++show j)$undefined
+    go (TBang i typ) = go typ
+    go (TList ivar i typ) = trace("[TList] "++show ivar++", "++show i++", "++show typ)$undefined
+    go (TVar tvar) = trace("")$undefined
+    go (TIForall ivar typ i j) = trace("")$undefined

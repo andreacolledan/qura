@@ -122,7 +122,7 @@ instance Pretty Expr where
   pretty (ELab l) = l
   pretty (ETuple es) = "(" ++ intercalate ", " (map pretty es) ++ ")"
   pretty (EAbs p t e) = "(\\" ++ pretty p ++ " :: " ++ pretty t ++ " . " ++ pretty e ++ ")" 
-  pretty (ECirc ins circ outs) = "(" ++ pretty ins ++ ", " ++ "[BOXED CIRC]" ++ ", "++ pretty outs ++")" -- FIXME if we pretty circ we get a loooot of lines no?
+  pretty (ECirc ins circ outs) = "(boxed (" ++ pretty ins ++ ", " ++ "[BOXED CIRC]" ++ ", "++ pretty outs ++"))" -- FIXME if we pretty circ we get a loooot of lines no?
   pretty (EApp e1 e2) = "(" ++ pretty e1 ++ " " ++ pretty e2 ++ ")"
   pretty (ELift e) = "(lift " ++ pretty e ++ ")"
   pretty (EForce e) = "(force " ++ pretty e ++ ")"

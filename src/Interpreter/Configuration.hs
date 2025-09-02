@@ -20,9 +20,8 @@ data Configuration = Config {
 } deriving Show
 
 startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
-startConfigEvaluation (Config circ expr) = 
-  trace ("> Circuit Expression:\n"++pretty expr) $ 
-    evalConfiguration (Config circ expr)
+startConfigEvaluation (Config circ expr) = trace ("> Circuit Expression:\n"++pretty expr) $ 
+  evalConfiguration (Config circ expr)
 
 instance Pretty Configuration where
   pretty (Config circ expr) = pretty circ ++"\n> Expression:\n"++ pretty expr
@@ -31,17 +30,29 @@ append :: Circuit -> WireBundle -> WireBundle -> Circuit -> WireBundle -> Config
 append c k l d l' = 
   let
   -- 1) collect all the names appearing in l d l'
-    oldNames = namesInBox (l, d, l')
-    avoidNames = namesInBox (WUnit, c, k)
-  -- 2) create a renaming from l to t so that label in t don't appear in c
-    renaming = createRenaming oldNames avoidNames
+    circCtx = getContext c
+    boxCtx = getContext d
+    -- circNames = namesInBox (WUnit, c, k)
+    -- boxNames = namesInBox (l, d, l')
+  -- 2) create a renaming from l to t such that:
+    -- the inputs of the box become the labels applied to the box (and rename the whole box accordingly)
+    -- the other labels in the box do not match any label in the circuit
+    renaming = --trace("box: "++show boxCtx++"\ncirc: "++show circCtx++"\nk: "++pretty k++"\nl:"++pretty l)$
+      createRenamingLC boxCtx circCtx (k,l)
+    -- renaming = trace("box: "++show boxNames++"\ncirc: "++show circNames++"\nk: "++pretty k++"\nl:"++pretty l)$
+    --   createRenaming boxNames circNames (k,l)
   -- 3) use the renaming to obtain l d l'-> t d' t'
-    (t, d', t') = updateBoxNames renaming (l, d, l')
+    (t, d', t') = --trace("renaming: "++show renaming)$
+      updateBoxNames renaming (l, d, l')
   -- 4) concat c::d' and obtain c'
-    c' = circConcat c d' -- is the last instruction g(t*)->t' already in d'?
+    c' = circConcat c d'
+  -- 5) update label context
+    boxCtx' = getContext d'
+    newCtx = mergeContexts circCtx boxCtx'
+    c'' = updateCircContext c' newCtx
   in
-  -- 5) return (c', t')
-  Config c' (wirebundleToExpr t')
+  -- 6) return (c', t')
+  Config c'' (wirebundleToExpr t')
 
 appendQuantOP :: Circuit -> WireBundle -> QuantumOperation -> Configuration
 appendQuantOP circ k op = 
@@ -167,7 +178,7 @@ evalConfiguration (Config circ expr) =
     EApply e1 e2 -> do
         Config circ' e1' <- evalConfiguration (Config circ e1)
         Config circ'' e2' <- evalConfiguration (Config circ' e2)
-        k <- exprToWirebundle e2' -- raises an error if the boxed cirucit did not porudec a wirebundle
+        k <- exprToWirebundle e2' -- raises an error if the boxed cirucit did not produce a wirebundle
         case e1' of
           ECirc l d l' -> 
             Right $ append circ'' k l d l'
@@ -178,16 +189,16 @@ evalConfiguration (Config circ expr) =
             
           err -> Left $ RuntimeError $ "First argument of EApply did not reduce to ECirc or EConst.\nGot "++pretty err
 
-    EBox typ e -> trace("[EBox] Evaluating box of type "++show typ)$do -- TODO: untested
+    EBox typ e -> do
       (Config circ' e') <- evalConfiguration $ Config circ e
       case e' of
         ELift n -> 
-          case typeToBundleType typ of
+          case maybeTypeToBundleType typ of
             Just t -> do
               let (q,l) = freshBoxLabels t
               let lExpr = wirebundleToExpr l
               (Config d lExpr') <- evalConfiguration $ Config (Id q) (EApp n lExpr)
-              l' <- exprToWirebundle lExpr' -- raises an error if the boxed cirucit did not porudec a wirebundle
+              l' <- exprToWirebundle lExpr' -- raises an error if the boxed cirucit did not produce a wirebundle
               Right $ Config circ' $ ECirc l d l'
             
             Nothing -> error "[eval EBox] Type of box is Nothing."
@@ -260,6 +271,6 @@ exprToWirebundle (ECons h t) = do
   h' <- exprToWirebundle h
   t' <- exprToWirebundle t
   Right $ WCons h' t'
-exprToWirebundle (ENil typ) = Right $ WNil $ typeToBundleType typ
+exprToWirebundle (ENil typ) = Right $ WNil $ maybeTypeToBundleType typ
 -- likely caused by EApply on a non assigned label (for example if there is no main)
 exprToWirebundle e = Left $ RuntimeError ("Cannot convert the Expr:\n> "++show e++"\n to a WireBundle")
