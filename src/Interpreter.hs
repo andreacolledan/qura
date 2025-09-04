@@ -227,11 +227,11 @@ searchDefinition :: ModulesMap
                  -> VariableId -- target definition
                  -> Either RuntimeError (Maybe (String, TopLevelDefinition))
 searchDefinition maps sourceMod sourceDef trgtDef =
-  trace ("[SearchDef.] Searching " ++ trgtDef ++ " definition, requested in " ++ sourceMod ++ "." ++ sourceDef) $
+  --trace ("[SearchDef.] Searching " ++ trgtDef ++ " definition, requested in " ++ sourceMod ++ "." ++ sourceDef) $
   if sourceDef /= trgtDef
     then
       case M.lookup sourceMod maps >>= M.lookup trgtDef of
-        Just tldef -> trace(" > Using "++trgtDef++" from "++sourceMod)$
+        Just tldef -> --trace(" > Using "++trgtDef++" from "++sourceMod)$
           Right $ Just (sourceMod, tldef)  -- found in source module
         Nothing -> searchInOtherModules  -- not found in source module, continue
     else
@@ -247,7 +247,7 @@ searchDefinition maps sourceMod sourceDef trgtDef =
            ] of
         [] -> --trace(" > "++trgtDef++" not found")$
           Right Nothing  -- not found anywhere
-        [(modName, tldef)] -> trace(" > Using "++id tldef++" from "++modName)$
+        [(modName, tldef)] -> --trace(" > Using "++id tldef++" from "++modName)$
           Right $ Just (modName, tldef)  -- found in exactly one library
         defs -> Left $ RuntimeError err  -- multiple definitions
           where

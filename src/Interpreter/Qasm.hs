@@ -253,7 +253,7 @@ opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) existing =
 opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) existing = 
   (["cz " ++ ctrl ++ ", " ++ trgt ++ ";"], existing) -- README we are using quantum gates!
 -- Three qubit gates
-opToQasm (CNot, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) existing = 
+opToQasm (Toffoli, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) existing = 
   (["ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"], existing)
 opToQasm _ e = (["placeolder"], e)
 
