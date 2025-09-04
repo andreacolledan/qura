@@ -221,7 +221,7 @@ opToQasm (CInit b, (_, WLab name)) existing =
       else ["bit "]
   in (decl ++ [name ++ " = " ++ (if b then "1" else "0") ++ ";"], Set.insert name existing)
 opToQasm (CDiscard, (WLab name, _)) existing = 
-  ([], existing) -- no intruction exists to discard a bit, nor the need to do it
+  ([], existing) -- no instruction exists to discard a bit, nor the need to do it
 -- Single qubit gates
 opToQasm (Hadamard, (WLab name, _)) existing = 
   (["h " ++ name ++ ";"], existing)

@@ -36,7 +36,8 @@ data InterpreterResult = InterpResult {
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
 runInterpreter :: Module -> [Module] -> CLArguments -> Either RuntimeError InterpreterResult
 runInterpreter mod libs cla = do
-  (term, circ) <- mergeModLibs mod libs
+  let mod' = mod {name = filepath cla}
+  (term, circ) <- mergeModLibs mod' libs
   config <- startConfigEvaluation (Config circ term)
   let qasmProg = circuitToQasm (circuit config) cla -- once we have the string we could save it to file
   -- saveProgram qasmProg -- maybe
@@ -101,6 +102,9 @@ mergeModLibs (Module programName e i defs) libs = do
   -- for now I assume no dependencies inside the libraries, (a function of the lib uses another one from the same lib)
   -- and of course no cross dependencies between the libraries.
   (main, otherDefs) <- extractDefFromModule "main" defs -- TODO extract the main
+  
+  -- TODO check that the main has no args
+  
   let definitionsMap = createMapFromModules ((Module programName e i otherDefs) : libs)
   let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
   -- substitute in the maining tldef using the maps
@@ -111,163 +115,145 @@ mergeModLibs (Module programName e i defs) libs = do
       -- ++"\n---- def map:\n"++(show definitionsMap)
       -- ++"\n"++(pretty definitionsMap)
     ) $ 
-      applyModulesMap definitionsMap (programName, sartDef)
+      applyModulesMap definitionsMap programName mainId sartDef
   
   -- also wrap the main
   let initialCircuit = mkIdCircuit [] -- starting label context is always empty
   -- let initialCircuit = idCircuitFromArgs (mainArgs, mainSign) -- main is always identity
   Right (completeProgramExpr, initialCircuit)
   
--- given the main expression, sub in variables taken from the modules, using their name
-applyModulesMap :: ModulesMap -> (String, Expr) -> Either RuntimeError Expr
-applyModulesMap maps (progName, startDef) 
-  | M.null maps = Right startDef -- not really needed but would save some time
-  | otherwise = case startDef of
+--
+applyModulesMap :: ModulesMap -- maps
+                -> String -- current module
+                -> VariableId -- current definition
+                -> Expr -- definition body
+                -> Either RuntimeError Expr
+applyModulesMap maps currMod currDef expr
+  | M.null maps = Right expr -- not really needed but would save some time
+  | otherwise = case expr of
     EUnit -> Right EUnit
 
-    EVar x -> case searchDefinition maps progName x of
-      Left err -> Left err
-
-      Right (Just (sourceModule, (TopLevelDefinition _ tldefArgs tldefSign tldefExpr))) -> -- definition found
-        do 
-          -- Since that we are assuming no dependencies in the lib, for now we only recurse
-          -- if the definition was found in the user program (so the module progName)
-          tldefExpr' <- if sourceModule == progName
-            then applyModulesMap maps (progName, tldefExpr)
-            else pure tldefExpr
-
+    EVar x -> do
+      -- search the definition
+      searchResult <- searchDefinition maps currMod currDef x
+      case searchResult of 
+        Just (foundDefMod, foundTldef) -> do
+          -- check if something needs to be subbed inside it. We remove the current module to avoid loops
+          -- let maps' = M.delete currMod maps
+          let (TopLevelDefinition foundName foundArgs foundSign foundExpr) = foundTldef
+          newExpr <- applyModulesMap maps foundDefMod foundName foundExpr
           -- wrap the definition with abstractions for its vars
-          let tldefExpr'' = wrapExpr tldefExpr' tldefArgs tldefSign
-          -- trace (""
-          --   ++"\nWrapping:\n> "++pretty tldefExpr'
-          --   ++"\nwith args:\n> "++show tldefArgs
-          --   ++"\nand with signature:\n> "++pretty tldefSign
-          --   ++"\nWrapping output:\n> "++(pretty tldefExpr''))$ 
+          let newExpr' = wrapExpr newExpr foundArgs foundSign
 
           -- finally, return the lifted function
-          Right $ ELift tldefExpr''
+          Right $ ELift newExpr'
+        
+        Nothing -> Right expr
 
-      Right Nothing -> Right startDef -- No definition found, return the term itself
-
-    ELab _ -> Right startDef
+    ELab _ -> Right expr
 
     ETuple es -> do
-      es' <- mapM (\e -> applyModulesMap maps (progName, e)) es
+      es' <- mapM (applyModulesMap maps currMod currDef) es
       Right $ ETuple es'
 
     EAbs ptrn typ e -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EAbs ptrn typ e'
 
-    ECirc _ _ _ -> Right startDef
+    ECirc _ _ _ -> Right expr
 
     ELift e -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ ELift e'
 
     ENil typ -> Right $ ENil typ
 
     ECons e1 e2 -> do
-      e1' <- applyModulesMap maps (progName, e1)
-      e2' <- applyModulesMap maps (progName, e2)
+      e1' <- applyModulesMap maps currMod currDef e1
+      e2' <- applyModulesMap maps currMod currDef e2
       Right $ ECons e1' e2'
 
     EFold e1 e2 e3 -> do
-      e1' <- applyModulesMap maps (progName, e1)
-      e2' <- applyModulesMap maps (progName, e2)
-      e3' <- applyModulesMap maps (progName, e3)
+      e1' <- applyModulesMap maps currMod currDef e1
+      e2' <- applyModulesMap maps currMod currDef e2
+      e3' <- applyModulesMap maps currMod currDef e3
       Right $ EFold e1' e2' e3'
 
     EApp e1 e2 -> do
-      e1' <- applyModulesMap maps (progName, e1)
-      e2' <- applyModulesMap maps (progName, e2)
+      e1' <- applyModulesMap maps currMod currDef e1
+      e2' <- applyModulesMap maps currMod currDef e2
       Right $ EApp e1' e2'
 
     EApply e1 e2 -> do
-      e1' <- applyModulesMap maps (progName, e1)
-      e2' <- applyModulesMap maps (progName, e2)
+      e1' <- applyModulesMap maps currMod currDef e1
+      e2' <- applyModulesMap maps currMod currDef e2
       Right $ EApply e1' e2'
 
     EBox typ e -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EBox typ e'
 
     EForce e -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EForce e'
 
     ELet ptrn e1 e2 -> do
-      e1' <- applyModulesMap maps (progName, e1)
-      e2' <- applyModulesMap maps (progName, e2)
+      e1' <- applyModulesMap maps currMod currDef e1
+      e2' <- applyModulesMap maps currMod currDef e2
       Right $ ELet ptrn e1' e2'
 
     EAnno e typ -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EAnno e' typ
 
     EIAbs ivar e -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EIAbs ivar e'
 
     EIApp e i -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EIApp e' i
 
     EConst c -> Right $ EConst c
 
     EAssume e typ -> do
-      e' <- applyModulesMap maps (progName, e)
+      e' <- applyModulesMap maps currMod currDef e
       Right $ EAssume e' typ
 
--- Raises a run time error in case a definition appears in more than one module
--- and we are unsure about which one to use.
--- For now, I am not checking if the id is in the form module.name because
--- I dont even know if a function can be called like that in .pq
-searchDefinition :: ModulesMap -> String -> VariableId -> Either RuntimeError (Maybe (String, TopLevelDefinition))
--- modName is used to default to the user defined definition.
--- defName is the name of the definition in which we are trying to substitute in.
--- x is the name of the definition that we are looking for
-searchDefinition maps userModName x =
-  -- trace ("\nSearching a definition for EVar "++x++", found inside the definition '"++defName++"' in the module '"++userModName++"'.")$
-  -- a list of (mod_name, Expr) representing the found definitions
-  let foundDefinitions = [(moduleName, tldef) | (moduleName, defsMap) <- M.toList maps, Just tldef <- [M.lookup x defsMap]]
-  in case foundDefinitions of
-    [] -> 
-      -- trace (
-      --   "> No definition found for "++x
-      -- )$
-      Right Nothing
-    [(moduleName, tldef)] -> 
-      -- trace (
-      --   "> FOUND: Using "++x++" from "++moduleName
-      -- )$
-      Right (Just (moduleName, tldef))
-    defs -> -- if more than one definition is found and the name of the variable to look for
-            -- is the same as the name if the definition itself, than we have to look for the 
-            -- 'true' definition on another module, otherwise we substitute infinitely.
-       
-      -- remove found definitions if it comes from its module (it's itself)
-      case filter (\(moduleName, _) -> moduleName /= userModName) defs of
-          [] -> Left $ RuntimeError "A definition is defined using itself recursively."
-          -- if we only have one definition left use it,
-          [(moduleName, tldef)] -> 
-            -- trace (
-            --   "> FOUND: Using "++x++" from "++moduleName
-            -- )$
-            Right (Just (moduleName, tldef))
-          -- otherwise try to default to the user-defined one
-          filteredDefs -> case lookup userModName filteredDefs of
-            Just tldef -> 
-              -- trace (
-              --   "> FOUND: Using "++x++" from "++userModName
-              -- )$
-              Right (Just (userModName, tldef))
-            -- more than one definition in the libraries. Unsure on which one to use
-            Nothing -> Left $ RuntimeError err
-              where
-                err = "Multiple definitions found for " ++ x 
-                    ++ ".\nIt is defined in the following modules:\n"
-                    ++ (intercalate ",\n" (map fst defs))
+-- Look up a variable’s definition, preferring the source module but avoiding self-recursion
+searchDefinition :: ModulesMap
+                 -> String -- source module
+                 -> String -- source definition
+                 -> VariableId -- target definition
+                 -> Either RuntimeError (Maybe (String, TopLevelDefinition))
+searchDefinition maps sourceMod sourceDef trgtDef =
+  trace ("[SearchDef.] Searching " ++ trgtDef ++ " definition, requested in " ++ sourceMod ++ "." ++ sourceDef) $
+  if sourceDef /= trgtDef
+    then
+      case M.lookup sourceMod maps >>= M.lookup trgtDef of
+        Just tldef -> trace(" > Using "++trgtDef++" from "++sourceMod)$
+          Right $ Just (sourceMod, tldef)  -- found in source module
+        Nothing -> searchInOtherModules  -- not found in source module, continue
+    else
+      searchInOtherModules  -- same name as sourceDef, skip source module
+
+  where
+    searchInOtherModules :: Either RuntimeError (Maybe (String, TopLevelDefinition))
+    searchInOtherModules =
+      case [ (modName, tldef)
+           | (modName, defsMap) <- M.toList maps
+           , modName /= sourceMod
+           , Just tldef <- [M.lookup trgtDef defsMap]
+           ] of
+        [] -> --trace(" > "++trgtDef++" not found")$
+          Right Nothing  -- not found anywhere
+        [(modName, tldef)] -> trace(" > Using "++id tldef++" from "++modName)$
+          Right $ Just (modName, tldef)  -- found in exactly one library
+        defs -> Left $ RuntimeError err  -- multiple definitions
+          where
+            err = "Multiple definitions found for " ++ trgtDef
+                  ++ ".\nIt is defined in the following modules:\n"
+                  ++ intercalate ",\n" (map fst defs)
 
 
 -- wraps an expression with abstraction on his args in order to be able to lift it

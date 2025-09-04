@@ -67,7 +67,7 @@ appendQuantOP circ k op =
 
 appendConst :: Circuit -> WireBundle -> Constant -> Configuration
 appendConst circ k (Boxed op) = appendQuantOP circ k op
-appendConst circ k _ = undefined
+appendConst circ k _ = undefined -- can this happen?
 
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
@@ -83,7 +83,14 @@ evalConfiguration (Config circ expr) =
 
     ELab _ -> Right config
 
-    ETuple _ -> Right config
+    ETuple [] -> Right config
+    ETuple (w:ws) -> do
+      Config circ' w' <- evalConfiguration $ Config circ w
+      wsconfig <- evalConfiguration $ Config circ' (ETuple ws)
+      case wsconfig of 
+        Config circ'' (ETuple ws') ->
+          Right $ Config circ'' (ETuple $ (w':ws'))
+        err -> error $ "[ETuple] ETuple did not reduce to ETuple. Got: " ++ pretty err
 
     EAbs _ _ _ -> Right config
 
@@ -93,7 +100,10 @@ evalConfiguration (Config circ expr) =
 
     ENil _ -> Right config
 
-    ECons _ _ -> Right config 
+    ECons e1 e2 -> do
+      Config circ' e1' <- evalConfiguration (Config circ e1)
+      Config circ'' e2' <- evalConfiguration (Config circ' e2)
+      Right $ Config circ'' $ ECons e1' e2'
 
     EFold _ w (ENil _) -> Right $ Config circ w
     EFold fun v w -> do
@@ -106,30 +116,10 @@ evalConfiguration (Config circ expr) =
           Config circ'' w' <- evalConfiguration $ Config circ' w
           -- then evaluate the fold
           foldResult <- evalFold 0 circ'' $ EFold m v w'
-          -- foldResult <- trace("\n[EFold] Evaluating the EFold in:\n"++pretty circ''++"\n > acc: "++pretty v++"\n > input: "++pretty w'++"\n > fold function: "++pretty m)$evalFold 0 circ'' $ EFold m v w'
+          -- foldResult <- trace("\n[EFold] Evaluating the EFold in the circuit:\n"++pretty circ''++"\n[EFold] Fold values:\n > acc: "++pretty v++"\n > input: "++pretty w'++"\n > fold function: "++pretty m)$evalFold 0 circ'' $ EFold m v w'
           -- trace("[EFold] Result:\n"++pretty foldResult)$Right foldResult
           Right foldResult
           where 
-            -- we have this because the result of the fold should be evaluated
-            -- but we cant change the fact that ECons is a value, and we should
-            -- only evaluate it inside the folds (I think FIXME)
-            evalECons :: Configuration -> Either RuntimeError Configuration
-            evalECons (Config circ cons) = case cons of
-              ENil typ -> Right $ Config circ cons
-              ECons e1 e2 -> do -- I had to add this otherwise cons in folds cant be evaluated
-                Config circ' e1' <- evalConfiguration (Config circ e1)
-                Config circ'' e2' <- evalConfiguration (Config circ' e2)
-                Right $ Config circ'' $ ECons e1' e2'
-              ETuple [] -> Right $ Config circ cons
-              ETuple (e:es) -> do
-                (Config circ' e') <- evalConfiguration $ Config circ e
-                case evalConfiguration $ Config circ' $ ETuple es of
-                  Right (Config circ'' (ETuple es')) -> 
-                    Right $ Config circ'' $ ETuple (e':es')
-                  Right (Config _ err) -> error $ "[evalECons] Unexpected error 1.\n"++show err
-                  Left err -> Left err
-              err -> error $ "[evalECons] Unexpected error 2.\n"++show err
-
             evalFold :: Int -> Circuit -> Expr -> Either RuntimeError Configuration
             -- FOLD-END rule
             evalFold _ circ (EFold _ w (ENil _)) = Right $ Config circ w
@@ -146,12 +136,11 @@ evalConfiguration (Config circ expr) =
               -- Apply the function to the accumulator and current element
               -- FIXME maybe we are able to use pattern matching to get the last element of the cons eand evaluate it singularly without using evalcons
               (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v, w]))
-              (Config e' z') <- evalECons $ Config e z
               -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z') $ pure ()
 
               -- Continue folding over the rest
               -- trace ("  [evalFold] Step " ++ show i ++ ": remaining input = " ++ pretty w') $ pure ()
-              step <- evalFold (i + 1) e' $ EFold m z' w'
+              step <- evalFold (i + 1) e $ EFold m z w'
 
               -- Evaluate result at this step to normalize circuit state
               evalConfiguration step
@@ -173,7 +162,7 @@ evalConfiguration (Config circ expr) =
           let body' = psub p arg' body
           evalConfiguration $ Config circ'' body'
 
-        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: " -- ++pretty err
+        err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: "  ++pretty err
 
     EApply e1 e2 -> do
         Config circ' e1' <- evalConfiguration (Config circ e1)
@@ -183,7 +172,7 @@ evalConfiguration (Config circ expr) =
           ECirc l d l' -> 
             Right $ append circ'' k l d l'
 
-          EConst c -> 
+          EConst c -> -- TODO change to boxed op
             let config' = appendConst circ'' k c
             in Right config'
             

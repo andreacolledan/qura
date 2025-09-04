@@ -159,6 +159,8 @@ freshlabels t q = case t of
       (q', wbs) = go q ts
     in (q', WTuple wbs)
     
+  -- todo when Blist is added
+
   err -> error $ "[freshLabels] requested: "++ show err
 
 freshBoxLabels :: BundleType -> (LabelContext, WireBundle)
