@@ -46,11 +46,13 @@ library
       Metric.Global
       Metric.Global.Bits
       Metric.Global.GateCount
+      Metric.Global.QasmGateCount
       Metric.Global.Qubits
       Metric.Global.TCount
       Metric.Global.Width
       Metric.Local
       Metric.Local.Depth
+      Metric.Local.QasmDepth
       Metric.Local.TDepth
       Panic
       Parser

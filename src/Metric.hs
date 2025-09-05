@@ -7,6 +7,9 @@ module Metric
   depthMetric,
   widthMetric,
   tDepthMetric,
+  --qasm
+  qasmGateCountMetric,
+  qasmDepthMetric,
   GlobalMetricModule( desugarIdentity,
     desugarWire,
     desugarSequence,
@@ -27,3 +30,6 @@ import Metric.Global.TCount
 import Metric.Global.Width
 import Metric.Local.Depth
 import Metric.Local.TDepth
+--qasm
+import Metric.Global.QasmGateCount
+import Metric.Local.QasmDepth

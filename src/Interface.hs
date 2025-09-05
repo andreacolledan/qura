@@ -26,7 +26,9 @@ globalMetricArgParser = do
     "bits" -> return bitsMetric
     "gatecount" -> return gateCountMetric
     "tcount" -> return tCountMetric
-    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
+    -- qasm
+    "qasmgatecount" -> return qasmGateCountMetric
+    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount','qasmgatecount'."
 
 localMetricArgParser :: ReadM LocalMetricModule
 localMetricArgParser = do
@@ -34,7 +36,9 @@ localMetricArgParser = do
   case s of
     "depth" -> return depthMetric
     "tdepth" -> return tDepthMetric
-    _ -> readerError "Supported local resources are 'depth', `tdepth`."
+    -- qasm
+    "qasmdepth" -> return qasmDepthMetric
+    _ -> readerError "Supported local resources are 'depth', 'tdepth', 'qasmdepth'."
 
 cliInterface :: ParserInfo CLArguments
 cliInterface =
