@@ -65,10 +65,6 @@ appendQuantOP circ k op =
     lExpr = wirebundleToExpr l
   in Config circ'' lExpr
 
-appendConst :: Circuit -> WireBundle -> Constant -> Configuration
-appendConst circ k (Boxed op) = appendQuantOP circ k op
-appendConst circ k _ = undefined -- can this happen?
-
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration (Config circ expr) = 
   let config = Config circ expr in
@@ -134,7 +130,6 @@ evalConfiguration (Config circ expr) =
               -- trace ("  [evalFold] Step " ++ show i ++ ": function after applying index:\n  " ++ pretty y) $ pure ()
 
               -- Apply the function to the accumulator and current element
-              -- FIXME maybe we are able to use pattern matching to get the last element of the cons eand evaluate it singularly without using evalcons
               (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v, w]))
               -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z') $ pure ()
 
@@ -172,8 +167,8 @@ evalConfiguration (Config circ expr) =
           ECirc l d l' -> 
             Right $ append circ'' k l d l'
 
-          EConst c -> -- TODO change to boxed op
-            let config' = appendConst circ'' k c
+          EConst (Boxed op) -> -- TODO change to boxed op
+            let config' = appendQuantOP circ'' k op
             in Right config'
             
           err -> Left $ RuntimeError $ "First argument of EApply did not reduce to ECirc or EConst.\nGot "++pretty err
