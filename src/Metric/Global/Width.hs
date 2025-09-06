@@ -1,6 +1,6 @@
 module Metric.Global.Width (widthMetric) where
 
-import Circuit
+import Circuit.Type
 import Metric.Global
 import PQ.Index
 

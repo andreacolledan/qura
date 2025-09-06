@@ -1,6 +1,6 @@
 module PQ.Prelude (prelude) where
 
-import Circuit
+import Circuit.Type
 import PQ.Constant
 import PQ.Expr
 import PQ.Index

@@ -3,6 +3,8 @@ module Interpreter.Qasm where
 import Interpreter.RuntimeError
 import Interpreter.Metric
 import Circuit
+import Circuit.Type
+import Circuit.Bundle
 import PrettyPrinter
 import Interface
 

@@ -1,6 +1,6 @@
 module Metric.Global.QasmGateCount (qasmGateCountMetric) where
 
-import Circuit
+import Circuit.Type
 import Metric.Global
 import PQ.Index
 

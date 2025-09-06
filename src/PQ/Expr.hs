@@ -31,6 +31,7 @@ import PQ.Index
 import PQ.Type
 import PrettyPrinter (Pretty (..))
 import Circuit
+import Circuit.Bundle
 
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map

@@ -6,6 +6,8 @@ import PQ.Type
 import PQ.Index
 import Analyzer.Unify
 import Circuit
+import Circuit.Type
+import Circuit.Bundle
 import PrettyPrinter (Pretty (..))
 import PQ.Constant
 import Eval.Index

@@ -1,5 +1,6 @@
 module Metric.Local.QasmDepth (qasmDepthMetric) where
 
+import Circuit.Type
 import Metric.Local
 import PQ.Index
 
@@ -11,7 +12,9 @@ qasmDepthMetric =
   LocalMetricModule
     { name = "qasmdepth",
       -- | depth of any output wire is the max of depths of the inputs plus one
-      desugarOutput = \_ _ is -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
+      desugarOutput = \op _ is -> case op of
+        QInit True -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
+        _ -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
     }
 
 -- FIXME how do i add the fact that the qinit1 has depth 1?

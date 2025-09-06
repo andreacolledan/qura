@@ -4,7 +4,7 @@ module PQ.Constant
   )
 where
 
-import Circuit
+import Circuit.Type
 import PQ.Index
 import PQ.Type
 import PrettyPrinter

@@ -4,7 +4,7 @@ module Parser.Expr
   )
 where
 
-import Circuit
+import Circuit.Type
 import Control.Monad
 import Control.Monad.Combinators.Expr
 import Data.Char

@@ -1,6 +1,6 @@
 module Metric.Local (LocalMetricModule(..)) where
   
-import Circuit
+import Circuit.Type
 import PQ.Index
 import PrettyPrinter
 

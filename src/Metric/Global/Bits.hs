@@ -2,7 +2,7 @@
 
 module Metric.Global.Bits (bitsMetric) where
 
-import Circuit
+import Circuit.Type
 import Metric.Global
 import PQ.Index
 

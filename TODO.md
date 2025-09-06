@@ -27,5 +27,5 @@
 * [X] for now we execute the last definition if it is the main. we could maybe avoid wanting that it is the last possible definition (even if we will have an error if it uses functions defined later, so it wil most of the times be the last one) but still)
 * [ ] README note that to compute the depth of classically controlled gates in qasm, we use qubits isnstead of bits, so idk maybe something could change slightly
 * [ ] **check all the CHECKME !!!!**
-* [ ] maybe to compute the depth we defer to qiskit depth... or in any case we analyze the qasm maybe using qiskit and we only keep metrics of the simplified circuit to double check
+* [X] maybe to compute the depth we defer to qiskit depth... or in any case we analyze the qasm maybe using qiskit and we only keep metrics of the simplified circuit to double check
 * [ ] initializations arent accounted in qura. maybe we dont do that either... (the problem is that in qasm to init1 you have to apply an x, that is a gate ofc)
