@@ -36,7 +36,7 @@ circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} = -- T
     simplified = simplifyCircuit r circ
     -- qasmProg = getQasm simplified
     qasmProg = -- FIXME this get printed between the metrics comment and the qasm program...
-      trace("> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
+      -- trace("> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
         getQasm simplified
     qasmMetrics = computeQasmMetrics simplified
   in QasmProg fp qasmMetrics qasmProg
@@ -289,7 +289,7 @@ opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) existing =
 -- Three qubit gates
 opToQasm (Toffoli, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) existing = 
   (["ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"], existing)
-opToQasm _ e = (["placeolder"], e)
+opToQasm _ e = (["// placeholder"], e)
 
 
 --- METRICS CALCULATION ---

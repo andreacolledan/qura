@@ -37,6 +37,8 @@ data QuantumOperation =
   | CCZ
   -- Three qubit gates
   | Toffoli
+  -- Test
+  | MCNot Int
   deriving (Show, Eq)
 
 
@@ -60,4 +62,5 @@ instance Pretty QuantumOperation where
   pretty CCNot = "CCNot"
   pretty CCZ = "CCZ"
   pretty Toffoli = "Toffoli"
+  pretty (MCNot n) = show n++"-CNot"
 

@@ -10,16 +10,16 @@ module PQ.Type
     HasSize(..),
     stripGlobalAnnotations,
     stripLocalAnnotations,
-    maybeTypeToBundleType
+    -- maybeTypeToBundleType
   )
 where
 
 import PQ.Index
 import PrettyPrinter
 import Data.List (intercalate)
-import Circuit
+-- import Circuit
 import Circuit.Type
-import Circuit.Bundle
+-- import Circuit.Bundle
 
 import Debug.Trace (trace)
 
@@ -151,20 +151,3 @@ instance HasSize a => HasSize (Maybe a) where
   typeSize Nothing = Nothing
   typeSize (Just x) = typeSize x
 
----------------------------
-
-maybeTypeToBundleType :: Maybe Type -> Maybe BundleType
-maybeTypeToBundleType Nothing  = Nothing
-maybeTypeToBundleType (Just typ) = Just (typeToBundleType typ)
-
-typeToBundleType :: Type -> BundleType
-typeToBundleType TUnit = BUnit
-typeToBundleType (TWire wt i) = BWire wt
-typeToBundleType (TTensor typs) = BTensor (map typeToBundleType typs)
-typeToBundleType (TCirc i typ1 typ2) = typeToBundleType typ1
-typeToBundleType (TArrow typ1 typ2 i j) = trace("[TArrow] "++show typ1++", "++show typ2++", "++show i++", "++show j)$undefined
-typeToBundleType (TBang i typ) = typeToBundleType typ
--- typeToBundleType (TList ivar i typ) = undefined
-typeToBundleType (TList ivar i typ) = BList ivar i $ typeToBundleType typ
-typeToBundleType (TVar tvar) = trace("")$undefined
-typeToBundleType (TIForall ivar typ i j) = trace("")$undefined

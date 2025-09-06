@@ -4,7 +4,7 @@ module Circuit where
 import PrettyPrinter
 import Circuit.Type
 import Circuit.Bundle
--- import PQ.Index(Index,IVarId)
+import Analyzer.Unify
 
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
@@ -189,3 +189,11 @@ renameCircuit rn (CCons c op ins outs) =
 
 updateBoxNames :: Renaming -> (WireBundle, Circuit, WireBundle) -> (WireBundle, Circuit, WireBundle)
 updateBoxNames rn (ins, circ, outs) = (renameBundle rn ins, renameCircuit rn circ, renameBundle rn outs)
+
+-- instance HasIndex BundleType where
+--   iv :: BundleType -> HSet.HashSet IVarId
+--   iv _ = undefined
+--   ifv :: BundleType -> HSet.HashSet IVarId
+--   ifv _ = undefined
+--   isub :: IndexSubstitution -> BundleType -> BundleType
+--   isub _ = undefined

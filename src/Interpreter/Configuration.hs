@@ -210,7 +210,7 @@ evalConfiguration (Config circ expr) =
     EIApp m i -> do
       (Config circ' m') <- evalConfiguration (Config circ m)
       -- eval index i and obtain w
-      case evalIndex' i of
+      case evalIndexNoHandle i of
         Number w -> case m' of
           EIAbs ivar n -> do
               -- sub ivar with w in n and obtain (Config circ' n')
@@ -241,7 +241,8 @@ handleEConst c i = case c of
   MakeRinvGate -> EConst $ Boxed $ Rinv i
   MakeCRGate -> EConst $ Boxed $ CR i
   MakeCRinvGate -> EConst $ Boxed $ CRinv i
-  MakeMCNot -> undefined
+  MakeMCNot -> -- placeholder
+    EConst $ Boxed $ MCNot i
   MakeUnitList -> l
     where
       niltyp = (Just TUnit) -- FIXME   or maybe Nothing?

@@ -420,6 +420,8 @@ wirebundleToExpr :: WireBundle -> Expr
 wirebundleToExpr (WUnit) = EUnit
 wirebundleToExpr (WLab l) = ELab l
 wirebundleToExpr (WTuple ls) = ETuple $ map wirebundleToExpr ls 
+wirebundleToExpr (WNil btyp) = ENil $ maybeBundleTypeToType btyp
+wirebundleToExpr (WCons h t) = ECons (wirebundleToExpr h) (wirebundleToExpr t)
 
 renameExpr :: Map.Map VariableId VariableId -> Expr -> Expr
 renameExpr m expr =

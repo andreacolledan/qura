@@ -1,6 +1,6 @@
 module Eval.Index
   ( evalIndex,
-    evalIndex',
+    evalIndexNoHandle,
     desugarIndex,
     simplifyIndex,
     maybeSimplifyIndex,
@@ -138,22 +138,22 @@ maybeSimplifyIndex qfh grs lrs (Just i) = Just <$> simplifyIndex qfh grs lrs i
 
 
 -- maybe temporary
-evalIndex' :: Index -> Index
-evalIndex' (Number n) = Number n
-evalIndex' (IVar id) = IVar id
+evalIndexNoHandle :: Index -> Index
+evalIndexNoHandle (Number n) = Number n
+evalIndexNoHandle (IVar id) = IVar id
 
-evalIndex' (Plus i j) =
-  let i' = evalIndex' i
-      j' = evalIndex' j
+evalIndexNoHandle (Plus i j) =
+  let i' = evalIndexNoHandle i
+      j' = evalIndexNoHandle j
   in case (i', j') of
        (Number n, Number m) -> Number (n + m)
        (i', Number 0)       -> i'    -- zero is right identity
        (Number 0, j')       -> j'    -- zero is left identity
        (i', j')             -> Plus i' j'  -- do not reduce further
 
-evalIndex' (Max i j) =
-  let i' = evalIndex' i
-      j' = evalIndex' j
+evalIndexNoHandle (Max i j) =
+  let i' = evalIndexNoHandle i
+      j' = evalIndexNoHandle j
   in case (i', j') of
        (Number n, Number m) -> Number (max n m)
        (i', Number 0)       -> i'  -- zero is right identity
@@ -161,9 +161,9 @@ evalIndex' (Max i j) =
        -- can't compare further without solver, leave as is
        (i', j')             -> Max i' j'
 
-evalIndex' (Mult i j) =
-  let i' = evalIndex' i
-      j' = evalIndex' j
+evalIndexNoHandle (Mult i j) =
+  let i' = evalIndexNoHandle i
+      j' = evalIndexNoHandle j
   in case (i', j') of
        (Number n, Number m) -> Number (n * m)
        (_, Number 0)        -> Number 0 -- zero is right absorbing
@@ -172,9 +172,9 @@ evalIndex' (Mult i j) =
        (Number 1, j')       -> j'       -- one is left identity
        (i', j')             -> Mult i' j'
 
-evalIndex' (Minus i j) =
-  let i' = evalIndex' i
-      j' = evalIndex' j
+evalIndexNoHandle (Minus i j) =
+  let i' = evalIndexNoHandle i
+      j' = evalIndexNoHandle j
   in case (i', j') of
        (Number n, Number m) -> Number (max 0 (n - m))
        (i', Number 0)       -> i'         -- zero is right identity
@@ -182,38 +182,38 @@ evalIndex' (Minus i j) =
        -- can't check equality without solver, leave as is
        (i', j')             -> Minus i' j'
 
-evalIndex' (BoundedMax id i j) =
-  let i' = evalIndex' i
+evalIndexNoHandle (BoundedMax id i j) =
+  let i' = evalIndexNoHandle i
   in case i' of
        -- if upper bound is 0, the range is empty and the maximum defaults to 0
        Number 0 -> Number 0
        -- if the upper bound is known, unroll the maximum into a sequence of binary maxima
        Number n ->
-         let elems     = [evalIndex' (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
+         let elems     = [evalIndexNoHandle (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
              unrolling = foldr1 Max elems
-         in evalIndex' unrolling
+         in evalIndexNoHandle unrolling
        -- otherwise, simplify inside if possible
        i' ->
-         let j' = evalIndex' j
+         let j' = evalIndexNoHandle j
          in if id `Set.member` ifv j'
               then BoundedMax id i' j'  -- do not reduce further
-              else evalIndex' j'         -- use shortcut
+              else evalIndexNoHandle j'         -- use shortcut
 
-evalIndex' (BoundedSum id i j) =
-  let i' = evalIndex' i
+evalIndexNoHandle (BoundedSum id i j) =
+  let i' = evalIndexNoHandle i
   in case i' of
        -- if upper bound is 0, the range is empty and the sum defaults to 0
        Number 0 -> Number 0
        -- if the upper bound is known, unroll the bounded sum into a sequence of binary sums
        Number n ->
-         let elems     = [evalIndex' (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
+         let elems     = [evalIndexNoHandle (isub (isubSingleton id (Number step)) j) | step <- [0 .. n - 1]]
              unrolling = foldr1 Plus elems
-         in evalIndex' unrolling
+         in evalIndexNoHandle unrolling
        -- otherwise, simplify inside if possible
        i' ->
-         let j' = evalIndex' j
+         let j' = evalIndexNoHandle j
          in if id `Set.member` ifv j'
               then BoundedSum id i' j'  -- do not reduce further
-              else evalIndex' (Mult i' j') -- use shortcut
+              else evalIndexNoHandle (Mult i' j') -- use shortcut
 
-evalIndex' i = undesugaredPanic "evalIndex'" $ show i
+evalIndexNoHandle i = undesugaredPanic "evalIndexNoHandle" $ show i
