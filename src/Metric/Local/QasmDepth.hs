@@ -13,7 +13,7 @@ qasmDepthMetric =
     { name = "qasmdepth",
       -- | depth of any output wire is the max of depths of the inputs plus one
       desugarOutput = \op _ is -> case op of
-        QInit True -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
+        QInit True -> Number 1
         _ -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
     }
 
