@@ -67,6 +67,19 @@ namesInBundle (WTuple ws) = Set.unions (map namesInBundle ws)
 namesInBundle (WNil _) = Set.empty
 namesInBundle (WCons w ws) = namesInBundle w `Set.union` namesInBundle ws
 
+orderedNamesInBundle :: WireBundle -> [String]
+orderedNamesInBundle WUnit = []
+orderedNamesInBundle (WLab label) = [label]
+orderedNamesInBundle (WTuple ws) = concatMap orderedNamesInBundle ws
+orderedNamesInBundle (WNil _) = []
+orderedNamesInBundle (WCons w ws) = orderedNamesInBundle w ++ orderedNamesInBundle ws
+
+suffixWBNames :: String -> WireBundle -> WireBundle
+suffixWBNames _ WUnit = WUnit
+suffixWBNames s (WLab label) = WLab $ label ++ s
+suffixWBNames s (WTuple ws) = WTuple $ map (suffixWBNames s) ws
+suffixWBNames _ (WNil btyp) = WNil btyp
+suffixWBNames s (WCons w ws) = WCons (suffixWBNames s w) (suffixWBNames s ws)
 
 -- typeOfBundle :: WireBundle -> BundleType
 -- typeOfBundle WUnit = BUnit
@@ -116,8 +129,8 @@ type LabelContext = Map Label WireType -- Q
 emptyContext :: LabelContext
 emptyContext = Map.empty
 
-insert :: LabelContext -> (Label, WireType) -> LabelContext
-insert q (l, t) = Map.insert l t q
+mkContext :: [(Label, WireType)] -> LabelContext
+mkContext = Map.fromList 
 
 mergeContexts :: LabelContext -> LabelContext -> LabelContext
 mergeContexts = Map.union
@@ -164,3 +177,91 @@ freshlabels t q = case t of
 
 freshBoxLabels :: BundleType -> (LabelContext, WireBundle)
 freshBoxLabels t = freshlabels t emptyContext
+
+mkConsTyped :: Maybe BundleType -> [WireBundle] -> WireBundle
+mkConsTyped Nothing = foldl WCons (WNil Nothing)
+mkConsTyped (Just btyp) = foldl WCons (WNil $ Just btyp)
+
+-- renaming
+
+type Renaming = Map String String
+
+-- | Create a renaming for labels:
+--   1. Map labels in boxIn to labels in circWB.
+--   2. Remove these labels from old.
+--   3. Rename remaining labels in old so they avoid conflicts.
+createRenaming :: Set.Set String -> Set.Set String -> (WireBundle, WireBundle) -> Renaming
+createRenaming old avoid (circWB, boxIn) =
+    let -- create mapping from boxIn -> circWB labels
+        circLabels = Set.toList (namesInBundle circWB)
+        boxLabels  = Set.toList (namesInBundle boxIn)
+        boxMapping = Map.fromList (zip boxLabels circLabels)
+        -- remove boxIn labels from old
+        old' = old `Set.difference` Set.fromList boxLabels
+        -- fresh renaming for remaining labels
+        freshMapping = Map.fromList
+            [ (name, freshName name allAvoid)
+            | name <- Set.toList old'
+            ]
+          where
+            -- avoid conflicts with circWB labels, boxIn targets, AND initial avoid set
+            allAvoid = avoid `Set.union` Set.fromList circLabels
+    in boxMapping `Map.union` freshMapping
+  where
+    freshName :: String -> Set.Set String -> String
+    freshName n avoidSet
+      | n `Set.notMember` avoidSet = n
+      | otherwise = freshName (n ++ "'") avoidSet
+
+-- same version but uses the label context to extract the type of the label 
+-- and uses it as a base name for the label instead of appending '
+-- FIXME this is so wrong whenever the same name appears
+createRenamingWithLC :: LabelContext -> LabelContext -> (WireBundle, WireBundle) -> Renaming
+createRenamingWithLC old avoid (circWB, boxIn) =
+    let
+        -- Step 1: map boxIn -> circWB labels
+        circLabels = orderedNamesInBundle circWB
+        boxLabels  = orderedNamesInBundle boxIn
+        boxMapping = Map.fromList (zip boxLabels circLabels)
+
+        -- Step 2: remove boxIn labels from old
+        old' = Map.withoutKeys old $ Set.fromList boxLabels
+
+        -- Step 3: build set of names to avoid initially
+        initialAvoid = Set.unions
+            [ Map.keysSet avoid
+            , Set.fromList circLabels
+            , Set.fromList (Map.elems boxMapping)
+            ]
+
+        -- Step 4: fold over old' to generate fresh names incrementally
+        (freshMapping, _) = foldl
+            (\(m, used) (name, typ) ->
+                let newName = freshName typ used
+                in (Map.insert name newName m, Set.insert newName used)
+            )
+            (Map.empty, initialAvoid)
+            (Map.toList old')
+    in
+        boxMapping `Map.union` freshMapping
+  where
+    freshName :: WireType -> Set.Set String -> String
+    freshName wt usedSet =
+        let base = basename wt
+            names = [base : show n | n <- [0..]]
+        in head $ filter (`Set.notMember` usedSet) names
+        
+renameBundle :: Renaming -> WireBundle -> WireBundle
+renameBundle _ WUnit = WUnit
+-- the default is not needed in the use case, but the general function might need it
+renameBundle rn (WLab label) = WLab (Map.findWithDefault label label rn) 
+renameBundle rn (WTuple ws) = WTuple (map (renameBundle rn) ws)
+renameBundle _ (WNil t) = WNil t
+renameBundle rn (WCons w ws) = WCons (renameBundle rn w) (renameBundle rn ws)
+
+renameLabelContext :: Renaming -> LabelContext -> LabelContext
+renameLabelContext rn ctx =
+  Map.fromList
+    [ (Map.findWithDefault label label rn, wt)
+    | (label, wt) <- Map.toList ctx
+    ]

@@ -289,7 +289,7 @@ opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) existing =
 -- Three qubit gates
 opToQasm (Toffoli, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) existing = 
   (["ccx " ++ ctrl1 ++ ", " ++ ctrl2 ++ ", " ++ trgt ++ ";"], existing)
-opToQasm _ e = (["// placeholder"], e)
+opToQasm (unk, (ins, _)) e = (["// placeholder for: "++show unk++" ("++pretty ins++")"], e)
 
 
 --- METRICS CALCULATION ---
@@ -325,12 +325,16 @@ initCounter ctx = Map.fromList [(label, 0) | label <- Map.keys ctx]
 -- When computing the depth, we don't simply add one to the counts of each label of the gate, but we have
 -- to take the maximum depth of the labels in the gates, add one and then update all the labels with this new depth.
 increaseCounter :: LabelCounts -> Set.Set Label -> LabelCounts
-increaseCounter lc labels
+increaseCounter lc labels = increaseCounterAmount 1 lc labels
+
+increaseCounterAmount :: Int -> LabelCounts -> Set.Set Label -> LabelCounts
+increaseCounterAmount amount lc labels
   | Set.null labels = lc
   | otherwise = foldr (\label acc -> Map.insert label newVal acc) lc labels
   where
     currentMax = maximum $ 0 : [ Map.findWithDefault 0 label lc | label <- Set.toList labels ]
-    newVal = currentMax + 1
+    newVal = currentMax + amount
+
 maxCount :: LabelCounts -> Int
 maxCount lc
   | Map.null lc = 0
@@ -366,6 +370,11 @@ getDepth circ =
         in go circ lc'
       CInit _ -> go circ lc
       CDiscard -> go circ lc
+      MCNot m ->
+        let
+          d = (2*(m-1)+1) -- 2(m − 1) TOFFOLI gates and one CNOT gate in sequence
+          lc' = increaseCounterAmount d lc $ namesInBundle ins
+        in go circ lc'
       _ -> 
         let
           lc' = increaseCounter lc $ namesInBundle ins
@@ -410,7 +419,11 @@ getGateCount circ =
         in go circ gc'
       CInit _ -> go circ gc
       CDiscard -> go circ gc
-      _ -> 
+      MCNot m ->
+        let
+          gc' = increaseGateCount gc (2*(m-1)+1) -- 2(m − 1) TOFFOLI gates and one CNOT gate
+        in go circ gc'
+      _ ->
         let
           gc' = increaseGateCount1 gc
         in go circ gc'

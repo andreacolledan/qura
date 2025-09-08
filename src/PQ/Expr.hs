@@ -406,7 +406,6 @@ psub x v m = case x of
         in psub ptail vtail m'
       _ -> error "psub: cannot substitute cons pattern with non-cons value"
 
-
 ------------------------------------------------
 isBundle :: Expr -> Bool
 isBundle EUnit = True

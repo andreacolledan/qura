@@ -17,4 +17,4 @@ qasmDepthMetric =
         _ -> foldr (Max . (Number 1 `Plus`)) (Number 0) is
     }
 
--- FIXME how do i add the fact that the qinit1 has depth 1?
+-- FIXME how do i add the fact that the qinit1 has depth 1 and mcnot hass depth 2(m − 1) + 1?

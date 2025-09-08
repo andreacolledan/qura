@@ -36,10 +36,12 @@ opGateCount (CRinv _) = 1
 opGateCount CCNot = 1
 opGateCount CCZ = 1
 opGateCount Toffoli = 1
---note: metaoperations do not count as gates
+-- note: metaoperations do not count as gates
 opGateCount QDiscard = 0
 opGateCount (CInit _) = 0
 opGateCount CDiscard = 0
---to initialize a qubit to 1 we need an x gate
+-- to initialize a qubit to 1 we need an x gate
 opGateCount (QInit False) = 0
 opGateCount (QInit True) = 1
+-- test
+opGateCount (MCNot m) = (2*(m-1)+1) -- 2(m − 1) TOFFOLI gates and one CNOT gate

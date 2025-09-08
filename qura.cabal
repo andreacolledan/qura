@@ -34,6 +34,8 @@ library
       Analyzer.TypeError
       Analyzer.Unify
       Circuit
+      Circuit.Bundle
+      Circuit.Type
       Eval.Index
       Eval.Type
       Interface
