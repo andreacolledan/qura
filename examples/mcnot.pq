@@ -41,20 +41,20 @@ mcnot m (ctrls, trgt) =
   let (lastAncilla, trgt) = force cnot lastAncilla trgt in -- apply cnot to the target
   --- backwards pass ---
   let revancillas = (force rev @(m)) ancillas in
-  let revancillas = revancillas:q2 in
+  let revancillas = revancillas:q2 in -- add the second control to the list of ancillas
   let revrestControls = (force rev @m) restControls in
-  let revrestControls = revrestControls:q1 in 
-  let ra = (force qzip@m) (revrestControls,revancillas) in
-  let (restControls, q2) = -- use the last control-ancilla as the next toffoli target and then discard it
+  let revrestControls = revrestControls:q1 in -- add the first control to the list of controls
+  let ca = (force qzip@m) (revrestControls,revancillas) in -- zip controls and ancillas
+  let (restControls:q1, q2) = -- use the last control-ancilla as the next toffoli target and then discard it
     let bwToffoliStep = lift forall step. \((cs,aOld),(c,a)) :: ((List[_<step] Qubit, Qubit),(Qubit,Qubit)).
       let (c,a,aOld) = force toffoli c a aOld in 
       let _ = (force qdiscard @0) aOld in
       (cs:c, a)
-    in fold(bwToffoliStep, ([],lastAncilla), ra) in
+    in fold(bwToffoliStep, ([],lastAncilla), ca) in
   --- return the mcnot outputs ---
-  (restControls:q2, trgt)
+  (restControls:q2:q1, trgt) -- reorder the controls
 
 main =
   let trgt = force qinit1 in
-  let ctrls = force qinit0Many @3 in
-  (force mcnot @(3-2)) (ctrls, trgt)
+  let ctrls = force qinit0Many @8 in
+  (force mcnot @(8-2)) (ctrls, trgt)
