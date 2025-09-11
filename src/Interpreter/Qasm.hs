@@ -31,7 +31,7 @@ instance Pretty QasmProgram where
 
 -- converts a circuit to a qasm program.
 circuitToQasm :: Circuit -> CLArguments -> QasmProgram
-circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} = -- TODO bring the cla to here with the filename
+circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} =
   let 
     simplified = simplifyCircuit r circ
     -- qasmProg = getQasm simplified
@@ -60,7 +60,7 @@ simplifyCircuit r circ =
     circ'' = updateCircContext circ' newCtx
   in circ''
 
--- |
+-- | TODO TODO TODO TODO ehm this quite unoptimezed as it doesnt recycle on the least deep qubit, but on the first alphabetically :) we need to bring a labelcounts during the simplification
 getSimple :: Bool -> [CircuitInstruction] -> Circuit
 getSimple _ [] = mkIdCircuit []
 getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
@@ -105,7 +105,7 @@ getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
             outs' = bundleRenaming outs
           in go steps' recycle discarded $ CCons circ qop ins' outs'
 
--- | Picks one element from the set if available, --FIXME doesnt acocun for depth use picklessdepth from circuit.hs
+-- | Picks one element from the set if available, --FIXME doesnt acocun for depth, use picklessdepth from circuit.hs
 -- otherwise returns the default value.
 -- Also returns the updated set without the picked element.
 pickOrDefault :: (Ord a) => a -> Set.Set a -> (a, Set.Set a)

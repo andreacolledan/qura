@@ -2,10 +2,6 @@ qinit0Many = forall n.
   let qinitStep = lift forall step. \(qs,u) :: (List[_<step] Qubit{0}, ()). qs:(force qinit0)
   in fold(qinitStep, [], force range @n)
 
-qdiscardMany = forall n.\list::List[_<n] Qubit. 
-  let qdiscardstep = lift forall step. \(_,q) :: ((),Qubit). (force qdiscard @0) q
-  in fold(qdiscardstep, (), list)
-
 rev = forall n.\list::List[_<n] Qubit.
   let revStep = lift forall step.\(qs, q)::(List[_<step] Qubit, Qubit). qs:q
   in fold(revStep, [], list)
@@ -23,8 +19,8 @@ toffoli = (force toffoli @0@0@0)
 
 
 -- actually, is (m+2)cnot, idk how to pass the number of controls and make it still work
-mcnot :: !(forall m. (List[_<m+2] Qubit, Qubit) -o (List[_<m+2] Qubit, Qubit))
-mcnot m (ctrls, trgt) =
+mcnot :: !(forall m. List[_<m+2] Qubit-o Qubit -o (List[_<m+2] Qubit, Qubit))
+mcnot m ctrls trgt =
   let restControls:q2:q1 = ctrls in
   let a1 = force qinit0 in -- first ancilla
   --- create the first intermediate value ---
@@ -34,7 +30,7 @@ mcnot m (ctrls, trgt) =
     let toffoliStep = lift forall step. \((cs, as:a), c) :: ((List[_<step] Qubit, List[_<step+1] Qubit), Qubit).
       let new = force qinit0 in
       let (a,c,new) = force toffoli a c new in
-      (cs:c, (as:a):new) -- note: those are now reversed
+      (cs:c, (as:a):new)
     in fold(toffoliStep, ([],[]:a1), restControls) in  
   --- control the target ---
   let ancillas:lastAncilla = ancillas in -- extract last ancilla
@@ -57,4 +53,4 @@ mcnot m (ctrls, trgt) =
 main =
   let trgt = force qinit1 in
   let ctrls = force qinit0Many @8 in
-  (force mcnot @(8-2)) (ctrls, trgt)
+  (force mcnot @(8-2)) ctrls trgt

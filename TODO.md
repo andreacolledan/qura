@@ -30,3 +30,5 @@
 * [X] maybe to compute the depth we defer to qiskit depth... or in any case we analyze the qasm maybe using qiskit and we only keep metrics of the simplified circuit to double check
 * [ ] initializations arent accounted in qura. maybe we dont do that either... (the problem is that in qasm to init1 you have to apply an x, that is a gate ofc)
 * [ ] maybe a prettier way for the rotations angle isntead of writing a ginormous fraction
+* [ ] qasm getsimple does not account for using the leats deep wires for recycling... check getsimple todo
+* [ ]
