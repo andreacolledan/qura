@@ -10,7 +10,7 @@ import PQ.Index
 qasmDepthMetric :: LocalMetricModule
 qasmDepthMetric =
   LocalMetricModule
-    { name = "qasmdepth",
+    { name = "qasm depth",
       -- | depth of any output wire is the max of depths of the inputs plus one
       desugarOutput = \op _ is -> case op of
         QInit True -> Number 1

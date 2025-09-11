@@ -9,7 +9,7 @@ import PQ.Index
 qasmGateCountMetric :: GlobalMetricModule
 qasmGateCountMetric =
   GlobalMetricModule
-    { name = "gate count",
+    { name = "qasm gate count",
       desugarIdentity = Number 0,             -- no gates is 0
       desugarWire = const (Number 0),         -- wires naturally count as 0 gates
       desugarSequence = Plus,                 -- gate count of sequence comp. is sum of gate counts   

@@ -88,6 +88,8 @@ interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filep
         putStr $ pretty (circuit config) ++ "\n"
         putStr "\nWhile evaluating to:\n> "
         putStr $ pretty (term config) ++ "\n"
+        putStr "\nSize of the produced circuit:\n> "
+        putStr $ pretty (circMetrics intResult) ++ "\n"
         putStr "\nProduced Qasm program:\n"
         putStr $ pretty (qasm intResult) ++ "\n"
         -- putStr "\nProduced OTHER program:\n"

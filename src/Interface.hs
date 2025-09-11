@@ -27,8 +27,9 @@ globalMetricArgParser = do
     "gatecount" -> return gateCountMetric
     "tcount" -> return tCountMetric
     -- qasm
+    "qasmwidth" -> return qasmWidthMetric
     "qasmgatecount" -> return qasmGateCountMetric
-    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount','qasmgatecount'."
+    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount','qasmwidth', 'qasmgatecount'."
 
 localMetricArgParser :: ReadM LocalMetricModule
 localMetricArgParser = do

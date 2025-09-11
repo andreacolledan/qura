@@ -49,6 +49,7 @@ library
       Metric.Global.Bits
       Metric.Global.GateCount
       Metric.Global.QasmGateCount
+      Metric.Global.QasmWidth
       Metric.Global.Qubits
       Metric.Global.TCount
       Metric.Global.Width

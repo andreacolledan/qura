@@ -13,6 +13,7 @@ module Interpreter (
 import Interpreter.RuntimeError
 import Interpreter.Configuration
 import Interpreter.Qasm
+import Interpreter.Metric
 import PQ (Module)
 import PQ.Module
 import PQ.Expr
@@ -28,6 +29,7 @@ import Data.List (intercalate)
 
 data InterpreterResult = InterpResult {
   cfg :: Configuration,
+  circMetrics :: ProgramMetrics,
   qasm :: QasmProgram
   -- maybe other languages
 } deriving Show
@@ -35,13 +37,14 @@ data InterpreterResult = InterpResult {
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
 runInterpreter :: Module -> [Module] -> CLArguments -> Either RuntimeError InterpreterResult
-runInterpreter mod libs cla = do
-  let mod' = mod {name = filepath cla}
+runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r} = do
+  let mod' = mod {name = fp}
   (term, circ) <- mergeModLibs mod' libs
   config <- startConfigEvaluation (Config circ term)
-  let qasmProg = circuitToQasm (circuit config) cla -- once we have the string we could save it to file
+  let metrics = getCircuitMetrics r $ circuit config 
+  let qasmProg = circuitToQasm (circuit config) (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
   -- saveProgram qasmProg -- maybe
-  Right $ InterpResult config qasmProg
+  Right $ InterpResult config metrics qasmProg
 
 -- this is a double map for future reasons, maybe two libs uses the same names
 -- for the modules, and we can distinct them with module.function (?).
@@ -73,29 +76,6 @@ extractDefFromModule vid defs =
       _ ->
           Left $ RuntimeError $
               "Definition not found: " ++ show vid
-
--- idCircuitFromArgs :: ([Pattern], Maybe Type) -> Circuit
--- idCircuitFromArgs _ = mkIdCircuit []
--- -- idCircuitFromArgs :: TopLevelDefinition -> LabelContext
--- -- idCircuitFromArgs (TopLevelDefinition _ a s _) = 
--- --   let ctx = pairArgPattern a s
--- --   in mkIdCircuit ctx
--- --     where
--- --       pairArgPattern :: [Pattern] -> Maybe Type -> [(Label, WireType)]
--- --       pairArgPattern [] _ = []
--- --       pairArgPattern _ Nothing = []
--- --       pairArgPattern (p:ps) (Just typ) = case typ of
--- --         TUnit -> []
--- --         TWire typ _ -> 
--- --           let PVar name = p
--- --           in [(name ,typ)]
--- --         -- TTensor _ -> EAbs p typ 
--- --         -- TCirc _ _ _ -> undefined
--- --         -- TArrow typ1 _ _ _ -> pairArgPattern  (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
--- --         -- TBang _ typ -> pairArgPattern  (p:ps) (Just typ) -- remove the TBang
--- --         -- TList _ _ _ -> EAbs p typ 
--- --         -- TVar _ -> undefined
--- --         -- TIForall ivarid typ' _ _ -> EIAbs ivarid (pairArgPattern  ps (Just typ'))
 
 mergeModLibs :: Module -> [Module] -> Either RuntimeError (Expr, Circuit)
 mergeModLibs (Module programName e i defs) libs = do

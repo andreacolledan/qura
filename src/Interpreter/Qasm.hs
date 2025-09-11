@@ -24,7 +24,7 @@ data QasmProgram = QasmProg {
 instance Pretty QasmProgram where
   pretty QasmProg {filename = fp, metrics = m, instructions = i} =
     "/*\n========================================================================\n" ++ 
-    "Program generated from the ProtoQuipper file \"" ++ fp ++ "\"\n" ++
+    "Program generated from the ProtoQuipper file \"" ++ fp ++ "\"\nQasm-specific " ++
     pretty m ++ 
     "========================================================================\n*/\n\n" ++ 
     unlines i
@@ -36,7 +36,7 @@ circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} = -- T
     simplified = simplifyCircuit r circ
     -- qasmProg = getQasm simplified
     qasmProg = -- FIXME this get printed between the metrics comment and the qasm program...
-      -- trace("> Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
+      -- trace("> Qasm Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
         getQasm simplified
     qasmMetrics = computeQasmMetrics simplified
   in QasmProg fp qasmMetrics qasmProg
@@ -60,54 +60,42 @@ simplifyCircuit r circ =
     circ'' = updateCircContext circ' newCtx
   in circ''
 
--- changes the names of the wirebundles and reconstructs the circuit.
-getSimple :: Bool -> [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
-getSimple True seq = getSimpleWithRecycle seq
-getSimple False seq = getSimpleNoRecycle seq
-
--- initializes new qubits trying to reset unused qubits.
-getSimpleWithRecycle:: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
-getSimpleWithRecycle [] = mkIdCircuit []
-getSimpleWithRecycle ops = go ops Set.empty (mkIdCircuit [])
-  where 
-    go :: [(QuantumOperation, (WireBundle, WireBundle))] -> Set.Set Label -> Circuit -> Circuit
-    go [] _ circ = circ
-    go (step:steps) discarded circ = 
+-- |
+getSimple :: Bool -> [CircuitInstruction] -> Circuit
+getSimple _ [] = mkIdCircuit []
+getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
+  where
+    go :: [CircuitInstruction] -> Bool -> Set.Set Label -> Circuit -> Circuit
+    go [] _ _ circ = circ
+    go (step:steps) recycle discarded circ = 
       case step of
-        (Meas, (q, c)) -> -- we apply the renaming BUT we keep outputs
+        (Meas, (q, c)) ->
           let
             renaming = getWBRenaming (q, c)
             bundleRenaming = renameBundle renaming
             steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
             q' = bundleRenaming q
-          in go steps' discarded $ CCons circ Meas q' c
+          in go steps' recycle discarded $ CCons circ Meas q' c
         (QDiscard, (WLab disc, _)) -> 
-          go steps (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) WUnit
-        (QInit v, (_, WLab name)) ->
-          let 
-            (name', discarded') = pickOrDefault name discarded
-            renaming = getWBRenaming (WLab name', WLab name)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-          -- if the renaming is empty, it means that we are initalizing a new qubit,
-          -- if a renaming occured, it means that we are reusing a discarded qubit
-          in go steps' discarded' $ CCons circ (QInit v) WUnit (WLab name')
-        (CCNot, (ins, outs)) ->
-          let
-            renaming = getWBRenaming (ins, outs)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-            ins' = bundleRenaming ins
-            outs' = bundleRenaming outs
-          in go steps' discarded $ CCons circ CNot ins' outs'
-        (CCZ, (ins, outs)) ->
-          let
-            renaming = getWBRenaming (ins, outs)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-            ins' = bundleRenaming ins
-            outs' = bundleRenaming outs
-          in go steps' discarded $ CCons circ CZ ins' outs'
+          go steps recycle (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) WUnit
+        (QInit v, (_, WLab name))
+          | recycle -> 
+            let 
+              (name', discarded') = pickOrDefault name discarded
+              renaming = getWBRenaming (WLab name', WLab name)
+              bundleRenaming = renameBundle renaming
+              steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            -- if the renaming is empty, it means that we are initalizing a new qubit,
+            -- if a renaming occured, it means that we are reusing a discarded qubit
+            in go steps' recycle discarded' $ CCons circ (QInit v) WUnit (WLab name')
+          | otherwise -> 
+            let
+              outs = WLab name
+              renaming = getWBRenaming (WUnit, outs)
+              bundleRenaming = renameBundle renaming
+              steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+              outs' = bundleRenaming outs
+            in go steps' recycle discarded $ CCons circ (QInit v) WUnit outs'
         (qop, (ins, outs)) ->
           let
             renaming = getWBRenaming (ins, outs)
@@ -115,55 +103,9 @@ getSimpleWithRecycle ops = go ops Set.empty (mkIdCircuit [])
             steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
             ins' = bundleRenaming ins
             outs' = bundleRenaming outs
-          in go steps' discarded $ CCons circ qop ins' outs'
+          in go steps' recycle discarded $ CCons circ qop ins' outs'
 
--- Initializes new qubit at depth 0.
-getSimpleNoRecycle:: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit
-getSimpleNoRecycle [] = mkIdCircuit []
-getSimpleNoRecycle ops = go ops (mkIdCircuit [])
-  where 
-    go :: [(QuantumOperation, (WireBundle, WireBundle))] -> Circuit -> Circuit
-    go [] circ = circ
-    go (step:steps) circ = 
-      case step of
-        (Meas, (q, c)) -> -- we apply the renaming BUT we keep outputs --> FIXME int this like so bad tho? ok we rename whenever the bit is used as control (and maybe thats all to it) but this could also rename the bit when used classically ???
-          let
-            renaming = getWBRenaming (q, c)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (q, c)) -> (op, (bundleRenaming q, bundleRenaming c))) steps
-            q' = bundleRenaming q
-          in go steps' $ CCons circ Meas q' c
-        (CCNot, (ins, outs)) ->
-          let
-            renaming = getWBRenaming (ins, outs)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-            ins' = bundleRenaming ins
-            outs' = bundleRenaming outs
-          in go steps' $ CCons circ CNot ins' outs'
-        (CCZ, (ins, outs)) ->
-          let
-            renaming = getWBRenaming (ins, outs)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-            ins' = bundleRenaming ins
-            outs' = bundleRenaming outs
-          in go steps' $ CCons circ CZ ins' outs'
-        (qop, (ins, outs)) ->
-          let
-            renaming = getWBRenaming (ins, outs)
-            bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-            ins' = bundleRenaming ins
-            outs' = bundleRenaming outs
-          in go steps' $ CCons circ qop ins' outs'
-
--- create a list of (op,(ins,outs)) from a circuit. Ignores the label context
-circTolist :: Circuit -> [(QuantumOperation, (WireBundle, WireBundle))]
-circTolist (Id _) = []
-circTolist (CCons circ op ins outs) = circTolist circ ++ [(op, (ins, outs))]
-
--- | Picks one element from the set if available,
+-- | Picks one element from the set if available, --FIXME doesnt acocun for depth use picklessdepth from circuit.hs
 -- otherwise returns the default value.
 -- Also returns the updated set without the picked element.
 pickOrDefault :: (Ord a) => a -> Set.Set a -> (a, Set.Set a)
@@ -222,7 +164,7 @@ thetaInvStr :: Int -> String
 thetaInvStr n = "-" ++ thetaStr n
 
 -- convert a list of quantum operations and labels to a list of qasm instructions
-opsToQasm :: [(QuantumOperation, (WireBundle, WireBundle))] -> [QasmInstruction]
+opsToQasm :: [CircuitInstruction] -> [QasmInstruction]
 opsToQasm = fst . foldl step ([], Set.empty)
   where
     step (acc, labels) op =
@@ -231,7 +173,7 @@ opsToQasm = fst . foldl step ([], Set.empty)
 
 -- Convert a quantum operation to a list of qasm instructions. A list is used to keep trace of
 -- initialized qubits.
-opToQasm :: (QuantumOperation, (WireBundle, WireBundle)) -> Set.Set Label -> ([QasmInstruction], Set.Set Label)
+opToQasm :: CircuitInstruction -> Set.Set Label -> ([QasmInstruction], Set.Set Label)
 -- Qubit metaoperations
 opToQasm (QInit b, (_, WLab name)) existing =
   let 
@@ -307,26 +249,20 @@ opToQasm (unk, (ins, _)) e = (["// placeholder for: "++show unk++" ("++pretty in
 computeQasmMetrics :: Circuit -> ProgramMetrics
 computeQasmMetrics circ = 
   let 
-    w = length $ wireNames (getContext circ) Qubit
-    d = getDepth circ
-    gc = getGateCount circ
-  in InstanceMetric w d gc
+    -- w = length $ wireNames (getContext circ) Qubit -- FIXME
+    w = length (getContext circ) -- number of variables
+    d = getQasmDepth circ
+    gc = getQasmGateCount circ
+  in ProgMetrics w d gc
 
 wireNames :: LabelContext -> WireType -> [Label]
 wireNames ctx typ = [label | (label, wireType) <- Map.toList ctx, wireType == typ]
 
 -- DEPTH
-
-type LabelCounts = Map.Map Label Int
-emptyCounter :: LabelCounts
-emptyCounter = Map.empty
-initCounter :: LabelContext -> LabelCounts
-initCounter ctx = Map.fromList [(label, 0) | label <- Map.keys ctx]
 -- When computing the depth, we don't simply add one to the counts of each label of the gate, but we have
 -- to take the maximum depth of the labels in the gates, add one and then update all the labels with this new depth.
 increaseCounter :: LabelCounts -> Set.Set Label -> LabelCounts
 increaseCounter lc labels = increaseCounterAmount 1 lc labels
-
 increaseCounterAmount :: Int -> LabelCounts -> Set.Set Label -> LabelCounts
 increaseCounterAmount amount lc labels
   | Set.null labels = lc
@@ -335,13 +271,8 @@ increaseCounterAmount amount lc labels
     currentMax = maximum $ 0 : [ Map.findWithDefault 0 label lc | label <- Set.toList labels ]
     newVal = currentMax + amount
 
-maxCount :: LabelCounts -> Int
-maxCount lc
-  | Map.null lc = 0
-  | otherwise = maximum (Map.elems lc)
-
-getDepth :: Circuit -> Int
-getDepth circ = 
+getQasmDepth :: Circuit -> Int
+getQasmDepth circ = 
   let
     lc = go circ $ initCounter $ getContext circ
     d = maxCount lc
@@ -390,8 +321,8 @@ increaseGateCount gc n = gc + n
 increaseGateCount1 :: GateCount -> GateCount
 increaseGateCount1 gc = increaseGateCount gc 1
 
-getGateCount :: Circuit -> Int
-getGateCount circ = 
+getQasmGateCount :: Circuit -> Int
+getQasmGateCount circ = 
   let
     gc = go circ emptyGateCount
   in gc
