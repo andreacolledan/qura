@@ -32,9 +32,9 @@ mcnot m dc dt ctrls trgt =
   let (q1,q2,a1) = (force toffoli @dc@dc@0) q1 q2 a1 in
   --- forward pass ---
   let (restControls, ancillas) = 
-    let toffoliStep = lift forall step. \((cs, as:a), c) :: ((List[i<step] Qubit{dc+i+1}, List[i<step+1] Qubit{dc+i+1}), Qubit{dc}).
+    let toffoliStep = lift forall step. \((cs, as:a), c) :: ((List[i<step] Qubit{dc+i+1}, List[i<step+1] Qubit{dc+i}), Qubit{dc}).
       let new = force qinit0 in
-      let (a,c,new) = (force toffoli @dc+step+1 @dc @0) a c new in
+      let (a,c,new) = (force toffoli @dc+step @dc @0) a c new in
       (cs:c, (as:a):new)
     in fold(toffoliStep, ([],[]:a1), restControls) in  
   --- control the target ---
@@ -86,19 +86,19 @@ diffusion n d reg a =
 -- perform a single grover iteration on n qubits at depth d,
 -- using an ancilla a at depth d
 -- and an oracle of width os and depth od
-groverIteration :: ![0](forall[0,0] n. forall[0,0] d. forall[0,0] od.
-  (forall[0,0] n. forall[0,0] d. Circ[2*n+4]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d + od}, Qubit{d + od})))
+groverIteration :: ![0](forall[0,0] n. forall[0,0] d. forall[0,0] os. forall[0,0] od.
+  (forall[0,0] d. Circ[os]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d + od}, Qubit{d + od})))
   -o[0,0] List[_<n+2] Qubit{d} -o[0,0] Qubit{d}
-  -o[2*n+4, n + 2] (List[_<n+2] Qubit{d + od + 5}, Qubit{d + od + 3}))
-groverIteration n d od oracle reg a = 
-  let (reg, a) = apply(oracle @n @d, (reg, a)) in
+  -o[max(max(n + 3, os), 2*n+4), n + 2] (List[_<n+2] Qubit{d + od + 5}, Qubit{d + od + 3}))
+groverIteration n d os od oracle reg a = 
+  let (reg, a) = apply(oracle @ d, (reg, a)) in
   (force diffusion @ n @ d + od) reg a
 
 -- run Grover's algorithm on an oracle of input size n, width os and depth od
-grover :: ![0](forall[0, 0] r. forall[0, 0] n. forall[0, 0] od.
-  (forall[0,0] n. forall[0,0] d. Circ[2*n+4]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d+od}, Qubit{d+od})))
-  -o[2*n+4, 0] List[_<n+2] Bit{2 + r*(od+5)})  
-grover r n od oracle =
+grover :: ![0](forall[0, 0] r. forall[0, 0] n. forall[0, 0] os. forall[0, 0] od.
+  (forall[0,0] d. Circ[os]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d+od}, Qubit{d+od})))
+  -o[max(max(n + 3, os), 2*n+4), 0] List[_<n+2] Bit{2 + r*(od+5)})  
+grover r n os od oracle =
   -- prepare working qubits
   let wqs = force qinit0Many @ n+2 in
   let wqs = (force mapHadamard @ n+2 @ 0) wqs in
@@ -107,19 +107,17 @@ grover r n od oracle =
   let a = (force hadamard @ 0) a in
   -- iterate Grover's algorithm
   let iteration = lift forall step. \((wqs, a), _) :: ((List[_<n+2] Qubit{1+step*(od+5)}, Qubit{1+step*(od+5)}), ()).
-    (force groverIteration @ n @ 1+step*(od+5) @ od) oracle wqs a
+    (force groverIteration @ n @ 1+step*(od+5) @ os @ od) oracle wqs a
   in
   let (wqs, a) = fold(iteration, (wqs, a), force range @r) in
   let _ = (force qdiscard @ 1 + r * (od + 5)) a in
   (force mapMeasure @ n+2 @ 1 + r * (od + 5)) wqs
 
---- ORACLE ---
--- The oracle conj : conj(x) = 1 <==> x = 11...1
+--- ORACLES ---
+-- The oracle conj : {0,1}^(n+2) -> {0,1} such that conj(x) = 1 <==> x = {1}^(n+2)
 conj = forall n. forall d.
   box $ lift \(reg, a) :: (List[_<n+2] Qubit{d}, Qubit{d}).
     (force mcnot @ n @ d @ d) reg a
 -- conjgrover perform r iterations on an input register of size n+2 with the oracle at depth od
-conjgrover :: ![0](forall [0,0] r. forall[0,0] n. forall[2*n+4,0] od. List[_<n+2] Bit)
-conjgrover r n od = ((force grover) @r @n @od) (force conj)
-
-main = force conjgrover @1 @1 @1
+conjgrover :: ![0](forall [0,0] r. forall[0,0] n. forall[2*n+4,0] od. List[_<n+2] Bit{od+2*n+3}) -- <-- check
+conjgrover r n od = ((force grover) @r @n @2*n+4 @od) (force conj @n)
