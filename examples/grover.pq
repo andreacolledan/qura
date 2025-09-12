@@ -118,6 +118,8 @@ grover r n od oracle =
 conj = forall n. forall d.
   box $ lift \(reg, a) :: (List[_<n+2] Qubit{d}, Qubit{d}).
     (force mcnot @ n @ d @ d) reg a
-
+-- conjgrover perform r iterations on an input register of size n+2 with the oracle at depth od
 conjgrover :: ![0](forall [0,0] r. forall[0,0] n. forall[2*n+4,0] od. List[_<n+2] Bit)
 conjgrover r n od = ((force grover) @r @n @od) (force conj)
+
+main = force conjgrover @1 @1 @1
