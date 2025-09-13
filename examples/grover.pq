@@ -1,6 +1,7 @@
 --- Grover search algorithm with depth and size analysis ---
 --- Following the circuit description at:
 --- https://cnot.io/quantum_algorithms/grover/grovers_algorithm.html
+
 --- HELPER FUNCTIONS ---
 -- initialize n qubits to |0>
 qinit0Many = forall n.
@@ -17,8 +18,6 @@ qzip = forall n. forall d. \(a,b) :: (List[_<n] Qubit{d}, List[_<n] Qubit{d}).
     (ls, rs, reslist)
   in let (_,_, zippedlist) = (fold(qzipStep @ n-1, (a,b,[]), force range @n))
   in zippedlist
--- cnot = (force cnot @0@0)
--- toffoli = (force toffoli @0@0@0)
 -- actually, is (m+2)cnot, idk how to pass the number of controls and make it still work
 mcnot :: ![0](forall[0,0] m. forall[0,0] dc. forall[0,0] dt. List[_<m+2] Qubit{dc} -o[0,0] Qubit{dt} -o[2*m + 4,m+2] (List[_<m+2] Qubit{max(dc+m+2,dt+1)+m+2}, Qubit{max(dc+m+2,dt+1)}))
 mcnot m dc dt ctrls trgt =
@@ -57,17 +56,18 @@ mapQnot = forall n. forall d . \x :: List[_<n] Qubit{d} .
 mapMeasure = forall n. forall d. \x :: List[_<n] Qubit{d}.
   let measureStep = lift forall step. \(bs,q) :: (List[_<step] Bit{d+1}, Qubit{d}). bs:((force meas @d) q)
   in fold(measureStep, [], x)
+
 --- GROVER'S ALGORITHM ---
 -- the diffusion operator on n qubits with ancilla a (all qubits at depth d)
-diffusion :: ![0](forall[0,0] n. forall[0,0] d. List[_<n+2] Qubit{d} -o[0,0] Qubit{d} -o[2*n+4, n+2] (List[_<n+2] Qubit{d+5}, Qubit{d+3}))
+diffusion :: ![0](forall[0,0] n. forall[0,0] d. List[_<n+2] Qubit{d} -o[0,0] Qubit{d} -o[2*n+4, n+2] (List[_<n+2] Qubit{d+4+2*n+4}, Qubit{d+2+2*n+4}))
 diffusion n d reg a =
   let reg = (force mapHadamard @ n+2 @ d) reg in
   -- begin negatively controlled not
   let reg = (force mapQnot @ n+2 @ d+1) reg in
   let (reg,a) = (force mcnot @ n @ d+2 @ d) reg a in
-  let reg = (force mapQnot @ n+2 @ d+3) reg in
+  let reg = (force mapQnot @ n+2 @ d+2+2*n+4) reg in
   -- end negatively controlled not
-  let reg = (force mapHadamard @ n+2 @ d+4) reg in
+  let reg = (force mapHadamard @ n+2 @ d+3+2*n+4) reg in
   (reg, a)
 -- perform a single grover iteration on n qubits at depth d,
 -- using an ancilla a at depth d
@@ -75,7 +75,7 @@ diffusion n d reg a =
 groverIteration :: ![0](forall[0,0] n. forall[0,0] d. forall[0,0] os. forall[0,0] od.
   (forall[0,0] d. Circ[os]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d + od}, Qubit{d + od})))
   -o[0,0] List[_<n+2] Qubit{d} -o[0,0] Qubit{d}
-  -o[max(max(n + 3, os), 2*n+4), n + 2] (List[_<n+2] Qubit{d + od + 5}, Qubit{d + od + 3}))
+  -o[max(max(n + 3, os), 2*n+4), n + 2] (List[_<n+2] Qubit{d+od+4 + 2*n+4}, Qubit{d+od+2 +2*n+4}))
 groverIteration n d os od oracle reg a = 
   let (reg, a) = apply(oracle @ d, (reg, a)) in
   (force diffusion @ n @ d + od) reg a
@@ -97,8 +97,8 @@ grover r n os od oracle =
   let (wqs, a) = fold(iteration, (wqs, a), force range @r) in
   let _ = (force qdiscard @ 1 + r * (od + 5)) a in
   (force mapMeasure @ n+2 @ 1 + r * (od + 5)) wqs
+
 --- ORACLES ---
--- The oracle conj : conj(x) = 1 <==> x = {1}^(n+2)
 -- conj = forall d.
 --   box $ lift \(reg, a) :: (List[_<3] Qubit{d}, Qubit{d}).
 --     (force mcnot @ 1 @ d @ d) reg a
@@ -107,6 +107,7 @@ grover r n os od oracle =
 -- main = force conjgrover @1 @1
 -- main = ((force grover) @1 @1 @6 @1) (force conj)
 
+-- The oracle nconj : nconj(x) = 1 <==> x = 11...1
 nconj = forall n. forall d.
   box $ lift \(reg, a) :: (List[_<n+2] Qubit{d}, Qubit{d}).
     (force mcnot @ n @ d @ d) reg a
@@ -115,4 +116,4 @@ nconj = forall n. forall d.
 -- nconjgrover r n od = ((force grover) @r @n @2*n+4 @od) (force nconj @n)
 -- main = force nconjgrover @1 @3-2 @1
 
-main = ((force grover) @1 @1 @6 @1) (force nconj @1)
+-- main = ((force grover) @1 @1 @6 @1) (force nconj @1)
