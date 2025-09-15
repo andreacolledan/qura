@@ -47,7 +47,7 @@ runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r}
   -- metrics
   let metrics = getCircuitMetrics circ' -- TODO remove recycling here and on circuitToQasm
   -- conversions
-  let qasmProg = circuitToQasm circ' (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
+  let qasmProg = circuitToQasm circ' (CommandLineArguments {filepath = fp}) -- once we have the string we could save it to file
   -- saveProgram qasmProg -- maybe
   Right $ InterpResult config' metrics qasmProg
 

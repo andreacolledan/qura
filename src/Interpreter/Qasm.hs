@@ -31,12 +31,11 @@ instance Pretty QasmProgram where
 
 -- converts a circuit to a qasm program.
 circuitToQasm :: Circuit -> CLArguments -> QasmProgram
-circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} =
+circuitToQasm circ CommandLineArguments {filepath=fp} =
   let 
-    simplified = simplifyCircuit r circ
-    -- qasmProg = getQasm simplified
+    simplified = simplifyCircuit circ -- this circuit already accounts for recycling
     qasmProg = -- FIXME this get printed between the metrics comment and the qasm program...
-      -- trace("> Qasm Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
+      trace("> Qasm Simplified Circuit:\n"++pretty simplified++"\n\n> Actual Program:")$
         getQasm simplified
     qasmMetrics = computeQasmMetrics simplified
   in QasmProg fp qasmMetrics qasmProg
@@ -46,13 +45,13 @@ circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} =
 -- > CNot ((q2, q1)) -> (q3, q4);
 -- to:
 -- > CNot ((q2, q1)) -> (q2, q1);
-simplifyCircuit :: Bool -> Circuit -> Circuit
-simplifyCircuit r circ = 
+simplifyCircuit :: Circuit -> Circuit
+simplifyCircuit circ = 
   let 
   -- listify the operations
     circSeq = circTolist circ
   -- update names such that ins=outs and propagate the renamings
-    circ' = getSimple r circSeq
+    circ' = getSimple circSeq
   -- extract the actual labels
     labels = namesInCircuit' circ'
   -- update tthe label context
@@ -60,14 +59,14 @@ simplifyCircuit r circ =
     circ'' = updateCircContext circ' newCtx
   in circ''
 
--- | TODO TODO TODO TODO ehm this quite unoptimezed as it doesnt recycle on the least deep qubit, but on the first alphabetically :) we need to bring a labelcounts during the simplification
-getSimple :: Bool -> [CircuitInstruction] -> Circuit
-getSimple _ [] = mkIdCircuit []
-getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
+-- | 
+getSimple :: [CircuitInstruction] -> Circuit
+getSimple [] = mkIdCircuit []
+getSimple ops = go ops Set.empty (mkIdCircuit [])
   where
-    go :: [CircuitInstruction] -> Bool -> Set.Set Label -> Circuit -> Circuit
-    go [] _ _ circ = circ
-    go (step:steps) recycle discarded circ = 
+    go :: [CircuitInstruction] -> Set.Set Label -> Circuit -> Circuit
+    go [] _ circ = circ
+    go (step:steps) discarded circ = 
       case step of
         (Meas, (q, c)) ->
           let
@@ -75,27 +74,17 @@ getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
             bundleRenaming = renameBundle renaming
             steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
             q' = bundleRenaming q
-          in go steps' recycle discarded $ CCons circ Meas q' c
+          in go steps' discarded $ CCons circ Meas q' c
         (QDiscard, (WLab disc, _)) -> 
-          go steps recycle (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) WUnit
-        (QInit v, (_, WLab name))
-          | recycle -> 
-            let 
-              (name', discarded') = pickOrDefault name discarded
-              renaming = getWBRenaming (WLab name', WLab name)
-              bundleRenaming = renameBundle renaming
-              steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-            -- if the renaming is empty, it means that we are initalizing a new qubit,
-            -- if a renaming occured, it means that we are reusing a discarded qubit
-            in go steps' recycle discarded' $ CCons circ (QInit v) WUnit (WLab name')
-          | otherwise -> 
-            let
-              outs = WLab name
-              renaming = getWBRenaming (WUnit, outs)
-              bundleRenaming = renameBundle renaming
-              steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
-              outs' = bundleRenaming outs
-            in go steps' recycle discarded $ CCons circ (QInit v) WUnit outs'
+          go steps (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) WUnit
+        (QInit v, (_, WLab name)) ->
+          let
+            outs = WLab name
+            renaming = getWBRenaming (WUnit, outs)
+            bundleRenaming = renameBundle renaming
+            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            outs' = bundleRenaming outs
+          in go steps' discarded $ CCons circ (QInit v) WUnit outs'
         (qop, (ins, outs)) ->
           let
             renaming = getWBRenaming (ins, outs)
@@ -103,7 +92,7 @@ getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
             steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
             ins' = bundleRenaming ins
             outs' = bundleRenaming outs
-          in go steps' recycle discarded $ CCons circ qop ins' outs'
+          in go steps' discarded $ CCons circ qop ins' outs'
 
 -- | Picks one element from the set if available, --FIXME doesnt acocun for depth, use picklessdepth from circuit.hs
 -- otherwise returns the default value.
@@ -131,10 +120,6 @@ getWBRenaming (WNil _, WNil _) = Map.empty
 getWBRenaming (WCons xs x, WCons ys y) =
     Map.unions [getWBRenaming (xs, ys), getWBRenaming (x, y)]
 getWBRenaming _ = error "[getWBRenaming] Unexpected error."
-
--- filter the context to only keep pairs existing in the given set
-filterContext :: LabelContext -> Set.Set String -> LabelContext
-filterContext ctx labels = Map.filterWithKey (\k _ -> k `Set.member` labels) ctx
 
 --- INSTRUCTION GENERATION ---
 
@@ -193,9 +178,9 @@ opToQasm (Meas, (WLab q, WLab b)) existing =
 opToQasm (CInit b, (_, WLab name)) existing =
   let 
     decl = if name `Set.member` existing
-      then []
-      else ["bit "]
-  in (decl ++ [name ++ " = " ++ (if b then "1" else "0") ++ ";"], Set.insert name existing)
+      then ""
+      else "bit "
+  in ([decl ++ name ++ " = " ++ (if b then "1" else "0") ++ ";"], Set.insert name existing)
 opToQasm (CDiscard, (WLab name, _)) existing = 
   ([], existing) -- no instruction exists to discard a bit, nor the need to do it
 -- Single qubit gates
@@ -283,7 +268,7 @@ getQasmDepth circ =
     go (CCons circ op ins outs) lc = case op of
       -- QInit:
       --    in Qasm, a qubit is init to 0 with depth 0. To have it set to 1 we use an X gate,
-      --    hence depth is 1. Gatecount behaves the same. -- CHECKME is this fine?
+      --    hence depth is 1. Gatecount behaves the same.
       QInit b -> 
         if b 
           then
@@ -332,12 +317,12 @@ getQasmGateCount circ =
     go (CCons circ op ins outs) gc = case op of
       -- QInit:
       --    in Qasm, a qubit is init to 0 with depth 0. To have it set to 1 we use an X gate,
-      --    hence depth is 1. Gatecount behaves the same. -- CHECKME is this fine?
+      --    hence depth is 1. Gatecount behaves the same.
       QInit b -> 
         if b 
           then
             let
-              gc' = increaseGateCount1 gc -- CHECKME: or maybe not??? qura doesnt not account for this
+              gc' = increaseGateCount1 gc
             in go circ gc'
           else go circ gc
       QDiscard -> -- discarding wouldn't account for gatecounts, but in qasm resetting does
