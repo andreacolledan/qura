@@ -41,10 +41,15 @@ runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r}
   let mod' = mod {name = fp}
   (term, circ) <- mergeModLibs mod' libs
   config <- startConfigEvaluation (Config circ term)
-  let metrics = getCircuitMetrics r $ circuit config 
-  let qasmProg = circuitToQasm (circuit config) (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
+  -- recycling
+  let circ' = injectRecycling r $ circuit config
+  let config' = config {circuit = circ'}
+  -- metrics
+  let metrics = getCircuitMetrics circ' -- TODO remove recycling here and on circuitToQasm
+  -- conversions
+  let qasmProg = circuitToQasm circ' (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
   -- saveProgram qasmProg -- maybe
-  Right $ InterpResult config metrics qasmProg
+  Right $ InterpResult config' metrics qasmProg
 
 -- this is a double map for future reasons, maybe two libs uses the same names
 -- for the modules, and we can distinct them with module.function (?).

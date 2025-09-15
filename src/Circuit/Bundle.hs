@@ -250,10 +250,13 @@ createRenamingWithLC old avoid (circWB, boxIn) =
         let base = basename wt
             names = [base : show n | n <- [0..]]
         in head $ filter (`Set.notMember` usedSet) names
-        
+
+renameSingleton :: (String, String) -> Renaming
+renameSingleton r = Map.fromList [r]
+
 renameBundle :: Renaming -> WireBundle -> WireBundle
 renameBundle _ WUnit = WUnit
--- the default is not needed in the use case, but the general function might need it
+-- the default is not needed in the use case, but the general function might need it --????
 renameBundle rn (WLab label) = WLab (Map.findWithDefault label label rn) 
 renameBundle rn (WTuple ws) = WTuple (map (renameBundle rn) ws)
 renameBundle _ (WNil t) = WNil t

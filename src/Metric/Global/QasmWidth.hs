@@ -39,5 +39,5 @@ opWidths (CRinv _) = 2
 opWidths CCNot = 2
 opWidths CCZ = 2
 opWidths Toffoli = 3
--- measuring does not change the wire type, but create a new classical wire
+-- measuring does not change the wire type, but creates a new classical wire
 opWidths Meas = 2
