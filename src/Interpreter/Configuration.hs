@@ -40,7 +40,7 @@ append c k l d l' =
   -- 2) create a renaming from l to t such that:
     -- the inputs of the box become the labels applied to the box (and rename the whole box accordingly)
     -- the other labels in the box do not match any label in the circuit
-    renaming = --trace("\n[append] box: "++show boxCtx++"\ncirc: "++show circCtx++"\nk: "++pretty k++"\nl:"++pretty l)$
+    renaming = --trace("\n[append] circ: "++pretty c++"\nboxed: "++pretty d++"\ncircCtx: "++show circCtx++"\nk: "++pretty k++"\nl:"++pretty l)$
       createRenamingWithLC boxCtx circCtx (k,l)
     -- renaming = trace("box: "++show boxNames++"\ncirc: "++show circNames++"\nk: "++pretty k++"\nl:"++pretty l)$
     --   createRenaming boxNames circNames (k,l)
@@ -54,7 +54,7 @@ append c k l d l' =
     newCtx = mergeContexts circCtx boxCtx'
     c'' = updateCircContext c' newCtx
   in
-  -- 6) return (c', t')
+  -- 6) return (c'', t')
   Config c'' (wirebundleToExpr t')
 
 appendQuantOP :: Circuit -> WireBundle -> QuantumOperation -> Configuration
@@ -87,8 +87,7 @@ evalConfiguration (Config circ expr) =
       Config circ' w' <- evalConfiguration $ Config circ w
       wsconfig <- evalConfiguration $ Config circ' (ETuple ws)
       case wsconfig of 
-        Config circ'' (ETuple ws') ->
-          Right $ Config circ'' (ETuple $ (w':ws'))
+        Config circ'' (ETuple ws') -> Right $ Config circ'' (ETuple $ (w':ws'))
         err -> error $ "[ETuple] ETuple did not reduce to ETuple. Got: " ++ pretty err
 
     EAbs _ _ _ -> Right config
@@ -134,7 +133,7 @@ evalConfiguration (Config circ expr) =
 
               -- Apply the function to the accumulator and current element
               (Config e z) <- evalConfiguration $ Config d (EApp y (ETuple [v, w]))
-              -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z') $ pure ()
+              -- trace ("  [evalFold] Step " ++ show i ++ ": after applying fold function, new acc = " ++ pretty z) $ pure ()
 
               -- Continue folding over the rest
               -- trace ("  [evalFold] Step " ++ show i ++ ": remaining input = " ++ pretty w') $ pure ()
@@ -206,7 +205,7 @@ evalConfiguration (Config circ expr) =
 
     EAnno e _ -> evalConfiguration $ Config circ e
 
-    EIAbs _ _ -> Right $ config
+    EIAbs _ _ -> Right config
 
     EIApp m i -> do
       (Config circ' m') <- evalConfiguration (Config circ m)
@@ -224,53 +223,14 @@ evalConfiguration (Config circ expr) =
             let e = handleEConst c w
             Right $ Config circ' e
 
-          ECirc _ _ _ -> Right $ Config circ' m' -- FIXME is this correct? By doing so I am ignoring the index of the args
-        
-          -- _ -> Right $ Config circ' m'
           -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
           _ -> trace("Error in M@I\nArgs:\n> M:\n "++pretty m++"\n> I:\n"++show i++"\nThe first arg reduced to:\n"++pretty m'++"\nin the circuit\n"++pretty circ)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs or EConst."
           
         _ -> Left $ RuntimeError "The index of the EIApp did not reduce to a number."
 
-
     EConst c -> Right config
 
     EAssume e _ -> evalConfiguration $ Config circ e
-
-createBoxedMCNot :: Int -> Expr -- README tbf this is not completely correct beacuse the type of CNot an Toffoli is not really the same as MCNot...
-createBoxedMCNot 0 = ECirc WUnit (mkIdCircuit []) WUnit
-createBoxedMCNot 1 = -- CNot
-  let -- we use boxq because the renaming in append WAS really bad, dont sure if fixed
-    ins = WTuple [ WCons (WNil (Just (BWire Qubit))) (WLab "boxq0"), WLab "boxq1" ]
-    outs = WTuple [ WCons (WNil (Just (BWire Qubit))) (WLab "boxq2"), WLab "boxq3" ]
-    circ = CCons (mkIdCircuit [("boxq"++show i, Qubit) | i <- [0..3]]) CNot ins outs
-  in ECirc ins circ outs
-createBoxedMCNot 2 = -- Toffoli
-  let
-    ins = WTuple [ WCons (WCons (WNil (Just (BWire Qubit))) (WLab "boxq0")) (WLab "boxq1"), WLab "boxq2" ]
-    outs = WTuple [ WCons (WCons (WNil (Just (BWire Qubit))) (WLab "boxq3")) (WLab "boxq4"), WLab "boxq5" ]
-    circ = CCons (mkIdCircuit [("boxq"++show i, Qubit) | i <- [0..5]]) Toffoli ins outs
-  in ECirc ins circ outs
-createBoxedMCNot m = 
-  let
-    -- initial wires
-    ctrls = [ WLab $ "boxq" ++ show i | i <- [0..(m-1)] ] -- m controls
-    trgt = WLab $ "boxtrgt"
-    ins = WTuple [ mkConsTyped (Just $ BWire Qubit) ctrls, trgt]
-    ancillas = [WLab $ "boxaux" ++ show i | i <- [(m+1)..(2*m)] ] -- m-1 ancillas
-
-    -- init ancillas
-    initAncillas = foldl (\acc a -> CCons acc (QInit False) WUnit a ) (mkIdCircuit []) ancillas
-
-    wb = WTuple [head ctrls, head $ drop 1 ctrls, head ancillas]
-    step1 = CCons initAncillas Toffoli wb $ suffixWBNames "'" wb
-    -- forward = 
-
-    -- names = Set.toList $ namesInCircuit circ
-    -- outs = -- collect boxqi and boxtrgt with the most '
-    -- circ' = updateCircContext circ $ mkContext [(n, Qubit) | n <- names]
-  in trace(pretty step1)$undefined
-  -- in ECirc ins circ outs
 
 handleEConst :: Constant -> Int -> Expr
 handleEConst (Boxed op) _ = EConst $ Boxed op
@@ -279,12 +239,9 @@ handleEConst c i = case c of
   MakeRinvGate -> EConst $ Boxed $ Rinv i
   MakeCRGate -> EConst $ Boxed $ CR i
   MakeCRinvGate -> EConst $ Boxed $ CRinv i
-  -- MakeMCNot -> createBoxedMCNot i
-  MakeMCNot -> -- placeholder
-    EConst $ Boxed $ MCNot i
   MakeUnitList -> l
     where
-      niltyp = (Just TUnit) -- FIXME   or maybe Nothing?
+      niltyp = (Just TUnit)
       l = foldr (\_ acc -> ECons acc EUnit) (ENil niltyp) [1..i]
 
 exprToWirebundle :: Expr -> Either RuntimeError WireBundle

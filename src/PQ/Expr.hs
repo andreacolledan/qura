@@ -9,6 +9,7 @@ module PQ.Expr
     wirebundleToExpr,
     renamePattern,
     renameExpr,
+    createRenaming,
     psub
   )
 where
@@ -59,6 +60,25 @@ instance Pretty Pattern where
   pretty (PVar id) = id
   pretty (PTuple ps) = "(" ++ intercalate ", " (map pretty ps) ++ ")"
   pretty (PCons p1 p2) = "(" ++ pretty p1 ++ ":" ++ pretty p2 ++ ")"
+
+freshVariableId :: Set.Set VariableId -> VariableId -> VariableId
+freshVariableId used x = head $ dropWhile (`Set.member` used) candidates
+  where
+    candidates = [x ++ replicate n '\'' | n <- [0..]]
+
+-- | Create a renaming map for the variables in a pattern,
+--   avoiding any variable IDs in the given set.
+createRenaming :: Set.Set VariableId -> Pattern -> Map.Map VariableId VariableId
+createRenaming avoid pat = snd $ foldl step (avoid, Map.empty) (Set.toList (varsInPattern pat))
+  where
+    step :: (Set.Set VariableId, Map.Map VariableId VariableId)
+         -> VariableId
+         -> (Set.Set VariableId, Map.Map VariableId VariableId)
+    step (used, ren) x =
+      let x'   = freshVariableId used x
+          used' = Set.insert x' used
+          ren'  = Map.insert x x' ren
+      in (used', ren')
 
 renamePattern :: Map.Map VariableId VariableId -> Pattern -> Pattern
 renamePattern m pat = case pat of
@@ -269,10 +289,6 @@ instance HasIndex Expr where
 
 --------------------------------------------------------------------------------
 
-freshVariableId :: Set.Set VariableId -> VariableId -> VariableId
-freshVariableId used x = head $ dropWhile (`Set.member` used) candidates
-  where
-    candidates = [x ++ replicate n '\'' | n <- [0..]]
 
 getSetRenaming :: Set.Set VariableId -> Set.Set VariableId -> Map.Map VariableId VariableId
 getSetRenaming toRename toAvoid =
@@ -309,10 +325,8 @@ psub x v m = case x of
       EAbs p typ e ->
         -- trace ("\n[psub:EAbs] trying to substitute " ++ show x ++ " with " ++ pretty v
         --       ++ "\n in expr: " ++ pretty (EAbs p typ e)) $
-
         let pVars = varsInPattern p in
         -- trace ("[psub:EAbs] pattern vars: " ++ show pVars) $
-
         if pvar `Set.member` pVars
           -- then trace ("[psub:EAbs] shadowing detected: " ++ show pvar
           --             ++ " is bound in " ++ show pVars
@@ -321,30 +335,15 @@ psub x v m = case x of
           else
             let vVars = varsInExpr v in
             -- trace ("[psub:EAbs] free vars in v: " ++ show vVars) $
-
             let renaming = getSetRenaming pVars vVars in
             -- trace ("[psub:EAbs] renaming computed: " ++ show renaming) $
-
             let torename = (EAbs p typ e) in
             -- trace ("[psub:EAbs] applying renaming map to: "++pretty torename) $
-            
             let (EAbs p' typ e') = renameExpr renaming torename in
             -- trace ("[psub:EAbs] after renaming: " ++ pretty (EAbs p' typ e')) $
-
             let recCall = psub x v e' in
             -- trace ("[psub:EAbs] recursive call result: " ++ pretty recCall) $
             EAbs p' typ recCall
-
-      -- EAbs p typ e ->
-      --   let pVars = varsInPattern p in
-      --   if pvar `Set.member` pVars
-      --     then EAbs p typ e -- can't sub x in: \x . (...)
-      --     else -- ensure that variables in v are different from those in p
-      --       let
-      --         vVars = varsInExpr v
-      --         renaming = getSetRenaming pVars vVars -- new names map for p` (possibly empty)
-      --         (EAbs p' typ e') = renameExpr renaming $ EAbs p typ e
-      --       in EAbs p' typ $ psub x v e'
 
       ECirc l c k -> ECirc l c k 
 

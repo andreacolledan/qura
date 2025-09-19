@@ -12,7 +12,7 @@ import Data.Map.Strict (Map)
 import Data.List (intercalate)
 import qualified Data.Set as Set
 import Debug.Trace (trace)
-import Data.List (minimumBy, foldl')
+import Data.List (minimumBy)
 import Data.Ord (comparing)
 
 -- Circuit Datatype
@@ -111,14 +111,52 @@ renameCircuit rn (CCons c op ins outs) =
 updateBoxNames :: Renaming -> (WireBundle, Circuit, WireBundle) -> (WireBundle, Circuit, WireBundle)
 updateBoxNames rn (ins, circ, outs) = (renameBundle rn ins, renameCircuit rn circ, renameBundle rn outs)
 
--- create a list of (op,(ins,outs)) from a circuit. Ignores the label context
+--- metrics
 type CircuitInstruction = (QuantumOperation, (WireBundle, WireBundle))
 -- type CircuitSequence = [CircuitInstruction]
 
+-- create a list of (op,(ins,outs)) from a circuit. Ignores the label context
 circTolist :: Circuit -> [CircuitInstruction]
 circTolist (Id _) = []
 circTolist (CCons circ op ins outs) = circTolist circ ++ [(op, (ins, outs))]
 
+-- use the recycling flag to compute the 3 standard metrics
+getCircuitMetrics :: Bool -> Circuit -> ProgramMetrics
+getCircuitMetrics recycle circ = 
+  let 
+    circSeq = circTolist circ
+    w = getWidth recycle circSeq
+    d = getDepth recycle circ -- needs the ctx
+    gc = getGateCount circSeq
+  in ProgMetrics w d gc
+
+getWidth :: Bool -> [CircuitInstruction] -> Int
+getWidth _ [] = 0
+getWidth recycle instrs = go recycle instrs 0 0 
+  where
+    go :: Bool -- recycling
+       -> [CircuitInstruction] -- instructions
+       -> Int -- currently discarded qubits
+       -> Int -- currently discarded bits
+       -> Int -- number of output wires
+    go _ [] _ _ = 0
+    go r ((op,_):steps) q b = case op of
+      -- inits
+      QInit _ -> if r && q > 0 
+        then go r steps (q-1) b -- we recycle and have currently discarded qubits
+        else 1 + go r steps q b -- we use a new wire if no discarded or no recycling
+      CInit _ -> if r && b > 0 
+        then go r steps q (b-1) -- we recycle and have currently discarded bits
+        else 1 + go r steps q b -- we use a new wire if no discarded or no recycling
+      -- discards
+      QDiscard -> go r steps (q+1) b
+      CDiscard -> go r steps q (b+1)
+      -- measure
+      Meas -> go r steps q b
+      -- other operations
+      _ -> go r steps q b 
+
+--- DEPTH 
 type LabelCounts = Map.Map Label Int
 initCounter :: LabelContext -> LabelCounts
 initCounter ctx = Map.fromList [(label, 0) | label <- Map.keys ctx]
@@ -145,106 +183,54 @@ pickLessDeep l lc discarded =
         discarded' = Set.delete chosen discarded
     in (chosen, discarded')
 
--- filter the context to only keep label->type of labels existing in the given set
-filterContext :: LabelContext -> Set.Set String -> LabelContext
-filterContext ctx labels = Map.filterWithKey (\k _ -> k `Set.member` labels) ctx
-
---- recycling
-injectRecycling :: Bool -> Circuit -> Circuit
-injectRecycling False circ = circ
-injectRecycling True circ = 
+-- |
+getDepth :: Bool -> Circuit -> Int
+getDepth recycle circ =
   let
     instrs = circTolist circ
-    ctx = getContext circ
-    circ' = go instrs Set.empty Set.empty (initCounter ctx) (mkIdCircuit [])
-    names = namesInCircuit' circ'
-    circ'' = updateCircContext circ' $ filterContext ctx names
-  in circ''
-  where
-    go :: [CircuitInstruction]
-       -> Set.Set Label -- currently discared qubits
-       -> Set.Set Label -- currently discared bits
-       -> LabelCounts -- current depths
-       -> Circuit -- current circuit
-       -> Circuit -- output
-    go [] _ _ _ circ = circ
-    go ((op,(ins,outs)):steps) qubits bits lc circ =
-      case op of
-        QInit _ ->
-          let
-            WLab name = outs
-            (name', qubits') = pickLessDeep name lc qubits
-            lc' = updateDepthAmount 0 lc (WLab name) (WLab name')
-            renaming = renameSingleton (name, name')
-            steps' = map (\(op, (ins,outs)) -> (op, (renameBundle renaming ins, outs))) steps
-          in go steps' qubits' bits lc' $ CCons circ op ins (WLab name')
-        CInit _ ->
-          let
-            WLab name = outs
-            (name', bits') = pickLessDeep name lc bits
-            lc' = updateDepthAmount 0 lc (WLab name) (WLab name')
-            renaming = renameSingleton (name, name')
-            steps' = map (\(op, (ins,outs)) -> (op, (renameBundle renaming ins, outs))) steps
-          in go steps' qubits bits' lc' $ CCons circ op ins (WLab name')
-        QDiscard ->
+    lc = go recycle instrs Set.empty Set.empty $ initCounter $ getContext circ
+  in maxCount lc
+    where 
+      go :: Bool
+         -> [CircuitInstruction]
+         -> Set.Set Label -- currently discared qubits
+         -> Set.Set Label -- currently discared bits
+         -> LabelCounts -- current depths
+         -> LabelCounts
+      go _ [] _ _ lc = lc
+      go recycle ((op,(ins,outs)):steps) qubits bits lc = case op of
+        -- operations that initializes new wires or recycles them
+        QInit _ -> -- if recycling puts the new qubit at the depth of the less deep discarded qubit
+          if recycle 
+            then let
+              WLab name = outs
+              (name', qubits') = pickLessDeep name lc qubits
+              -- put the new label at depth of the least deep dicscarded label
+              lc' = updateDepthAmount 0 lc (WLab name) (WLab name') 
+            in go recycle steps qubits' bits lc'
+            else go recycle steps qubits bits lc
+        CInit _ -> -- if recycling puts the new qubit at the depth of the less deep discarded qubit
+          if recycle 
+            then let
+              WLab name = outs
+              (name', bits') = pickLessDeep name lc bits
+              -- put the new label at depth of the least deep dicscarded label
+              lc' = updateDepthAmount 0 lc (WLab name) (WLab name') 
+            in go recycle steps qubits bits' lc'
+            else go recycle steps qubits bits lc
+        -- operations that discards wires
+        QDiscard -> 
           let
             WLab name = ins
             qubits' = Set.insert name qubits
-          in go steps qubits' bits lc $ CCons circ op (WLab name) outs
-        CDiscard ->
+          in go recycle steps qubits' bits lc
+        CDiscard -> 
           let
             WLab name = ins
             bits' = Set.insert name bits
-          in go steps qubits bits' lc $ CCons circ op (WLab name) outs
-        _ -> go steps qubits bits lc $ CCons circ op ins outs
-      
---- metrics
--- use the recycling flag to compute the 3 standard metrics
-getCircuitMetrics :: Circuit -> ProgramMetrics
-getCircuitMetrics circ = 
-  let 
-    circSeq = circTolist circ
-    w = getWidth circSeq
-    d = getDepth circ -- needs the ctx
-    gc = getGateCount circSeq
-  in ProgMetrics w d gc
-
---- WIDTH
-getWidth :: [CircuitInstruction] -> Int
-getWidth instrs = go instrs []
-  where 
-    go :: [CircuitInstruction] -- upcoming instructions
-       -> [CircuitInstruction] -- past instructions
-       -> Int
-    go [] _ = 0
-    go ((op,(ins,outs)):steps) old = case op of
-      QInit _ -> 
-        let newWire = if existingLabel old outs then 0 else 1
-        in newWire + go steps (old ++ [(op,(ins,outs))])
-
-      CInit _ ->
-        let newWire = if existingLabel old outs then 0 else 1
-        in newWire + go steps (old ++ [(op,(ins,outs))])
-
-      _ -> go steps (old ++ [(op,(ins,outs))])
-      
-    -- shared helper
-    existingLabel :: [CircuitInstruction] -> WireBundle -> Bool
-    existingLabel [] _ = False
-    existingLabel instrs bundle =
-      let labelNames = namesInBundle bundle
-          instrNames = Set.unions [ namesInBundle ins | (_, (ins, _)) <- instrs ]
-      in not $ Set.null (Set.intersection labelNames instrNames)
-
-
---- DEPTH 
-getDepth :: Circuit -> Int
-getDepth circ =
-  let
-    instrs = circTolist circ
-    lc0 = initCounter $ getContext circ
-    lc  = foldl' (\lc (op,(ins,outs)) -> updateDepthAmount 1 lc ins outs) lc0 instrs
-  in maxCount lc
+          in go recycle steps qubits bits' lc
+        -- measurement and remaining operations (gates)
+        _ -> go recycle steps qubits bits $ updateDepthAmount 1 lc ins outs
 
 --- GATECOUNT
 getGateCount :: [CircuitInstruction] -> Int

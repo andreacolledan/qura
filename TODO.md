@@ -31,4 +31,6 @@
 * [ ] initializations arent accounted in qura. maybe we dont do that either... (the problem is that in qasm to init1 you have to apply an x, that is a gate ofc)
 * [ ] maybe a prettier way for the rotations angle isntead of writing a ginormous fraction
 * [ ] qasm getsimple does not account for using the leats deep wires for recycling... check getsimple todo
-* [ ]
+* [X] non so che succede se un let definisce una funzione già esistente APPUNTO
+* [ ] fix applymdoules to the abs
+* [ ] optimize label assigning on recycling. we should check all depths of the future labels and decide how to recycle accoridngly... of course, if you decide to have recycling you are preferring wdith to depth, but depth could still be optmized

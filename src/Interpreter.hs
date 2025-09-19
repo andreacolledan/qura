@@ -24,7 +24,8 @@ import Prelude hiding (id)
 import Interface
 
 import Debug.Trace (trace)
-import qualified Data.Map as M
+import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.List (intercalate)
 
 data InterpreterResult = InterpResult {
@@ -41,36 +42,31 @@ runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r}
   let mod' = mod {name = fp}
   (term, circ) <- mergeModLibs mod' libs
   config <- startConfigEvaluation (Config circ term)
-  -- recycling
-  let circ' = injectRecycling r $ circuit config
-  let config' = config {circuit = circ'}
-  -- metrics
-  let metrics = getCircuitMetrics circ' -- TODO remove recycling here and on circuitToQasm
-  -- conversions
-  let qasmProg = circuitToQasm circ' (CommandLineArguments {filepath = fp}) -- once we have the string we could save it to file
+  let metrics = getCircuitMetrics r $ circuit config 
+  let qasmProg = circuitToQasm (circuit config) (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
   -- saveProgram qasmProg -- maybe
-  Right $ InterpResult config' metrics qasmProg
+  Right $ InterpResult config metrics qasmProg
 
 -- this is a double map for future reasons, maybe two libs uses the same names
 -- for the modules, and we can distinct them with module.function (?).
 -- For now I search the term in all the modules, if it appears in more than
 -- one, I throw an error
-type ModulesMap = M.Map String (M.Map VariableId TopLevelDefinition)
+type ModulesMap = Map.Map String (Map.Map VariableId TopLevelDefinition)
 
 instance Pretty ModulesMap where
   pretty modulesMap =
-    unlines $ map prettyModule $ M.toList modulesMap
+    unlines $ map prettyModule $ Map.toList modulesMap
     where
       prettyModule (moduleName, defs) =
         "-- Module: " ++ moduleName ++ "\n"
-        ++ unlines (map (\(_,a)-> prettyTopLevelDefinition a) (M.toList defs))
+        ++ unlines (map (\(_,a)-> prettyTopLevelDefinition a) (Map.toList defs))
 
 createMapFromModules :: [Module] -> ModulesMap
 createMapFromModules modules =
-  M.fromList [(name m, buildDefMap (tldefs m)) | m <- modules]
+  Map.fromList [(name m, buildDefMap (tldefs m)) | m <- modules]
   where
-    buildDefMap :: [TopLevelDefinition] -> M.Map VariableId TopLevelDefinition
-    buildDefMap defs = M.fromList [(id', d) | d@(TopLevelDefinition id' _ _ _) <- defs]
+    buildDefMap :: [TopLevelDefinition] -> Map.Map VariableId TopLevelDefinition
+    buildDefMap defs = Map.fromList [(id', d) | d@(TopLevelDefinition id' _ _ _) <- defs]
 
 -- extract the top level definition from a module and return it and the remainaing definitions
 extractDefFromModule :: VariableId -> [TopLevelDefinition] -> Either RuntimeError (TopLevelDefinition, [TopLevelDefinition])
@@ -107,6 +103,11 @@ mergeModLibs (Module programName e i defs) libs = do
   -- let initialCircuit = idCircuitFromArgs (mainArgs, mainSign) -- main is always identity
   Right (completeProgramExpr, initialCircuit)
   
+
+topLevelDefNames :: ModulesMap -> Set.Set VariableId
+topLevelDefNames =
+  Set.fromList . concatMap Map.keys . Map.elems
+
 --
 applyModulesMap :: ModulesMap -- maps
                 -> String -- current module
@@ -114,7 +115,7 @@ applyModulesMap :: ModulesMap -- maps
                 -> Expr -- definition body
                 -> Either RuntimeError Expr
 applyModulesMap maps currMod currDef expr
-  | M.null maps = Right expr -- not really needed but would save some time
+  | Map.null maps = Right expr -- not really needed but would save some time
   | otherwise = case expr of
     EUnit -> Right EUnit
 
@@ -124,7 +125,7 @@ applyModulesMap maps currMod currDef expr
       case searchResult of 
         Just (foundDefMod, foundTldef) -> do
           -- check if something needs to be subbed inside it. We remove the current module to avoid loops
-          -- let maps' = M.delete currMod maps
+          -- let maps' = Map.delete currMod maps
           let (TopLevelDefinition foundName foundArgs foundSign foundExpr) = foundTldef
           newExpr <- applyModulesMap maps foundDefMod foundName foundExpr
           -- wrap the definition with abstractions for its vars
@@ -141,7 +142,7 @@ applyModulesMap maps currMod currDef expr
       es' <- mapM (applyModulesMap maps currMod currDef) es
       Right $ ETuple es'
 
-    EAbs ptrn typ e -> do
+    EAbs ptrn typ e -> do -- TODO handle when the name of the pattern already exist in the modules (check the let i guess)
       e' <- applyModulesMap maps currMod currDef e
       Right $ EAbs ptrn typ e'
 
@@ -182,10 +183,19 @@ applyModulesMap maps currMod currDef expr
       e' <- applyModulesMap maps currMod currDef e
       Right $ EForce e'
 
-    ELet ptrn e1 e2 -> do
+    ELet ptrn e1 e2 -> do -- handle when the name of the pattern already exist in the modules
+      -- create a renaming for the pattern such to have a different than the tldefs
+      let avoid = topLevelDefNames maps
+      let renaming = createRenaming avoid ptrn
+      -- rename the pattern
+      let ptrn' = renamePattern renaming ptrn
+      -- safely apply modules in the first term
       e1' <- applyModulesMap maps currMod currDef e1
-      e2' <- applyModulesMap maps currMod currDef e2
-      Right $ ELet ptrn e1' e2'
+      -- rename in the second term
+      let e2' = renameExpr renaming e2
+      -- apply the definitions in the second term after renaming
+      e2'' <- applyModulesMap maps currMod currDef e2'
+      Right $ ELet ptrn' e1' e2''
 
     EAnno e typ -> do
       e' <- applyModulesMap maps currMod currDef e
@@ -215,7 +225,7 @@ searchDefinition maps sourceMod sourceDef trgtDef =
   --trace ("[SearchDef.] Searching " ++ trgtDef ++ " definition, requested in " ++ sourceMod ++ "." ++ sourceDef) $
   if sourceDef /= trgtDef
     then
-      case M.lookup sourceMod maps >>= M.lookup trgtDef of
+      case Map.lookup sourceMod maps >>= Map.lookup trgtDef of
         Just tldef -> --trace(" > Using "++trgtDef++" from "++sourceMod)$
           Right $ Just (sourceMod, tldef)  -- found in source module
         Nothing -> searchInOtherModules  -- not found in source module, continue
@@ -226,9 +236,9 @@ searchDefinition maps sourceMod sourceDef trgtDef =
     searchInOtherModules :: Either RuntimeError (Maybe (String, TopLevelDefinition))
     searchInOtherModules =
       case [ (modName, tldef)
-           | (modName, defsMap) <- M.toList maps
+           | (modName, defsMap) <- Map.toList maps
            , modName /= sourceMod
-           , Just tldef <- [M.lookup trgtDef defsMap]
+           , Just tldef <- [Map.lookup trgtDef defsMap]
            ] of
         [] -> --trace(" > "++trgtDef++" not found")$
           Right Nothing  -- not found anywhere

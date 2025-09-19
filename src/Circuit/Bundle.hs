@@ -186,33 +186,6 @@ mkConsTyped (Just btyp) = foldl WCons (WNil $ Just btyp)
 
 type Renaming = Map String String
 
--- | Create a renaming for labels:
---   1. Map labels in boxIn to labels in circWB.
---   2. Remove these labels from old.
---   3. Rename remaining labels in old so they avoid conflicts.
-createRenaming :: Set.Set String -> Set.Set String -> (WireBundle, WireBundle) -> Renaming
-createRenaming old avoid (circWB, boxIn) =
-    let -- create mapping from boxIn -> circWB labels
-        circLabels = Set.toList (namesInBundle circWB)
-        boxLabels  = Set.toList (namesInBundle boxIn)
-        boxMapping = Map.fromList (zip boxLabels circLabels)
-        -- remove boxIn labels from old
-        old' = old `Set.difference` Set.fromList boxLabels
-        -- fresh renaming for remaining labels
-        freshMapping = Map.fromList
-            [ (name, freshName name allAvoid)
-            | name <- Set.toList old'
-            ]
-          where
-            -- avoid conflicts with circWB labels, boxIn targets, AND initial avoid set
-            allAvoid = avoid `Set.union` Set.fromList circLabels
-    in boxMapping `Map.union` freshMapping
-  where
-    freshName :: String -> Set.Set String -> String
-    freshName n avoidSet
-      | n `Set.notMember` avoidSet = n
-      | otherwise = freshName (n ++ "'") avoidSet
-
 -- same version but uses the label context to extract the type of the label 
 -- and uses it as a base name for the label instead of appending '
 -- FIXME this is so wrong whenever the same name appears
@@ -250,13 +223,10 @@ createRenamingWithLC old avoid (circWB, boxIn) =
         let base = basename wt
             names = [base : show n | n <- [0..]]
         in head $ filter (`Set.notMember` usedSet) names
-
-renameSingleton :: (String, String) -> Renaming
-renameSingleton r = Map.fromList [r]
-
+        
 renameBundle :: Renaming -> WireBundle -> WireBundle
 renameBundle _ WUnit = WUnit
--- the default is not needed in the use case, but the general function might need it --????
+-- the default is not needed in the use case, but the general function might need it
 renameBundle rn (WLab label) = WLab (Map.findWithDefault label label rn) 
 renameBundle rn (WTuple ws) = WTuple (map (renameBundle rn) ws)
 renameBundle _ (WNil t) = WNil t
