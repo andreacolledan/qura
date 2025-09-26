@@ -187,15 +187,15 @@ opToQasm (Meas, (WLab q, WLab b)) existing =
   let 
     decl = if b `Set.member` existing
       then []
-      else ["bit " ++ b ++ ";"]
+      else ["bit[1] " ++ b ++ ";"]
   in (decl ++ [b ++ " = measure " ++ q ++ ";"], Set.insert b existing)
 -- Bit metaoperations
 opToQasm (CInit b, (_, WLab name)) existing =
   let 
     decl = if name `Set.member` existing
-      then []
-      else ["bit "]
-  in (decl ++ [name ++ " = " ++ (if b then "1" else "0") ++ ";"], Set.insert name existing)
+      then ""
+      else "bit[1] "
+  in ( [decl ++ name ++ " = \"" ++ (if b then "1" else "0") ++ "\";"], Set.insert name existing)
 opToQasm (CDiscard, (WLab name, _)) existing = 
   ([], existing) -- no instruction exists to discard a bit, nor the need to do it
 -- Single qubit gates
