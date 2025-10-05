@@ -1,4 +1,4 @@
--- teleportation.pq annotated for depth and gatecount
+-- teleportation.pq annotated for qasmgatecount and qasmdepth
 
 -- put q and p into the entangled |+> state
 bell :: ![0](forall[0,0] dq. forall[0,0] dp.
@@ -20,7 +20,7 @@ alice dp dr (p, r) =
 
 -- Bob's part of the teleportation protocol
 bob :: ![0](forall[0,0] dq. forall[0,0] dc. forall[0,0] dd.
-  (Qubit{dq}, Bit{dc}, Bit{dd}) -o[3,0] Qubit{max(dd, max(dc, dq) + 1) + 1})
+  (Qubit{dq}, Bit{dc}, Bit{dd}) -o[2,0] Qubit{max(dd, max(dc, dq) + 1) + 1})
 bob dq dc dd (q, c, d) =
     let (c,q) = (force ccnot @dc @dq) c q in
     let (d,q) = (force ccz @dd @ max(dc, dq) + 1) d q in
@@ -29,7 +29,7 @@ bob dq dc dd (q, c, d) =
     q
 
 -- teleport the state of qubit r (at depth dr) into qubit q
-teleport :: ![0](forall[0,0] dr. Qubit{dr} -o[9,0] Qubit{dr+6})
+teleport :: ![0](forall[0,0] dr. Qubit{dr} -o[8,0] Qubit{dr+6})
 teleport dr r = 
     let q = force qinit0 in
     let p = force qinit0 in
@@ -37,7 +37,6 @@ teleport dr r =
     let (c,d) = (force alice @2 @dr) (p,r) in
     (force bob @2 @ max(2, dr) + 2 @ max(2, dr) + 3)  (q,c,d)
 
--- main :: ![0] Qubit{0}
-main =
-    let q = force qinit1       -- initialize the qubit to |1>
-    in (force teleport @0) q      -- teleport it
+-- main =
+--     let q = force qinit0     -- initialize the qubit to |1>
+--     in (force teleport @0) q      -- teleport it

@@ -104,3 +104,11 @@ adder n (a, b) =
   let (ares,b) = (force qunzip @ n+1) complete in --separate a and b
   let bres = b : lsb in -- add the lsb back in b
   ((force rev @ n+1) ares, (force rev @ n+2) bres) --rearrange the bits in the right order
+
+--- MAIN ---
+-- init n qubits to |0>
+qinit0Many = forall n.
+  let qinitStep = lift forall step. \(qs,u) :: (List[_<step] Qubit, ()). qs:(force qinit0)
+  in fold(qinitStep, [], force range @n+1)
+main =
+  (force adder @1) (force qinit0Many @1,force qinit0Many @1)
