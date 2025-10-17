@@ -17,7 +17,7 @@ import Debug.Trace (trace)
 -- > CNot ((q2, q1)) -> (q3, q4);
 -- to:
 -- > CNot ((q2, q1)) -> (q2, q1);
-simplifyCircuit :: Bool -> Circuit -> Circuit
+simplifyCircuit :: Bool -> Circuit -> Circuit -- README maybe this can be used ofr other languages aswell and could be moved to runIntepreter
 simplifyCircuit r circ = 
   let 
   -- listify the operations

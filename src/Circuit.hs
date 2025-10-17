@@ -120,6 +120,20 @@ circTolist :: Circuit -> [CircuitInstruction]
 circTolist (Id _) = []
 circTolist (CCons circ op ins outs) = circTolist circ ++ [(op, (ins, outs))]
 
+-- convert a list of circ. instr. to a circuit with a new label context
+listToCirc :: [CircuitInstruction] -> Circuit
+listToCirc instrs = foldl (\circ (op, (ins, outs)) -> CCons circ op ins outs) (Id $ extractInits instrs) instrs
+  
+extractInits :: [CircuitInstruction] -> LabelContext
+extractInits instrs = go instrs emptyContext
+  where
+    go [] ctx = ctx
+    go (step:steps) ctx =
+      case step of
+        (QInit _, (_, WLab q)) -> go steps $ updateContext ctx q Qubit
+        (CInit _, (_, WLab b)) -> go steps $ updateContext ctx b Bit
+        _ -> go steps ctx
+
 -- use the recycling flag to compute the 3 standard metrics
 getCircuitMetrics :: Bool -> Circuit -> ProgramMetrics
 getCircuitMetrics recycle circ = 

@@ -135,6 +135,9 @@ mkContext = Map.fromList
 mergeContexts :: LabelContext -> LabelContext -> LabelContext
 mergeContexts = Map.union
 
+updateContext :: LabelContext -> Label -> WireType -> LabelContext
+updateContext ctx label wtype = Map.insert label wtype ctx
+
 freshlabels :: BundleType -> LabelContext -> (LabelContext, WireBundle)
 freshlabels t q = case t of
   BUnit -> (q, WUnit)
