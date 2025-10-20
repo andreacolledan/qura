@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Create tarballs
+        run: |
+          VERSION=${{ steps.version.outputs.version }}
+          mkdir dist
+
+          # Linux x86_64
+          cp ubuntu-latest/qura dist/qura
+          tar -czf qura-${VERSION}-linux-x86_64.tar.gz -C dist qura
+          rm dist/qura
+
+          # macOS arm64
+          cp macos-latest/qura dist/qura
+          tar -czf qura-${VERSION}-macos-arm64.tar.gz -C dist qura
+          rm dist/qura
+
+          rmdir dist
+
+      - name: Create SHA256SUMS
+        run: |
+          sha256sum qura-*.tar.gz > SHA256SUMS
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            qura-${{ steps.version.outputs.version }}-linux-x86_64.tar.gz
+            qura-${{ steps.version.outputs.version }}-macos-arm64.tar.gz
+            SHA256SUMS
