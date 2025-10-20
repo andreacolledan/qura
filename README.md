@@ -8,6 +8,11 @@ PQ is a quantum circuit description language that features a rich type-and-effec
 
 [Official documentation](https://qura.readthedocs.io/en/latest/)
 
+## Download
+
+The latest version of QuRA is available on GitHub at https://github.com/andreacolledan/qura.
+
+Precompiled binaries for releases can be found [here](https://github.com/andreacolledan/qura/releases/).
 
 ## Installing
 **Note:** QuRA requires [cvc5](https://cvc5.github.io) to be installed and present in your `PATH`.
