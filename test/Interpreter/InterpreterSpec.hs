@@ -23,31 +23,31 @@ positiveDir = programDir </> "pos"
 mkArgs :: FilePath -> CLArguments
 mkArgs fp =
   CommandLineArguments
-    { filepath = fp
-    , verbose = False
-    , norun = False
-    , debug = Nothing
-    , noprelude = False
-    , grs = Nothing
-    , lrs = Nothing
-    , qubitRecycling = True
+    { filepath = fp,
+      verbose = False,
+      norun = False,
+      debug = Nothing,
+      noprelude = False,
+      grs = Nothing,
+      lrs = Nothing,
+      qubitRecycling = True
     }
 
 spec :: Spec
-spec =
-  describe "interpreter" $ do
-    files <- runIO $ do
-      names <- listDirectory positiveDir
-      pure $
-        sort
-          [ positiveDir </> name
-          | name <- names
-          , takeExtension name == ".pq"
-          ]
+spec = do
+  around (withSolver Nothing) $ do
+    describe "interpreter" $ do
+      files <- runIO $ do
+        names <- listDirectory positiveDir
+        pure $
+          sort
+            [ positiveDir </> name
+              | name <- names,
+                takeExtension name == ".pq"
+            ]
 
-    forM_ files $ \fp ->
-      it ("runs " ++ takeFileName fp) $
-        withSolver Nothing $ \qfh -> do
+      forM_ files $ \fp ->
+        it ("runs " ++ takeFileName fp) $ \qfh -> do
           source <- readFile fp
           case runParser parseModule False False fp source of
             Left err ->
