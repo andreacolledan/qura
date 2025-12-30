@@ -10,22 +10,28 @@ module Interpreter (
 
 -- I havent understand yet how to properly import the modules,
 -- for now, I am simply importing what I need directly
-import Interpreter.RuntimeError
-import Interpreter.Configuration
-import Interpreter.Qasm
-import Interpreter.Metric
-import PQ (Module)
-import PQ.Module
+import Interpreter.RuntimeError (RuntimeError (..))
+import Interpreter.Configuration (Configuration (..), startConfigEvaluation)
+import Interpreter.Qasm (QasmProgram (..), circuitToQasm)
+import Interpreter.Metric (ProgramMetrics)
+import PQ.Module (Module (..), TopLevelDefinition (..), prettyTopLevelDefinition)
 import PQ.Expr
-import PQ.Type
-import Circuit
+  ( Expr (..),
+    Pattern (..),
+    VariableId,
+    createRenaming,
+    renameExpr,
+    renamePattern
+  )
+import PQ.Type (Type (..))
+import Circuit (Circuit, getCircuitMetrics, mkIdCircuit)
 import PrettyPrinter (Pretty (..))
 import Prelude hiding (id)
-import Interface
+import Interface (CLArguments (..))
 
 import Debug.Trace (trace)
-import qualified Data.Map as Map
-import qualified Data.Set as Set
+import qualified Data.Map as Map (Map, elems, fromList, keys, lookup, null, toList)
+import qualified Data.Set as Set (Set, fromList)
 import Data.List (intercalate)
 
 data InterpreterResult = InterpResult {

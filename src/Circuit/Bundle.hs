@@ -2,17 +2,35 @@
 
 module Circuit.Bundle where
 
-import Circuit.Type
-import PQ.Index
+import Circuit.Type (QuantumOperation (..), WireType (..), basename)
+import PQ.Index (IVarId, Index (..))
 import Analyzer.Unify
-import PQ.Type
-import Eval.Index
+  ( HasIndex (..),
+    IndexSubstitution,
+    fresh,
+    isubCodomain,
+    isubDomain,
+    isubSingleton
+  )
+import PQ.Type (Type (..))
+import Eval.Index (evalIndexNoHandle)
 
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
-import qualified Data.HashSet as HSet
+  ( elems,
+    empty,
+    findWithDefault,
+    fromList,
+    insert,
+    keysSet,
+    notMember,
+    toList,
+    union,
+    withoutKeys
+  )
+import qualified Data.HashSet as HSet (HashSet)
 import Data.Map.Strict (Map)
-import Debug.Trace(trace)
+import Debug.Trace (trace)
 
 -- Bundles Datatype
 

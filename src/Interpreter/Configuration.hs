@@ -1,19 +1,30 @@
 module Interpreter.Configuration where
 
-import Interpreter.RuntimeError
-import PQ.Expr
-import PQ.Type
-import PQ.Index
-import Analyzer.Unify
-import Circuit
-import Circuit.Type
+import Interpreter.RuntimeError (RuntimeError (..))
+import PQ.Expr (Expr (..), Pattern (..), psub, wirebundleToExpr)
+import PQ.Type (Type (..))
+import PQ.Index (Index (..))
+import Analyzer.Unify (HasIndex (isub), isubSingleton)
+import Circuit (Circuit (..), circConcat, getContext, updateBoxNames, updateCircContext)
+import Circuit.Type (QuantumOperation (..))
 import Circuit.Bundle
+  ( BundleType,
+    LabelContext,
+    Renaming,
+    WireBundle (..),
+    createRenamingWithLC,
+    emptyContext,
+    freshBoxLabels,
+    freshlabels,
+    maybeTypeToBundleType,
+    mergeContexts,
+    outTypeQuantOP
+  )
 import PrettyPrinter (Pretty (..))
-import PQ.Constant
-import Eval.Index
+import PQ.Constant (Constant (..))
+import Eval.Index (evalIndexNoHandle)
 
 import Debug.Trace (trace)
-import qualified Data.Set as Set
 
 -- a configuration is a pair of a Circuit and a term
 -- Corresponds to (C,M) in the original paper

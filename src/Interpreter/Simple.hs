@@ -1,15 +1,23 @@
 module Interpreter.Simple where
 
-import Interpreter.RuntimeError
-import Interpreter.Metric
 import Circuit
-import Circuit.Type
-import Circuit.Bundle
-import PrettyPrinter
+  ( Circuit (..),
+    CircuitInstruction,
+    LabelCounts,
+    circTolist,
+    getContext,
+    initCounter,
+    mkIdCircuit,
+    namesInCircuit',
+    pickLessDeep,
+    updateCircContext,
+    updateDepthAmount
+  )
+import Circuit.Type (QuantumOperation (..))
+import Circuit.Bundle (Label, LabelContext, Renaming, WireBundle (..), renameBundle)
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import Debug.Trace (trace)
+import qualified Data.Map.Strict as Map (empty, filterWithKey, fromList, unions)
+import qualified Data.Set as Set (Set, empty, insert, member)
 
   
 -- | convert a circuit to have the same input and output names and update label context.
@@ -32,7 +40,7 @@ simplifyCircuit r circ =
     circ'' = updateCircContext circ' newCtx
   in circ''
 
--- | TODO TODO TODO TODO this quite unoptimized as it doesnt recycle on the least deep qubit, but on the first alphabetically :) we need to bring a labelcounts during the simplification
+-- | this has been optimized as it now recycles on the least deep qubit
 getSimple :: Bool -> LabelContext -> [CircuitInstruction] -> Circuit
 getSimple _ _ [] = mkIdCircuit []
 getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCircuit [])

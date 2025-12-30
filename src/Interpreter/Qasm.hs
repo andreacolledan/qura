@@ -1,18 +1,24 @@
 module Interpreter.Qasm where
 
-import Interpreter.RuntimeError
-import Interpreter.Metric
-import Interpreter.Simple
+import Interpreter.Metric (ProgramMetrics (..))
+import Interpreter.Simple (simplifyCircuit)
 import Circuit
-import Circuit.Type
-import Circuit.Bundle
-import PrettyPrinter
-import Interface
+  ( Circuit (..),
+    CircuitInstruction,
+    LabelCounts,
+    circTolist,
+    getContext,
+    initCounter,
+    listToCirc,
+    maxCount
+  )
+import Circuit.Type (QuantumOperation (..), WireType (..))
+import Circuit.Bundle (Label, LabelContext, WireBundle (..), namesInBundle)
+import PrettyPrinter (Pretty (..))
+import Interface (CLArguments (..))
 
-import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
-import Debug.Trace (trace)
-import Data.Maybe (mapMaybe)
+import qualified Data.Map.Strict as Map (findWithDefault, insert, toList)
+import qualified Data.Set as Set (Set, empty, insert, member, null, toList)
 
 type QasmInstruction = String -- maybe create a class program of saveable strings
 

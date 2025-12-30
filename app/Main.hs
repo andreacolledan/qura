@@ -5,7 +5,7 @@ import Control.Monad (when, unless)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, isJust)
 import Interface (CLArguments (..), cliInterface)
-import Interpreter
+import Interpreter (Configuration (..), InterpreterResult (..), runInterpreter)
 import Options.Applicative (execParser)
 import PQ (Module, prelude, toTypeBindings)
 import Parser (errorBundlePretty, parseModule, runParser)

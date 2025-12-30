@@ -1,6 +1,6 @@
 module Interpreter.Metric where
 
-import PrettyPrinter
+import PrettyPrinter (Pretty (..))
 
 -- | This class is used to represent the static metrics of a curcuit object.
 data ProgramMetrics = ProgMetrics {

@@ -1,7 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 module Circuit where
 
-import PrettyPrinter
+import PrettyPrinter (Pretty (..))
 import Circuit.Type
 import Circuit.Bundle
 import Analyzer.Unify

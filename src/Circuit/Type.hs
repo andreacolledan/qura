@@ -1,6 +1,6 @@
 module Circuit.Type where
 
-import PrettyPrinter
+import PrettyPrinter (Pretty (..))
 
 
 data WireType = Bit | Qubit deriving (Show, Eq)
