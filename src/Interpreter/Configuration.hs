@@ -243,6 +243,7 @@ handleEConst c i = case c of
     where
       niltyp = (Just TUnit)
       l = foldr (\_ acc -> ECons acc EUnit) (ENil niltyp) [1..i]
+  _ -> error $ "[handleEConst] Constant " ++ show c ++ " is not supported."
 
 exprToWirebundle :: Expr -> Either RuntimeError WireBundle
 exprToWirebundle EUnit = Right $ WUnit

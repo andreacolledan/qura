@@ -38,7 +38,7 @@ circuitToQasm circ CommandLineArguments {filepath=fp, qubitRecycling = r} =
     simplified = simplifyCircuit r circ
     simplified' = adjustForQasm simplified
     qasmProg = -- FIXME this get printed between the metrics comment and the qasm program...
-      trace("> Qasm Simplified Circuit:\n"++pretty simplified'++"\n\n> Actual Program:")$
+      -- trace("> Qasm Simplified Circuit:\n"++pretty simplified'++"\n\n> Actual Program:")$
         getQasm simplified' 
     qasmMetrics = computeQasmMetrics simplified'
   in QasmProg fp qasmMetrics qasmProg

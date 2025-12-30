@@ -57,10 +57,10 @@ getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCirc
             let 
               (name', discarded') = pickLessDeep name lc discarded
               renaming =
-                trace(show lc ++", discarded: "++show discarded ++"\nname' = "++name'++", discarded' = "++show discarded') $ 
+                -- trace(show lc ++", discarded: "++show discarded ++"\nname' = "++name'++", discarded' = "++show discarded') $ 
                   getWBRenaming (WLab name', WLab name)
               bundleRenaming =
-                trace ("[getSimple/QInit recycle] renaming = " ++ show renaming) $
+                -- trace ("[getSimple/QInit recycle] renaming = " ++ show renaming) $
                   renameBundle renaming
               steps' = renameSteps bundleRenaming steps
               lc' = updateDepthAmount 0 lc (WLab name) (WLab name')
