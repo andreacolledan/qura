@@ -159,7 +159,7 @@ typeOf MakeMCNot
       TCirc (Just $ Operation PauliX `Parallel` BoundedParallel "i" (IVar "n") (Wire Qubit))
         (TTensor [TList "i" (IVar "n") (TWire Qubit (Just $ IVar "i0")), TWire Qubit (Just $ IVar "i1")])
         (TTensor [TList "i" (IVar "n") (TWire Qubit (Just $ Output CNot 0 [IVar "i0", IVar "i1"])), TWire Qubit (Just $ Output CNot 1 [IVar "i0", IVar "i1"])])
-    ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0) --TODO this is just a workaround
+    ) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0)) (Just $ Number 0) (Just $ Number 0) --TODO this is just a workaround -- maybe remove, since that we deleted MakeMCNot
 -- single-qubit R gate family
 typeOf MakeRGate
   = TIForall "i" (TIForall "i0" (

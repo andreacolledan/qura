@@ -17,73 +17,86 @@ import Debug.Trace (trace)
 -- > CNot ((q2, q1)) -> (q3, q4);
 -- to:
 -- > CNot ((q2, q1)) -> (q2, q1);
-simplifyCircuit :: Bool -> Circuit -> Circuit -- README maybe this can be used ofr other languages aswell and could be moved to runIntepreter
+simplifyCircuit :: Bool -> Circuit -> Circuit -- README maybe this can be used for other languages aswell and could be moved to runIntepreter
 simplifyCircuit r circ = 
   let 
   -- listify the operations
     circSeq = circTolist circ
+    ctx = getContext circ
   -- update names such that ins=outs and propagate the renamings
-    circ' = getSimple r circSeq
+    circ' = getSimple r ctx circSeq
   -- extract the actual labels
     labels = namesInCircuit' circ'
   -- update tthe label context
-    newCtx = filterContext (getContext circ) labels -- using labels extract from the old context the relevant names
+    newCtx = filterContext ctx labels -- using labels extract from the old context the relevant names
     circ'' = updateCircContext circ' newCtx
   in circ''
 
 -- | TODO TODO TODO TODO this quite unoptimized as it doesnt recycle on the least deep qubit, but on the first alphabetically :) we need to bring a labelcounts during the simplification
-getSimple :: Bool -> [CircuitInstruction] -> Circuit
-getSimple _ [] = mkIdCircuit []
-getSimple recycle ops = go ops recycle Set.empty (mkIdCircuit [])
+getSimple :: Bool -> LabelContext -> [CircuitInstruction] -> Circuit
+getSimple _ _ [] = mkIdCircuit []
+getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCircuit [])
   where
-    go :: [CircuitInstruction] -> Bool -> Set.Set Label -> Circuit -> Circuit
-    go [] _ _ circ = circ
-    go (step:steps) recycle discarded circ = 
+    go :: [CircuitInstruction] -> Bool -> Set.Set Label -> LabelCounts -> Circuit -> Circuit
+    go [] _ _ _ circ = circ
+    go (step:steps) recycle discarded lc circ = 
       case step of
         (Meas, (q, c)) ->
           let
             renaming = getWBRenaming (q, c)
             bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            steps' = renameSteps bundleRenaming steps
             q' = bundleRenaming q
-          in go steps' recycle discarded $ CCons circ Meas q' c
+            c' = bundleRenaming c
+            lc' = updateDepthAmount 1 lc q' c'
+          in go steps' recycle discarded lc' $ CCons circ Meas q' c'
         (QDiscard, (WLab disc, _)) -> 
-          go steps recycle (Set.insert disc discarded) $ CCons circ QDiscard (WLab disc) WUnit
+          go steps recycle (Set.insert disc discarded) lc $ CCons circ QDiscard (WLab disc) WUnit
         (QInit v, (_, WLab name))
-          | recycle -> 
+          | recycle ->
             let 
-              (name', discarded') = pickOrDefault name discarded
-              renaming = getWBRenaming (WLab name', WLab name)
-              bundleRenaming = renameBundle renaming
-              steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+              (name', discarded') = pickLessDeep name lc discarded
+              renaming =
+                trace(show lc ++", discarded: "++show discarded ++"\nname' = "++name'++", discarded' = "++show discarded') $ 
+                  getWBRenaming (WLab name', WLab name)
+              bundleRenaming =
+                trace ("[getSimple/QInit recycle] renaming = " ++ show renaming) $
+                  renameBundle renaming
+              steps' = renameSteps bundleRenaming steps
+              lc' = updateDepthAmount 0 lc (WLab name) (WLab name')
             -- if the renaming is empty, it means that we are initalizing a new qubit,
             -- if a renaming occured, it means that we are reusing a discarded qubit
-            in go steps' recycle discarded' $ CCons circ (QInit v) WUnit (WLab name')
+            in go steps' recycle discarded' lc' $ CCons circ (QInit v) WUnit (WLab name')
           | otherwise -> 
             let
               outs = WLab name
               renaming = getWBRenaming (WUnit, outs)
               bundleRenaming = renameBundle renaming
-              steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+              steps' = renameSteps bundleRenaming steps
               outs' = bundleRenaming outs
-            in go steps' recycle discarded $ CCons circ (QInit v) WUnit outs'
+            in go steps' recycle discarded lc $ CCons circ (QInit v) WUnit outs'
         (qop, (ins, outs)) ->
           let
             renaming = getWBRenaming (ins, outs)
             bundleRenaming = renameBundle renaming
-            steps' =  map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs))) steps
+            steps' = renameSteps bundleRenaming steps
             ins' = bundleRenaming ins
             outs' = bundleRenaming outs
-          in go steps' recycle discarded $ CCons circ qop ins' outs'
+            lc' = updateDepthAmount 1 lc ins' outs'
+          in go steps' recycle discarded lc' $ CCons circ qop ins' outs'
 
--- | Picks one element from the set if available, --FIXME doesnt acocun for depth, use picklessdepth from circuit.hs
+    renameSteps :: (WireBundle -> WireBundle) -> [CircuitInstruction] -> [CircuitInstruction]
+    renameSteps bundleRenaming =
+      map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs)))
+
+-- | Picks one element from the set if available, --FIXME doesnt account for depth, use picklessdepth from circuit.hs
 -- otherwise returns the default value.
 -- Also returns the updated set without the picked element.
-pickOrDefault :: (Ord a) => a -> Set.Set a -> (a, Set.Set a)
-pickOrDefault def s =
-    case Set.minView s of
-        Just (x, s') -> (x, s')    -- take smallest element and remaining set
-        Nothing -> (def, s)   -- set is empty, use default
+-- pickOrDefault :: (Ord a) => a -> Set.Set a -> (a, Set.Set a)
+-- pickOrDefault def s =
+--   case Set.minView s of
+--     Just (x, s') -> (x, s')    -- take smallest element and remaining set
+--     Nothing -> (def, s)   -- set is empty, use default
 
 
 -- awful name

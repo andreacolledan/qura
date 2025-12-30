@@ -47,7 +47,7 @@ runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r}
   -- saveProgram qasmProg -- maybe
   Right $ InterpResult config metrics qasmProg
 
--- this is a double map for future reasons, maybe two libs uses the same names
+-- this is a double map for future reasons, maybe two libs use the same names
 -- for the modules, and we can distinct them with module.function (?).
 -- For now I search the term in all the modules, if it appears in more than
 -- one, I throw an error

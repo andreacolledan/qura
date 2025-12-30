@@ -59,7 +59,9 @@ adjustForQasm circ =
     go (step:steps) existing ops = 
       case step of
         (QInit b, (ins, WLab name)) ->
-          go steps (Set.insert name existing) $ ops ++ [step]
+          if name `Set.member` existing
+            then go steps existing ops
+            else go steps (Set.insert name existing) (ops ++ [step])
         (QDiscard, (ins, outs)) ->
           go steps existing $ ops ++ [step]
         (Meas, (WLab q, WLab b)) -> 
@@ -99,7 +101,6 @@ getHeader v = case v of
   -- _ -> error "[getHeader] Unsupported version: " ++ show v
 
 -- Generates the instructions representing the program from a circuit
--- FIXME for now we simply convert the Circuit 1 to 1.
 -- README maybe add the version as a command line arg (and maybe add errors along the way)
 getQasm :: Circuit -> [QasmInstruction]
 getQasm circ = 
@@ -160,7 +161,8 @@ opToQasm (CR n, (WTuple [WLab ctrl, WLab trgt], _)) =
 opToQasm (CRinv n, (WTuple [WLab ctrl, WLab trgt], _)) = 
   ["crz(" ++ thetaInvStr n ++ ") " ++ ctrl ++ "," ++ trgt ++ ";"]
 -- Classically controlled gates
--- TODO since we simplify to not have classically-controlled, this should not exist anymore
+-- README since we simplify to not have classically-controlled, this should not exist anymore
+-- TODO maybe remove these cases
 opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) = 
   error "[opToQasm] CCNot should have been converted to CNot"
   -- ["cx " ++ ctrl ++ "," ++ trgt ++ ";"] -- README we are using quantum gates!
