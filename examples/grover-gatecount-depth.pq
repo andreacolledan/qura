@@ -1,7 +1,6 @@
---- Grover search algorithm with depth and size analysis ---
+--- Grover search algorithm with depth and gatecount analysis ---
 --- Following the circuit description at:
 --- https://cnot.io/quantum_algorithms/grover/grovers_algorithm.html
-
 --- HELPER FUNCTIONS ---
 -- initialize n qubits to |0>
 qinit0Many = forall n.
@@ -18,10 +17,9 @@ qzip = forall n. forall d. \(a,b) :: (List[_<n] Qubit{d}, List[_<n] Qubit{d}).
     (ls, rs, reslist)
   in let (_,_, zippedlist) = (fold(qzipStep @ n-1, (a,b,[]), force range @n))
   in zippedlist
-
 --- MCNOT
 -- actually, is (n+2)cnot, so n = m-2
-mcnot :: ![0](forall[0,0] n. forall[0,0] dc. forall[0,0] dt. List[_<n+2] Qubit{dc} -o[0,0] Qubit{dt} -o[2*(n+2),n+2] (List[_<n+2] Qubit{max(dc+n+2,dt+1)+n+2}, Qubit{max(dc+n+2,dt+1)}))
+mcnot :: ![0](forall[0,0] n. forall[0,0] dc. forall[0,0] dt. List[_<n+2] Qubit{dc} -o[0,0] Qubit{dt} -o[2*(n+1)+1,0] (List[_<n+2] Qubit{max(dc+n+2,dt+1)+n+2}, Qubit{max(dc+n+2,dt+1)}))
 mcnot n dc dt ctrls trgt =
   let restControls:q2:q1 = ctrls in
   let a1 = force qinit0 in -- first ancilla
@@ -59,10 +57,9 @@ mapQnot = forall n. forall d . \x :: List[_<n] Qubit{d} .
 mapMeasure = forall n. forall d. \x :: List[_<n] Qubit{d}.
   let measureStep = lift forall step. \(bs,q) :: (List[_<step] Bit{d+1}, Qubit{d}). bs:((force meas @d) q)
   in fold(measureStep, [], x)
-
 --- GROVER'S ALGORITHM ---
 -- the diffusion operator on n qubits with ancilla a (all qubits at depth d)
-diffusion :: ![0](forall[0,0] n. forall[0,0] d. List[_<n+2] Qubit{d} -o[0,0] Qubit{d} -o[2*(n+2), n+2] (List[_<n+2] Qubit{d+4+2*(n+2)}, Qubit{d+4+n}))
+diffusion :: ![0](forall[0,0] n. forall[0,0] d. List[_<n+2] Qubit{d} -o[0,0] Qubit{d} -o[4*(n+2)+2*(n+1)+1, 0] (List[_<n+2] Qubit{d+4+2*(n+2)}, Qubit{d+4+n}))
 diffusion n d reg a =
   let reg = (force mapHadamard @ n+2 @ d) reg in
   -- begin negatively controlled not
@@ -72,20 +69,18 @@ diffusion n d reg a =
   -- end negatively controlled not
   let reg = (force mapHadamard @ n+2 @ d+3+2*(n+2)) reg in
   (reg, a)
--- perform a single grover iteration on n qubits at depth d,
--- using an ancilla a at depth d
--- and an oracle of width os and depth od
+-- perform a single grover iteration on n qubits at depth d, using an ancilla a at depth d, and an oracle of size os and depth od
 groverIteration :: ![0](forall[0,0] n. forall[0,0] d. forall[0,0] os. forall[0,0] od.
   (forall[0,0] d. Circ[os]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d + od}, Qubit{d + od})))
   -o[0,0] List[_<n+2] Qubit{d} -o[0,0] Qubit{d}
-  -o[max(max(n+3,os),2*(n+2)),n+2] (List[_<n+2] Qubit{d+od+4+2*(n+2)}, Qubit{d+od+4+n}))
+  -o[os+4*(n+2)+2*(n+1)+1, 0] (List[_<n+2] Qubit{d+od+4+2*(n+2)}, Qubit{d+od+4+n}))
 groverIteration n d os od oracle reg a = 
   let (reg, a) = apply(oracle @ d, (reg, a)) in
   (force diffusion @ n @ d+od) reg a
 -- run Grover's algorithm on an oracle of input size n, width os and depth od
 grover :: ![0](forall[0, 0] r. forall[0, 0] n. forall[0, 0] os. forall[0, 0] od.
   (forall[0,0] d. Circ[os]((List[_<n+2] Qubit{d}, Qubit{d}), (List[_<n+2] Qubit{d+od}, Qubit{d+od})))
-  -o[max(max(n+3,os),2*(n+2)),0] List[_<n+2] Bit{2 + r*(od+4+2*(n+2))})  
+  -o[n+2+1+r*(os+4*(n+2)+2*(n+1)+1)+n+2, 0] List[_<n+2] Bit{2 + r*(od+4+2*(n+2))})  
 grover r n os od oracle =
   -- prepare working qubits
   let wqs = force qinit0Many @ n+2 in
@@ -99,14 +94,9 @@ grover r n os od oracle =
   in let (wqs, a) = fold(iteration, (wqs, a), force range @r) in
   let _ = (force qdiscard @ 1 + r * (od+4+2*(n+2))) a in
   (force mapMeasure @ n+2 @ 1 + r * (od+4+2*(n+2))) wqs
-
 --- ORACLE ---
 -- The oracle nconj : nconj(x) = 1 <==> x = 11...1
-nconj :: ![0](forall[0, 0] n. forall[0, 0] d. Circ[2*(n+2)]((List[_<n+2] Qubit{d}, Qubit{d}), (List[i<n+2] Qubit{d+2*(n+2)}, Qubit{d+n+2})))
+nconj :: ![0](forall[0, 0] n. forall[0, 0] d. Circ[2*(n+1)+1]((List[_<n+2] Qubit{d}, Qubit{d}), (List[i<n+2] Qubit{d+2*(n+2)}, Qubit{d+n+2})))
 nconj = forall n. forall d.
   box $ lift \(reg, a) :: (List[_<n+2] Qubit{d}, Qubit{d}).
     (force mcnot @ n @ d @ d) reg a
-
---- MAIN ---
--- grover:r, m-2, 2*m, d+2*m; nconj: m-2
-main = ((force grover) @1 @3-2 @3*2 @0+3*2) (force nconj @3-2)

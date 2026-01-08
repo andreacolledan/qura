@@ -1,6 +1,6 @@
 module Metric.Global.TCount (tCountMetric) where
 
-import Circuit
+import Circuit.Type
 import Metric.Global
 import PQ.Index
 

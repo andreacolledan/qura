@@ -5,7 +5,7 @@ import Control.Monad (when, unless)
 import Data.List (intercalate)
 import Data.Maybe (catMaybes, isJust)
 import Interface (CLArguments (..), cliInterface)
-import Interpreter
+import Interpreter (Configuration (..), InterpreterResult (..), runInterpreter)
 import Options.Applicative (execParser)
 import PQ (Module, prelude, toTypeBindings)
 import Parser (errorBundlePretty, parseModule, runParser)
@@ -77,16 +77,23 @@ analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debu
 
 
 interpretModule :: Module -> [Module] -> CLArguments -> IO ()
-interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp} = do
+interpretModule mod libs CommandLineArguments {verbose = verb, norun = nr, filepath = fp, qubitRecycling = r} = do
   unless nr $ do
     when verb $ putStrLn $ "Interpreting " ++ fp ++ "..."
-    case runInterpreter mod libs of
+    case runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r} of
       Left err -> abortWithMessage $ show err
-      Right config -> do
-        putStrLn $ "File '" ++ fp ++ "' produced circuit:\n"
-        print $ circuit config
-        putStrLn "\nwhile evaluating to:\n"
-        print $ term config
+      Right intResult -> do
+        let config = cfg intResult
+        putStr $ "\nFile '" ++ fp ++ "', produced circuit:\n"
+        putStr $ pretty (circuit config) ++ "\n"
+        putStr "\nWhile evaluating to:\n> "
+        putStr $ pretty (term config) ++ "\n"
+        putStr "\nSize of the produced circuit:\n> "
+        putStr $ pretty (circMetrics intResult) ++ "\n"
+        putStr "\nProduced Qasm program:\n"
+        putStr $ pretty (qasm intResult) ++ "\n"
+        -- putStr "\nProduced OTHER program:\n"
+        -- putStr $ pretty (OTHER intResult) ++ "\n"
 
 abortWithMessage :: String -> IO a
 abortWithMessage e = do

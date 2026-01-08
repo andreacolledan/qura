@@ -1,15 +1,15 @@
-module Metric.Global.GateCount (gateCountMetric) where
+module Metric.Global.QasmGateCount (qasmGateCountMetric) where
 
 import Circuit.Type
 import Metric.Global
 import PQ.Index
 
--- | The global metric module for gate count.
--- Gate count is defined informally as the total number of gates in a circuit.
-gateCountMetric :: GlobalMetricModule
-gateCountMetric =
+-- | The global metric module for qasm gate count.
+-- Qasm Gate count is defined informally as the total number of gates in a circuit.
+qasmGateCountMetric :: GlobalMetricModule
+qasmGateCountMetric =
   GlobalMetricModule
-    { name = "gate count",
+    { name = "qasm gate count",
       desugarIdentity = Number 0,             -- no gates is 0
       desugarWire = const (Number 0),         -- wires naturally count as 0 gates
       desugarSequence = Plus,                 -- gate count of sequence comp. is sum of gate counts   
@@ -36,8 +36,12 @@ opGateCount (CRinv _) = 1
 opGateCount CCNot = 1
 opGateCount CCZ = 1
 opGateCount Toffoli = 1
---note: metaoperations do not count as gates
-opGateCount (QInit _) = 0
+-- note: metaoperations do not count as gates
 opGateCount QDiscard = 0
 opGateCount (CInit _) = 0
 opGateCount CDiscard = 0
+-- to initialize a qubit to 1 we need an x gate
+opGateCount (QInit False) = 0
+opGateCount (QInit True) = 1
+-- test
+opGateCount (MCNot m) = (2*(m-1)+1) -- 2(m − 1) TOFFOLI gates and one CNOT gate

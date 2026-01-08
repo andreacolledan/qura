@@ -17,7 +17,7 @@ data TopLevelDefinition = TopLevelDefinition{
 prettyTopLevelDefinition :: TopLevelDefinition -> String
 prettyTopLevelDefinition (TopLevelDefinition id args mtyp e) = 
   (if isJust mtyp then id ++ " :: " ++ pretty mtyp ++ "\n" else "") ++
-  id ++ unwords (map pretty args) ++ " = " ++ pretty e ++ "\n" 
+  id ++ " " ++ unwords (map pretty args) ++ " = " ++ pretty e ++ "\n" 
 
 data Module = Module {
   name :: String,

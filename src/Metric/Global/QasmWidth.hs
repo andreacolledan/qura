@@ -1,4 +1,4 @@
-module Metric.Global.Width (widthMetric) where
+module Metric.Global.QasmWidth (qasmWidthMetric) where
 
 import Circuit.Type
 import Metric.Global
@@ -6,10 +6,10 @@ import PQ.Index
 
 -- | The global metric module for width.
 -- Width is defined informally as the maximum number of wires that are active at the same time.
-widthMetric :: GlobalMetricModule
-widthMetric =
+qasmWidthMetric :: GlobalMetricModule
+qasmWidthMetric =
   GlobalMetricModule
-  { name = "width",
+  { name = "qasm width",
     desugarIdentity = Number 0,           -- no width is 0
     desugarWire = const (Number 1),       -- each wire is wide 1
     desugarSequence = Max,                -- width of sequence comp. is max of widths
@@ -23,7 +23,6 @@ widthMetric =
 opWidths :: QuantumOperation -> Int
 opWidths (QInit _) = 1
 opWidths QDiscard = 1
-opWidths Meas = 1
 opWidths (CInit _) = 1
 opWidths CDiscard = 1
 opWidths Hadamard = 1
@@ -40,3 +39,5 @@ opWidths (CRinv _) = 2
 opWidths CCNot = 2
 opWidths CCZ = 2
 opWidths Toffoli = 3
+-- measuring does not change the wire type, but create a new classical wire
+opWidths Meas = 2

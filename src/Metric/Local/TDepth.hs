@@ -1,6 +1,6 @@
 module Metric.Local.TDepth (tDepthMetric) where
 
-import Circuit
+import Circuit.Type
 import Metric.Local
 import PQ.Index
 

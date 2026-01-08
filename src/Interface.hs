@@ -13,7 +13,8 @@ data CLArguments = CommandLineArguments
     debug :: Maybe String,
     noprelude :: Bool,
     grs :: Maybe GlobalMetricModule,
-    lrs :: Maybe LocalMetricModule
+    lrs :: Maybe LocalMetricModule,
+    qubitRecycling :: Bool
   }
 
 globalMetricArgParser :: ReadM GlobalMetricModule
@@ -25,7 +26,10 @@ globalMetricArgParser = do
     "bits" -> return bitsMetric
     "gatecount" -> return gateCountMetric
     "tcount" -> return tCountMetric
-    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
+    -- qasm
+    "qasmwidth" -> return qasmWidthMetric
+    "qasmgatecount" -> return qasmGateCountMetric
+    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount','qasmwidth', 'qasmgatecount'."
 
 localMetricArgParser :: ReadM LocalMetricModule
 localMetricArgParser = do
@@ -33,7 +37,9 @@ localMetricArgParser = do
   case s of
     "depth" -> return depthMetric
     "tdepth" -> return tDepthMetric
-    _ -> readerError "Supported local resources are 'depth', `tdepth`."
+    -- qasm
+    "qasmdepth" -> return qasmDepthMetric
+    _ -> readerError "Supported local resources are 'depth', 'tdepth', 'qasmdepth'."
 
 cliInterface :: ParserInfo CLArguments
 cliInterface =
@@ -82,3 +88,7 @@ cliInterface =
               <> metavar "METRIC"
               <> help "Analyse local METRIC"
               ))
+        <*> flag True False
+          ( long "no-recycling"
+              <> help "Do not use discarded qubits for new initializations"
+          )
