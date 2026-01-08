@@ -51,7 +51,7 @@ getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCirc
       case step of
         (Meas, (q, c)) ->
           let
-            renaming = getWBRenaming (q, c)
+            renaming = makeWireBundleRenaming (q, c)
             bundleRenaming = renameBundle renaming
             steps' = renameSteps bundleRenaming steps
             q' = bundleRenaming q
@@ -66,7 +66,7 @@ getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCirc
               (name', discarded') = pickLessDeep name lc discarded
               renaming =
                 -- trace(show lc ++", discarded: "++show discarded ++"\nname' = "++name'++", discarded' = "++show discarded') $ 
-                  getWBRenaming (WLab name', WLab name)
+                  makeWireBundleRenaming (WLab name', WLab name)
               bundleRenaming =
                 -- trace ("[getSimple/QInit recycle] renaming = " ++ show renaming) $
                   renameBundle renaming
@@ -78,14 +78,14 @@ getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCirc
           | otherwise -> 
             let
               outs = WLab name
-              renaming = getWBRenaming (WUnit, outs)
+              renaming = makeWireBundleRenaming (WUnit, outs)
               bundleRenaming = renameBundle renaming
               steps' = renameSteps bundleRenaming steps
               outs' = bundleRenaming outs
             in go steps' recycle discarded lc $ CCons circ (QInit v) WUnit outs'
         (qop, (ins, outs)) ->
           let
-            renaming = getWBRenaming (ins, outs)
+            renaming = makeWireBundleRenaming (ins, outs)
             bundleRenaming = renameBundle renaming
             steps' = renameSteps bundleRenaming steps
             ins' = bundleRenaming ins
@@ -97,33 +97,22 @@ getSimple recycle ctx ops = go ops recycle Set.empty (initCounter ctx) (mkIdCirc
     renameSteps bundleRenaming =
       map (\(op, (ins, outs)) -> (op, (bundleRenaming ins, bundleRenaming outs)))
 
--- | Picks one element from the set if available, --FIXME doesnt account for depth, use picklessdepth from circuit.hs
--- otherwise returns the default value.
--- Also returns the updated set without the picked element.
--- pickOrDefault :: (Ord a) => a -> Set.Set a -> (a, Set.Set a)
--- pickOrDefault def s =
---   case Set.minView s of
---     Just (x, s') -> (x, s')    -- take smallest element and remaining set
---     Nothing -> (def, s)   -- set is empty, use default
-
-
--- awful name
 -- create a renaming from the second wire bundle to the first wire bundle
-getWBRenaming :: (WireBundle, WireBundle) -> Renaming
-getWBRenaming (WUnit, _) = Map.empty
-getWBRenaming (_, WUnit) = Map.empty
-getWBRenaming (WLab ins, WLab outs)
+makeWireBundleRenaming :: (WireBundle, WireBundle) -> Renaming
+makeWireBundleRenaming (WUnit, _) = Map.empty
+makeWireBundleRenaming (_, WUnit) = Map.empty
+makeWireBundleRenaming (WLab ins, WLab outs)
   | ins == outs = Map.empty
   | otherwise = Map.fromList [(outs, ins)]
-getWBRenaming (WTuple ins, WTuple outs) =
-    Map.unions $ zipWith getWBRenamingPair ins outs
+makeWireBundleRenaming (WTuple ins, WTuple outs) =
+    Map.unions $ zipWith makeWireBundleRenamingPair ins outs
   where
-    getWBRenamingPair :: WireBundle -> WireBundle -> Renaming
-    getWBRenamingPair i o = getWBRenaming (i, o)
-getWBRenaming (WNil _, WNil _) = Map.empty
-getWBRenaming (WCons xs x, WCons ys y) =
-    Map.unions [getWBRenaming (xs, ys), getWBRenaming (x, y)]
-getWBRenaming _ = error "[getWBRenaming] Unexpected error."
+    makeWireBundleRenamingPair :: WireBundle -> WireBundle -> Renaming
+    makeWireBundleRenamingPair i o = makeWireBundleRenaming (i, o)
+makeWireBundleRenaming (WNil _, WNil _) = Map.empty
+makeWireBundleRenaming (WCons xs x, WCons ys y) =
+    Map.unions [makeWireBundleRenaming (xs, ys), makeWireBundleRenaming (x, y)]
+makeWireBundleRenaming _ = error "[makeWireBundleRenaming] Unexpected error."
 
 -- filter the context to only keep pairs existing in the given set
 filterContext :: LabelContext -> Set.Set String -> LabelContext
