@@ -33,6 +33,7 @@ import PQ.Type
 import PrettyPrinter (Pretty (..))
 import Circuit
 import Circuit.Bundle
+import Interpreter.RuntimeError
 
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
@@ -260,7 +261,7 @@ instance HasIndex Expr where
 -- | @isub sub x@ substitutes the index variable @id@ by the index @i@ in @x@
   isub :: IndexSubstitution -> Expr -> Expr
   isub sub (EIAbs id e) = -- bounds the index variable
-    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub) -- ++ (IVar <$> (HSet.toList $ ifv e))) -- TODO to we need to add vars in e?
+    let id' = fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub) -- ++ (IVar <$> (HSet.toList $ ifv e))) -- TODO do we need to add vars in e?
         renaming = isubSingleton id (IVar id')
     in EIAbs id' (isub sub . isub renaming $ e)
   isub _ EUnit = EUnit 
@@ -300,110 +301,103 @@ getSetRenaming toRename toAvoid =
            then (m, used)               -- no renaming needed, keep map as-is
            else (Map.insert x x' m, Set.insert x' used)
 
--- TODO maybe change return type to either runtimerror expr
--- (if the errors raised can even happen after type checking) (idk)
-psub :: Pattern -> Expr -> Expr -> Expr
--- psub x v m = trace("\n====\nsubbing: "++show x ++"\nwith: "++pretty v++"\nin:\n>>> "++pretty m)$case x of
+psub :: Pattern -> Expr -> Expr -> Either RuntimeError Expr
 psub x v m = case x of
-  PHole -> m
+  PHole -> Right m
 
-  PVar pvar -> 
+  PVar pvar ->
     case m of
-      EUnit -> EUnit
+      EUnit -> Right EUnit
 
-      EVar y -> if pvar == y then v else m
-      
-      ELab l -> ELab l
+      EVar y -> Right $ if pvar == y then v else m
 
-      ETuple [] -> ETuple []
-      ETuple (et:ets) ->
-        let 
-          et' = psub x v et
-          (ETuple ets') = psub x v (ETuple ets)
-        in ETuple (et':ets')
+      ELab l -> Right $ ELab l
 
-      EAbs p typ e ->
-        -- trace ("\n[psub:EAbs] trying to substitute " ++ show x ++ " with " ++ pretty v
-        --       ++ "\n in expr: " ++ pretty (EAbs p typ e)) $
-        let pVars = varsInPattern p in
-        -- trace ("[psub:EAbs] pattern vars: " ++ show pVars) $
+      ETuple [] -> Right $ ETuple []
+      ETuple (et : ets) -> do
+        et' <- psub x v et
+        etsExpr <- psub x v (ETuple ets)
+        case etsExpr of
+          ETuple ets' -> Right $ ETuple (et' : ets')
+          other ->
+            Left $ RuntimeError ("psub: internal error, expected ETuple, got: " ++ pretty other)
+
+      EAbs p typ e -> do
+        let pVars = varsInPattern p
         if pvar `Set.member` pVars
-          -- then trace ("[psub:EAbs] shadowing detected: " ++ show pvar
-          --             ++ " is bound in " ++ show pVars
-          --             ++ " → skipping substitution in body") $
-          then  EAbs p typ e
-          else
-            let vVars = varsInExpr v in
-            -- trace ("[psub:EAbs] free vars in v: " ++ show vVars) $
-            let renaming = getSetRenaming pVars vVars in
-            -- trace ("[psub:EAbs] renaming computed: " ++ show renaming) $
-            let torename = (EAbs p typ e) in
-            -- trace ("[psub:EAbs] applying renaming map to: "++pretty torename) $
-            let (EAbs p' typ e') = renameExpr renaming torename in
-            -- trace ("[psub:EAbs] after renaming: " ++ pretty (EAbs p' typ e')) $
-            let recCall = psub x v e' in
-            -- trace ("[psub:EAbs] recursive call result: " ++ pretty recCall) $
-            EAbs p' typ recCall
+          then Right $ EAbs p typ e
+          else do
+            let vVars = varsInExpr v
+            let renaming = getSetRenaming pVars vVars
+            let torename = EAbs p typ e
+            let EAbs p' _ e' = renameExpr renaming torename
+            e'' <- psub x v e'
+            Right $ EAbs p' typ e''
 
-      ECirc l c k -> ECirc l c k 
+      ECirc l c k -> Right $ ECirc l c k
 
-      ELift m' -> ELift $ psub x v m'
+      ELift m' -> ELift <$> psub x v m'
 
-      ENil typ -> ENil typ
+      ENil typ -> Right $ ENil typ
 
-      ECons w1 w2 -> ECons (psub x v w1) (psub x v w2)
+      ECons w1 w2 -> ECons <$> psub x v w1 <*> psub x v w2
 
-      EFold w1 w2 w3 -> EFold (psub x v w1) (psub x v w2) (psub x v w3)
+      EFold w1 w2 w3 -> EFold <$> psub x v w1 <*> psub x v w2 <*> psub x v w3
 
-      EApp w1 w2 -> EApp (psub x v w1) (psub x v w2)
+      EApp w1 w2 -> EApp <$> psub x v w1 <*> psub x v w2
 
-      EApply w1 w2 -> EApply (psub x v w1) (psub x v w2)
+      EApply w1 w2 -> EApply <$> psub x v w1 <*> psub x v w2
 
-      EBox t w -> EBox t $ psub x v w
+      EBox t w -> EBox t <$> psub x v w
 
-      EForce w -> EForce $ psub x v w
+      EForce w -> EForce <$> psub x v w
 
-      ELet p e1 e2 -> -- really similar to EAbs
-        let 
-          e1' = psub x v e1 
-          pVars = varsInPattern p
-        in if pvar `Set.member` pVars
-          then ELet p e1' e2
-          else
-            let
-              vVars = varsInExpr v
-              renaming = getSetRenaming pVars vVars
-              e2' = renameExpr renaming e2
-              p' = renamePattern renaming p
-              e2'' = psub x v e2'
-            in ELet p' e1' e2''
+      ELet p e1 e2 -> do
+        e1' <- psub x v e1
+        let pVars = varsInPattern p
+        if pvar `Set.member` pVars
+          then Right $ ELet p e1' e2
+          else do
+            let vVars = varsInExpr v
+            let renaming = getSetRenaming pVars vVars
+            let e2' = renameExpr renaming e2
+            let p' = renamePattern renaming p
+            e2'' <- psub x v e2'
+            Right $ ELet p' e1' e2''
 
-      EAnno w typ -> EAnno (psub x v w) typ
+      EAnno w typ -> (`EAnno` typ) <$> psub x v w
 
-      EIAbs id e -> EIAbs id $ psub x v e
+      EIAbs ident e -> EIAbs ident <$> psub x v e
 
-      EIApp e i -> EIApp (psub x v e) i
+      EIApp e i -> (`EIApp` i) <$> psub x v e
 
-      EConst c -> EConst c
+      EConst c -> Right $ EConst c
 
-      EAssume w typ -> EAssume (psub x v w) typ
+      EAssume w typ -> (`EAssume` typ) <$> psub x v w
 
-  PTuple [] -> m
-  PTuple (pt:pts) -> 
+  PTuple [] -> Right m
+  PTuple (pt : pts) ->
     case v of
-      ETuple etpl -> case etpl of
-        [] -> ETuple []
-        (et:ets) -> 
-          let m' = psub pt et m
-          in psub (PTuple pts) (ETuple ets) m'
-      _ -> error $ "psub: cannot substitute tuple with non-tuple\n Tried subbing:\n> "++show x++"\n with:\n> "++pretty v
+      ETuple etpl ->
+        case etpl of
+          [] -> Right $ ETuple []
+          (et : ets) -> do
+            m' <- psub pt et m
+            psub (PTuple pts) (ETuple ets) m'
+      _ ->
+        Left $ RuntimeError $
+            "psub: cannot substitute tuple with non-tuple\n Tried subbing:\n> "
+              ++ show x
+              ++ "\n with:\n> "
+              ++ pretty v
 
   PCons phead ptail ->
     case v of
-      ECons vhead vtail ->
-        let m' = psub phead vhead m
-        in psub ptail vtail m'
-      _ -> error "psub: cannot substitute cons pattern with non-cons value"
+      ECons vhead vtail -> do
+        m' <- psub phead vhead m
+        psub ptail vtail m'
+      _ ->
+        Left $ RuntimeError "psub: cannot substitute cons pattern with non-cons value"
 
 ------------------------------------------------
 isBundle :: Expr -> Bool

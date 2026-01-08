@@ -135,7 +135,7 @@ instance HasIndex BundleType where
   isub _ BUnit = BUnit
   isub _ (BWire wt) = (BWire wt)
   isub sub (BTensor btyps) = BTensor (map (isub sub) btyps)
-  isub sub (BList id j typ) = --TODO check
+  isub sub (BList id j typ) =
     let id' = fresh (fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)) [typ]
         renaming = isubSingleton id (IVar id')  
         in BList id' (isub sub . isub renaming $ j) (isub sub . isub renaming $ typ)

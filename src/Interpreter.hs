@@ -88,40 +88,38 @@ mergeModLibs :: Module -> [Module] -> Either RuntimeError (Expr, Circuit)
 mergeModLibs (Module programName e i defs) libs = do
   -- for now I assume no dependencies inside the libraries, (a function of the lib uses another one from the same lib)
   -- and of course no cross dependencies between the libraries.
-  (main, otherDefs) <- extractDefFromModule "main" defs -- TODO extract the main
+  (main, otherDefs) <- extractDefFromModule "main" defs
   
-  -- TODO check that the main has no args
+  -- NOTE: do we have to check that the main has no arguments?
   
   let definitionsMap = createMapFromModules ((Module programName e i otherDefs) : libs)
   let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
-  -- substitute in the maining tldef using the maps
+  -- substitute in the main tldef using the maps
   completeProgramExpr <- 
-    trace ( ""
+    -- trace ( ""
       -- ++"---- main:\n"++(show (TopLevelDefinition mainId mainArgs mainSign sartDef))
       -- ++"-- main:\n"++(prettyTopLevelDefinition (TopLevelDefinition mainId mainArgs signature sartDef))
       -- ++"\n---- def map:\n"++(show definitionsMap)
       -- ++"\n"++(pretty definitionsMap)
-    ) $ 
+    -- ) $ 
       applyModulesMap definitionsMap programName mainId sartDef
   
-  -- also wrap the main
+  -- NOTE: do we wrap the main?
   let initialCircuit = mkIdCircuit [] -- starting label context is always empty
-  -- let initialCircuit = idCircuitFromArgs (mainArgs, mainSign) -- main is always identity
   Right (completeProgramExpr, initialCircuit)
   
 
 topLevelDefNames :: ModulesMap -> Set.Set VariableId
-topLevelDefNames =
-  Set.fromList . concatMap Map.keys . Map.elems
+topLevelDefNames = Set.fromList . concatMap Map.keys . Map.elems
 
 --
 applyModulesMap :: ModulesMap -- maps
-                -> String -- current module
+                -> String     -- current module
                 -> VariableId -- current definition
-                -> Expr -- definition body
+                -> Expr       -- definition body
                 -> Either RuntimeError Expr
 applyModulesMap maps currMod currDef expr
-  | Map.null maps = Right expr -- not really needed but would save some time
+  | Map.null maps = Right expr -- not really needed but could save some time
   | otherwise = case expr of
     EUnit -> Right EUnit
 
@@ -148,7 +146,7 @@ applyModulesMap maps currMod currDef expr
       es' <- mapM (applyModulesMap maps currMod currDef) es
       Right $ ETuple es'
 
-    EAbs ptrn typ e -> do -- TODO handle when the name of the pattern already exist in the modules (check the let i guess)
+    EAbs ptrn typ e -> do -- TODO remove in the maps the definitions that have the same name as the pattern
       e' <- applyModulesMap maps currMod currDef e
       Right $ EAbs ptrn typ e'
 
@@ -189,7 +187,9 @@ applyModulesMap maps currMod currDef expr
       e' <- applyModulesMap maps currMod currDef e
       Right $ EForce e'
 
-    ELet ptrn e1 e2 -> do -- handle when the name of the pattern already exist in the modules
+    ELet ptrn e1 e2 -> do
+      -- TODO remove in the maps the definitions that have the same name as the pattern
+      -- TODO AND remove renaming
       -- create a renaming for the pattern such to have a different than the tldefs
       let avoid = topLevelDefNames maps
       let renaming = createRenaming avoid ptrn
@@ -267,7 +267,6 @@ wrapExpr e (p:ps) (Just typ) = case typ of
   TTensor _ -> EAbs p typ e
   TCirc _ typ1 _ -> wrapExpr e (p:ps) (Just typ1) -- TODO check
   TArrow typ1 typ2 _ _ -> EAbs p typ1 $ wrapExpr e ps (Just typ2)
-  -- TArrow typ1 _ _ _ -> wrapExpr e (p:ps) (Just typ1) -- only expand on the ifrst argument of TArrow
   TBang _ typ -> wrapExpr e (p:ps) (Just typ) -- remove the TBang
   TList _ _ _ -> EAbs p typ e
   TVar _ -> undefined

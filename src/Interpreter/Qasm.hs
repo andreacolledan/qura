@@ -124,12 +124,11 @@ thetaStr n = "pi/" ++ show (2^(n-1))
 thetaInvStr :: Int -> String
 thetaInvStr n = "-" ++ thetaStr n
 
--- convert a list of quantum operations and labels to a list of qasm instructions
+-- convert a list of quantum operations and labels to a list of the corresponding qasm instructions
 opsToQasm :: [CircuitInstruction] -> [QasmInstruction]
 opsToQasm = concatMap opToQasm
 
--- Convert a quantum operation to a list of qasm instructions. A list is used to keep trace of
--- initialized qubits. TODO simplify this as we handle this earlier
+-- Convert a quantum operation to a list of the corresponding qasm instructions
 opToQasm :: CircuitInstruction -> [QasmInstruction]
 -- Qubit metaoperations
 opToQasm (QInit b, (_, WLab name)) = 
@@ -167,19 +166,16 @@ opToQasm (CR n, (WTuple [WLab ctrl, WLab trgt], _)) =
 opToQasm (CRinv n, (WTuple [WLab ctrl, WLab trgt], _)) = 
   ["crz(" ++ thetaInvStr n ++ ") " ++ ctrl ++ "," ++ trgt ++ ";"]
 -- Classically controlled gates
--- README since we simplify to not have classically-controlled, this should not exist anymore
--- TODO maybe remove these cases
+-- TODO maybe remove these cases, as the quantum operation are converted before in `adjustForQasm `
 opToQasm (CCNot, (WTuple [WLab ctrl, WLab trgt], _)) = 
   error "[opToQasm] CCNot should have been converted to CNot"
-  -- ["cx " ++ ctrl ++ "," ++ trgt ++ ";"] -- README we are using quantum gates!
 opToQasm (CCZ, (WTuple [WLab ctrl, WLab trgt], _)) = 
   error "[opToQasm] CCZ should have been converted to CZ"
-  -- ["cz " ++ ctrl ++ "," ++ trgt ++ ";"] -- README we are using quantum gates!
 -- Three qubit gates
 opToQasm (Toffoli, (WTuple [WLab ctrl1, WLab ctrl2, WLab trgt], _)) = 
   ["ccx " ++ ctrl1 ++ "," ++ ctrl2 ++ "," ++ trgt ++ ";"]
 -- undefined
-opToQasm (unk, (ins, _)) = ["// placeholder for: "++show unk++" ("++pretty ins++")"]
+opToQasm (unk, (ins, _)) = ["// placeholder for: "++show unk++" (params: "++pretty ins++")"]
 
 
 --- METRICS CALCULATION ---
@@ -231,7 +227,7 @@ getQasmDepth circ =
     go (CCons circ op ins outs) lc = case op of
       -- QInit:
       --    in Qasm, a qubit is init to 0 with depth 0. To have it set to 1 we use an X gate,
-      --    hence depth is 1. Gatecount behaves the same. -- CHECKME is this fine?
+      --    hence depth is 1. Gatecount behaves the same
       QInit b -> 
         if b 
           then
@@ -280,12 +276,12 @@ getQasmGateCount circ =
     go (CCons circ op ins outs) gc = case op of
       -- QInit:
       --    in Qasm, a qubit is init to 0 with depth 0. To have it set to 1 we use an X gate,
-      --    hence depth is 1. Gatecount behaves the same. -- CHECKME is this fine?
+      --    hence depth is 1. Gatecount behaves the same
       QInit b -> 
         if b 
           then
             let
-              gc' = increaseGateCount1 gc -- CHECKME: or maybe not??? qura doesnt not account for this
+              gc' = increaseGateCount1 gc
             in go circ gc'
           else go circ gc
       QDiscard -> -- discarding wouldn't account for gatecounts, but in qasm resetting does

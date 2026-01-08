@@ -167,7 +167,7 @@ evalConfiguration (Config circ expr) =
       case abs' of 
         EAbs p _ body -> do
           (Config circ'' arg') <- evalConfiguration (Config circ' arg)
-          let body' = psub p arg' body
+          body' <- psub p arg' body
           evalConfiguration $ Config circ'' body'
 
         err -> Left $ RuntimeError $ "The first argument of EApp did not reduce to an abstraction. Got: "  ++pretty err
@@ -210,7 +210,7 @@ evalConfiguration (Config circ expr) =
 
     ELet p e1 e2 -> do
       (Config circ' e1') <- evalConfiguration $ Config circ e1
-      let expr' = psub p e1' e2
+      expr' <- psub p e1' e2
       let circ'' = Config circ' expr' 
       evalConfiguration circ''
 
