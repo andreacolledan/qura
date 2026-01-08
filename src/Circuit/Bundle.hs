@@ -209,7 +209,7 @@ type Renaming = Map String String
 
 -- same version but uses the label context to extract the type of the label 
 -- and uses it as a base name for the label instead of appending '
--- FIXME this is so wrong whenever the same name appears
+-- TODO FIXME this is so wrong whenever the same name appears
 createRenamingWithLC :: LabelContext -> LabelContext -> (WireBundle, WireBundle) -> Renaming
 createRenamingWithLC old avoid (circWB, boxIn) =
     let

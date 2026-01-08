@@ -90,7 +90,7 @@ mergeModLibs (Module programName e i defs) libs = do
   -- and of course no cross dependencies between the libraries.
   (main, otherDefs) <- extractDefFromModule "main" defs
   
-  -- NOTE: do we have to check that the main has no arguments?
+  -- TODO: check that the main has no arguments
   
   let definitionsMap = createMapFromModules ((Module programName e i otherDefs) : libs)
   let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
@@ -104,7 +104,6 @@ mergeModLibs (Module programName e i defs) libs = do
     -- ) $ 
       applyModulesMap definitionsMap programName mainId sartDef
   
-  -- NOTE: do we wrap the main?
   let initialCircuit = mkIdCircuit [] -- starting label context is always empty
   Right (completeProgramExpr, initialCircuit)
   
@@ -129,7 +128,6 @@ applyModulesMap maps currMod currDef expr
       case searchResult of 
         Just (foundDefMod, foundTldef) -> do
           -- check if something needs to be subbed inside it. We remove the current module to avoid loops
-          -- let maps' = Map.delete currMod maps
           let (TopLevelDefinition foundName foundArgs foundSign foundExpr) = foundTldef
           newExpr <- applyModulesMap maps foundDefMod foundName foundExpr
           -- wrap the definition with abstractions for its vars
@@ -265,9 +263,9 @@ wrapExpr e (p:ps) (Just typ) = case typ of
   TUnit -> undefined
   TWire _ _ -> EAbs p typ e
   TTensor _ -> EAbs p typ e
-  TCirc _ typ1 _ -> wrapExpr e (p:ps) (Just typ1) -- TODO check
+  TCirc _ typ1 _ -> wrapExpr e (p:ps) (Just typ1) -- TODO: maybe it's simply `e`
   TArrow typ1 typ2 _ _ -> EAbs p typ1 $ wrapExpr e ps (Just typ2)
-  TBang _ typ -> wrapExpr e (p:ps) (Just typ) -- remove the TBang
+  TBang _ typ -> wrapExpr e (p:ps) (Just typ) 
   TList _ _ _ -> EAbs p typ e
   TVar _ -> undefined
   TIForall ivarid typ' _ _ -> EIAbs ivarid (wrapExpr e ps (Just typ'))

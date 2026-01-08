@@ -46,15 +46,11 @@ append c k l d l' =
   -- 1) collect all the names appearing in l d l'
     circCtx = getContext c
     boxCtx = getContext d
-    -- circNames = namesInBox (WUnit, c, k)
-    -- boxNames = namesInBox (l, d, l')
   -- 2) create a renaming from l to t such that:
     -- the inputs of the box become the labels applied to the box (and rename the whole box accordingly)
     -- the other labels in the box do not match any label in the circuit
     renaming = --trace("\n[append] circ: "++pretty c++"\nboxed: "++pretty d++"\ncircCtx: "++show circCtx++"\nk: "++pretty k++"\nl:"++pretty l)$
       createRenamingWithLC boxCtx circCtx (k,l)
-    -- renaming = trace("box: "++show boxNames++"\ncirc: "++show circNames++"\nk: "++pretty k++"\nl:"++pretty l)$
-    --   createRenaming boxNames circNames (k,l)
   -- 3) use the renaming to obtain l d l'-> t d' t'
     (t, d', t') = --trace("renaming: "++show renaming)$
       updateBoxNames renaming (l, d, l')
