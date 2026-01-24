@@ -32,6 +32,7 @@ module Parser.Core
     whenLocalAnalysis,
     many,
     (<?>),
+    withDefault,
     ParserError
   )
 where
@@ -42,6 +43,7 @@ import Data.Void
 import Text.Megaparsec
 import Text.Megaparsec.Char (alphaNumChar, letterChar, space1, string)
 import qualified Text.Megaparsec.Char.Lexer as Lex
+import Data.Maybe (fromMaybe)
 
 --- Custom Parser type
 
@@ -247,3 +249,6 @@ whenLocalAnalysis p = do
   if shouldParse
     then Just <$> p
     else optional p >> return Nothing
+
+withDefault :: a -> Parser (Maybe a) -> Parser a
+withDefault def p = fromMaybe def <$> p
