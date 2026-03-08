@@ -5,9 +5,12 @@ module Interface (
 
 import Metric
 import Options.Applicative
+import Paths_qura
+import Data.Version (showVersion)
 
 data CLArguments = CommandLineArguments
   { filepath :: String,
+    outputFilepath :: Maybe String,
     verbose :: Bool,
     norun :: Bool,
     debug :: Maybe String,
@@ -44,10 +47,10 @@ localMetricArgParser = do
 cliInterface :: ParserInfo CLArguments
 cliInterface =
   info
-    (arguments <**> helper)
+    (arguments <**> helper <**> simpleVersioner ("QuRA version " ++ showVersion Paths_qura.version))
     ( fullDesc
-        <> progDesc "Verify the resource consumption of the program in FILE according to the chosen METRIC."
-        <> header "QuRA: a static analysis tool for the resource verification of quantum circuit description programs"
+        <> progDesc "Verify the resource consumption of the program FILE according to the chosen METRIC and run it to produce a circuit"
+        <> header "QuRA: a tool for resource-aware quantum programming"
     )
   where
     arguments :: Parser CLArguments
@@ -55,8 +58,15 @@ cliInterface =
       CommandLineArguments
         <$> strArgument
           ( metavar "FILE"
-              <> help "The file to type-check and analyze"
+              <> help "The file to type-check and run"
           )
+        <*> optional ( strOption
+          ( long "output"
+            <> short 'o'
+            <> metavar "FILE"
+            <> help "Place the output circuit into FILE"
+          )
+        )
         <*> switch
           ( long "verbose"
               <> short 'v'
@@ -88,7 +98,7 @@ cliInterface =
               <> metavar "METRIC"
               <> help "Analyse local METRIC"
               ))
-        <*> flag True False
+        <*> switch
           ( long "no-recycling"
-              <> help "Do not use discarded qubits for new initializations"
+              <> help "Do not recycle discarded qubits during initializations"
           )

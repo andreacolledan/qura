@@ -11,7 +11,7 @@
   - [X] Update README
 - [ ] Better syntax
   - [ ] Simpler syntax for (and handling of) independent list types
-  - [x] Syntactic sugar for null closure annotations
+  - [X] Syntactic sugar for null closure annotations
 - [ ] Better parsing of indices embedded in types and expressions
 - [ ] Implement 'undefined' for experimentation purposes
 - [ ] Language pragmas to enforce verification of certain resources
@@ -35,9 +35,8 @@
   - [X] used copilot to tighten the imports. instead of importingt he whole modules we only import the needed functions
 - [X] qubit reuse option (init new qubits on prev. discarded qubits)
 - [ ] check `isub :: IndexSubstitution -> Expr -> Expr`
-- [ ] maybe a prettier way for the rotations angle isntead of writing a ginormous fraction
+- [ ] maybe a prettier way for the rotations angle instead of writing a huge fraction
 - [X] qasm getsimple does not account for using the leats deep wires for recycling... check getsimple todo
-- [X] non so che succede se un let definisce una funzione già esistente
 - [ ] fix applymdoules to the abs
 - [X] remove test/pos/12.pq as MakeMCNot no longer exists
 - [X] add interpreter tests to `stack test`
@@ -45,6 +44,6 @@
 ## Other
 
 - [ ] Proper documentation for the PQ language
-- [ ] Support for multi-module projects (linking)
+- [ ] Support for multi-module projects and linking
 
 

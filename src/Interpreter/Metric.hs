@@ -11,7 +11,7 @@ data ProgramMetrics = ProgMetrics {
 
 instance Pretty ProgramMetrics where
   pretty ProgMetrics {width = w, depth = d, gatecount = gc} =
-    "Metric Values:\n" ++
+    "circuit dimensions:\n" ++
     " - Width: " ++ show w ++ "\n" ++
     " - Depth: " ++ show d ++ "\n" ++
     " - Gatecount: " ++ show gc ++ "\n" 
