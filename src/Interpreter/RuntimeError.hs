@@ -1,4 +1,7 @@
-module Interpreter.RuntimeError where
+module Interpreter.RuntimeError
+  ( RuntimeError (..),
+  )
+where
 
 -- for now I always return RuntimeError with a simple desc, laer we will create the different errors
 data RuntimeError = 

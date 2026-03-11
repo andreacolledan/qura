@@ -4,8 +4,41 @@ module Interface (
 ) where
 
 import Metric
+    ( GlobalMetricModule,
+      LocalMetricModule,
+      qasmGateCountMetric,
+      bitsMetric,
+      qasmWidthMetric,
+      qubitsMetric,
+      tCountMetric,
+      gateCountMetric,
+      widthMetric,
+      depthMetric,
+      tDepthMetric,
+      qasmDepthMetric )
 import Options.Applicative
-import Paths_qura
+    ( (<**>),
+      ParserInfo,
+      Parser,
+      helper,
+      optional,
+      fullDesc,
+      header,
+      help,
+      info,
+      long,
+      metavar,
+      option,
+      progDesc,
+      short,
+      str,
+      strArgument,
+      strOption,
+      switch,
+      simpleVersioner,
+      readerError,
+      ReadM )
+import Paths_qura ( version )
 import Data.Version (showVersion)
 
 data CLArguments = CommandLineArguments

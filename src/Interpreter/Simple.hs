@@ -1,4 +1,7 @@
-module Interpreter.Simple where
+module Interpreter.Simple
+  ( simplifyCircuit,
+  )
+where
 
 import Circuit
   ( Circuit (..),
@@ -11,11 +14,10 @@ import Circuit
     namesInCircuit',
     pickLessDeep,
     updateCircContext,
-    updateDepthAmount
+    updateDepthAmount,
   )
-import Circuit.Type (QuantumOperation (..))
 import Circuit.Bundle (Label, LabelContext, Renaming, WireBundle (..), renameBundle)
-
+import Circuit.Type (QuantumOperation (..))
 import qualified Data.Map.Strict as Map (empty, filterWithKey, fromList, unions)
 import qualified Data.Set as Set (Set, empty, insert, member)
 

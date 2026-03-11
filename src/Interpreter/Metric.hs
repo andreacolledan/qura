@@ -1,4 +1,7 @@
-module Interpreter.Metric where
+module Interpreter.Metric
+  ( ProgramMetrics (..),
+  )
+where
 
 import PrettyPrinter (Pretty (..))
 

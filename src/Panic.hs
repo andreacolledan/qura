@@ -1,9 +1,10 @@
-module Panic (
-  panic,
-  undesugaredPanic,
-  missingGlobalResourceAnnotationPanic,
-  missingLocalResourceAnnotationPanic
-) where
+module Panic
+  ( panic,
+    undesugaredPanic,
+    missingGlobalResourceAnnotationPanic,
+    missingLocalResourceAnnotationPanic,
+  )
+where
 
 panic :: String -> a
 panic msg = error $ "Internal error: " ++ msg

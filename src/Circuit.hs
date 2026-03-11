@@ -1,19 +1,27 @@
-{-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Circuit where
 
-import PrettyPrinter (Pretty (..))
-import Circuit.Type
 import Circuit.Bundle
-import Analyzer.Unify
-import Interpreter.Metric
-
+  ( Label,
+    LabelContext,
+    Renaming,
+    WireBundle (..),
+    emptyContext,
+    namesInBundle,
+    renameBundle,
+    renameLabelContext,
+    updateContext,
+  )
+import Circuit.Type
+  ( QuantumOperation (CDiscard, CInit, Meas, QDiscard, QInit),
+    WireType (..),
+  )
+import Data.List (intercalate, minimumBy)
 import qualified Data.Map.Strict as Map
-import Data.Map.Strict (Map)
-import Data.List (intercalate)
-import qualified Data.Set as Set
-import Debug.Trace (trace)
-import Data.List (minimumBy)
 import Data.Ord (comparing)
+import qualified Data.Set as Set
+import Interpreter.Metric (ProgramMetrics (ProgMetrics))
+import PrettyPrinter (Pretty (..))
 
 -- Circuit Datatype
 

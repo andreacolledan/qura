@@ -12,14 +12,18 @@ module Solver
   )
 where
 
-import PQ.Index
-import Solver.Constraint
-import Solver.SMT
+import Analyzer.Unify (HasIndex (ifv))
 import qualified Data.HashSet as Set
-import Metric
-import Analyzer.Unify
-import Eval.Index
+import Eval.Index (desugarIndex, evalIndex)
+import Metric.Global (GlobalMetricModule)
+import Metric.Local (LocalMetricModule)
+import PQ.Index (Index (Number))
 import Panic
+  ( missingGlobalResourceAnnotationPanic,
+    missingLocalResourceAnnotationPanic,
+  )
+import Solver.Constraint (Constraint (..))
+import Solver.SMT (SolverHandle, querySMT, withSolver)
 
 
 -- Fundamental checking functions

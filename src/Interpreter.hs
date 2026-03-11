@@ -1,38 +1,34 @@
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE TypeSynonymInstances #-}
 
-module Interpreter (
-    runInterpreter,
-    Configuration(..),
-    InterpreterResult(..),
-    QasmProgram(..)
-) where
+module Interpreter
+  ( runInterpreter,
+    Configuration (..),
+    InterpreterResult (..),
+    QasmProgram (..),
+  )
+where
 
--- I havent understand yet how to properly import the modules,
--- for now, I am simply importing what I need directly
-import Interpreter.RuntimeError (RuntimeError (..))
+import Circuit (Circuit, getCircuitMetrics, mkIdCircuit)
+import Data.List (intercalate)
+import qualified Data.Map as Map (Map, elems, fromList, keys, lookup, null, toList)
+import qualified Data.Set as Set (Set, fromList)
+import Interface (CLArguments (..))
 import Interpreter.Configuration (Configuration (..), startConfigEvaluation)
-import Interpreter.Qasm (QasmProgram (..), circuitToQasm)
 import Interpreter.Metric (ProgramMetrics)
-import PQ.Module (Module (..), TopLevelDefinition (..), prettyTopLevelDefinition)
+import Interpreter.Qasm (QasmProgram (..), circuitToQasm)
+import Interpreter.RuntimeError (RuntimeError (..))
 import PQ.Expr
   ( Expr (..),
     Pattern (..),
     VariableId,
     createRenaming,
     renameExpr,
-    renamePattern
+    renamePattern,
   )
+import PQ.Module (Module (..), TopLevelDefinition (..), prettyTopLevelDefinition)
 import PQ.Type (Type (..))
-import Circuit (Circuit, getCircuitMetrics, mkIdCircuit)
 import PrettyPrinter (Pretty (..))
 import Prelude hiding (id)
-import Interface (CLArguments (..))
-
-import Debug.Trace (trace)
-import qualified Data.Map as Map (Map, elems, fromList, keys, lookup, null, toList)
-import qualified Data.Set as Set (Set, fromList)
-import Data.List (intercalate)
 
 data InterpreterResult = InterpResult {
   cfg :: Configuration,

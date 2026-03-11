@@ -10,15 +10,17 @@ module TestUtil (
   withSolver
 ) where
 
+import Analyzer (TypeError, runAnalysis)
 import Data.Maybe
-import Metric
-import Analyzer
-import PQ.Module
-import Parser
-import Solver
-import System.Directory
-import System.FilePath
-import Test.Hspec
+import Metric.Global (GlobalMetricModule)
+import Metric.Global.Width (widthMetric)
+import Metric.Local (LocalMetricModule)
+import PQ.Module (Module)
+import Parser (ParserError, parseModule, runParser)
+import Solver.SMT (SolverHandle, withSolver)
+import System.Directory (listDirectory)
+import System.FilePath ((</>))
+import Test.Hspec (Expectation, shouldSatisfy)
 
 data TestOutcome = Unparsed ParserError | Fail TypeError | Pass deriving (Eq, Show)
 

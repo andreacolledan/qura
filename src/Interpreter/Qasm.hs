@@ -1,7 +1,9 @@
-module Interpreter.Qasm where
+module Interpreter.Qasm
+  ( circuitToQasm,
+    QasmProgram (..),
+  )
+where
 
-import Interpreter.Metric (ProgramMetrics (..))
-import Interpreter.Simple (simplifyCircuit)
 import Circuit
   ( Circuit (..),
     CircuitInstruction,
@@ -10,16 +12,17 @@ import Circuit
     getContext,
     initCounter,
     listToCirc,
-    maxCount
+    maxCount,
   )
-import Circuit.Type (QuantumOperation (..), WireType (..))
 import Circuit.Bundle (Label, LabelContext, WireBundle (..), namesInBundle)
-import PrettyPrinter (Pretty (..))
-import Interface (CLArguments (..))
-import System.FilePath (takeFileName)
-
+import Circuit.Type (QuantumOperation (..), WireType (..))
 import qualified Data.Map.Strict as Map (findWithDefault, insert, toList)
 import qualified Data.Set as Set (Set, empty, insert, member, null, toList)
+import Interface (CLArguments (..))
+import Interpreter.Metric (ProgramMetrics (..))
+import Interpreter.Simple (simplifyCircuit)
+import PrettyPrinter (Pretty (..))
+import System.FilePath (takeFileName)
 
 type QasmInstruction = String -- maybe create a class program of saveable strings
 

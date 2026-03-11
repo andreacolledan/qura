@@ -31,7 +31,7 @@
 ## Interpreter
 
 - [ ] clean the code
-- [ ] adjust imports/exports lists of the new haskel modules
+- [X] adjust imports/exports lists of the new haskel modules
   - [X] used copilot to tighten the imports. instead of importingt he whole modules we only import the needed functions
 - [X] qubit reuse option (init new qubits on prev. discarded qubits)
 - [ ] check `isub :: IndexSubstitution -> Expr -> Expr`
@@ -40,6 +40,7 @@
 - [ ] fix applymdoules to the abs
 - [X] remove test/pos/12.pq as MakeMCNot no longer exists
 - [X] add interpreter tests to `stack test`
+- [ ] remove uses of `trace`
 
 ## Other
 

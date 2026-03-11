@@ -19,10 +19,9 @@ import System.Console.ANSI
     hSetSGR,
   )
 import System.Directory (findExecutable)
-import System.Directory.Internal.Prelude (exitFailure, stdout, IOMode (WriteMode))
+import System.Directory.Internal.Prelude (exitFailure)
 import System.IO.Extra (hPutStrLn, stderr)
 import Text.Pretty.Simple (pPrint)
-import GHC.IO.Handle.FD (withFile)
 
 main :: IO ()
 main = do

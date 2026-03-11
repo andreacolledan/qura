@@ -1,20 +1,50 @@
-module Analyzer (
-  runAnalysis,
-  --re-exports
-  TypeError,
-  Type
-) where
+module Analyzer
+  ( runAnalysis,
+    -- re-exports
+    TypeError,
+    Type,
+  )
+where
+
 import Analyzer.Derivation
-import PQ.Module
-import PQ.Expr
-import PQ.Type
-import PQ.Index
+  ( SizeDiscipline (SizedLists),
+    TypeDerivation,
+    TypeError
+      ( ExtraArgument,
+        MissingSignature,
+        UnbangedSignature,
+        UnexpectedIndexVariableArgument,
+        UnexpectedType
+      ),
+    checkWellFormedness,
+    emptyEnv,
+    evalTypeDerivation,
+    ifGlobalResources,
+    makePatternBindings,
+    runSimplifyType,
+    throwLocalError,
+    unlessSubtype,
+    withBoundIndexVariables,
+    withBoundVariables,
+    withEnvSize,
+    withEnvironmentRollback,
+    withNonLinearContext,
+    withScope,
+  )
 import Analyzer.InferBaseType (inferBaseType)
 import Analyzer.InferRefinedType (inferRefinedType)
-import Solver
-import Metric
-import Control.Monad.Except
-import Control.Monad (unless, join)
+import Control.Monad (join, unless)
+import Control.Monad.Except (runExceptT)
+import Metric.Global (GlobalMetricModule)
+import Metric.Local (LocalMetricModule)
+import PQ.Expr (Expr (EVar), Pattern (PVar), VariableId)
+import PQ.Index (Index (Identity))
+import PQ.Module
+  ( Module (Module),
+    TopLevelDefinition (TopLevelDefinition),
+  )
+import PQ.Type (Type (TArrow, TBang, TIForall))
+import Solver.SMT (SolverHandle)
 
 -- | Analyze an expression, annotating it with type information,
 -- inferring its overall type and possibly its effect.
