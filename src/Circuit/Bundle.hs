@@ -1,4 +1,5 @@
 {-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module Circuit.Bundle where
 
@@ -26,11 +27,14 @@ import qualified Data.Map.Strict as Map
     notMember,
     toList,
     union,
-    withoutKeys
+    withoutKeys,
+    null
   )
 import qualified Data.HashSet as HSet (HashSet)
 import Data.Map.Strict (Map)
 import Debug.Trace (trace)
+import PrettyPrinter ( Pretty(pretty) )
+import Data.List (intercalate)
 
 -- Bundles Datatype
 
@@ -51,7 +55,13 @@ data WireBundle =
   | WCons WireBundle WireBundle 
   deriving (Eq, Show)
 
----------------------------
+instance Pretty WireBundle where
+  pretty bundle = case bundle of
+    WUnit -> "*"
+    WLab l -> l
+    WTuple t -> "(" ++ intercalate ", " (map pretty t) ++ ")"
+    WNil _ -> "()" -- ?
+    WCons e1 e2 -> "(" ++ pretty e1 ++ ":" ++ pretty e2 ++ ")"
 
 maybeTypeToBundleType :: Maybe Type -> Maybe BundleType
 maybeTypeToBundleType Nothing  = Nothing
@@ -143,6 +153,14 @@ instance HasIndex BundleType where
 -- Label Context 
 
 type LabelContext = Map Label WireType -- Q
+
+instance Pretty LabelContext where
+  pretty ctx
+    | Map.null ctx = "[empty]"
+    | otherwise    =
+        let pairs = Map.toList ctx
+            prettyPair (l, t) = l ++ ":" ++ pretty t
+        in intercalate ", " (map prettyPair pairs)
 
 emptyContext :: LabelContext
 emptyContext = Map.empty

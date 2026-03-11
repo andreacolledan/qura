@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances #-}
+
 module Circuit where
 
 import Circuit.Bundle
@@ -16,7 +17,7 @@ import Circuit.Type
   ( QuantumOperation (CDiscard, CInit, Meas, QDiscard, QInit),
     WireType (..),
   )
-import Data.List (intercalate, minimumBy)
+import Data.List (minimumBy)
 import qualified Data.Map.Strict as Map
 import Data.Ord (comparing)
 import qualified Data.Set as Set
@@ -42,22 +43,6 @@ getContext (CCons circ _ _ _ ) = getContext circ
 updateCircContext :: Circuit -> LabelContext -> Circuit
 updateCircContext (Id _) q = Id q
 updateCircContext (CCons circ op ins outs) q = CCons (updateCircContext circ q) op ins outs
-
-instance Pretty WireBundle where
-  pretty bundle = case bundle of
-    WUnit -> "*"
-    WLab l -> l
-    WTuple t -> "(" ++ intercalate ", " (map pretty t) ++ ")"
-    WNil _ -> "()" -- ?
-    WCons e1 e2 -> "(" ++ pretty e1 ++ ":" ++ pretty e2 ++ ")"
-
-instance Pretty LabelContext where
-  pretty ctx
-    | Map.null ctx = "[empty]"
-    | otherwise    =
-        let pairs = Map.toList ctx
-            prettyPair (l, t) = l ++ ":" ++ pretty t
-        in intercalate ", " (map prettyPair pairs)
 
 instance Pretty Circuit where
   pretty circ =

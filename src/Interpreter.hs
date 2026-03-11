@@ -10,7 +10,7 @@ where
 
 import Circuit (Circuit, getCircuitMetrics, mkIdCircuit)
 import Data.List (intercalate)
-import qualified Data.Map as Map (Map, elems, fromList, keys, lookup, null, toList)
+import qualified Data.Map as Map (Map, elems, fromList, keys, lookup, null, toList, withoutKeys)
 import qualified Data.Set as Set (Set, fromList)
 import Interface (CLArguments (..))
 import Interpreter.Configuration (Configuration (..), startConfigEvaluation)
@@ -21,9 +21,7 @@ import PQ.Expr
   ( Expr (..),
     Pattern (..),
     VariableId,
-    createRenaming,
-    renameExpr,
-    renamePattern,
+    varsInPattern,
   )
 import PQ.Module (Module (..), TopLevelDefinition (..), prettyTopLevelDefinition)
 import PQ.Type (Type (..))
@@ -44,7 +42,7 @@ runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r}
   let mod' = mod {name = fp}
   (term, circ) <- mergeModLibs mod' libs
   config <- startConfigEvaluation (Config circ term)
-  let metrics = getCircuitMetrics r $ circuit config 
+  let metrics = getCircuitMetrics r $ circuit config
   let qasmProg = circuitToQasm (circuit config) (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
   -- saveProgram qasmProg -- maybe
   Right $ InterpResult config metrics qasmProg
@@ -85,13 +83,13 @@ mergeModLibs (Module programName e i defs) libs = do
   -- for now I assume no dependencies inside the libraries, (a function of the lib uses another one from the same lib)
   -- and of course no cross dependencies between the libraries.
   (main, otherDefs) <- extractDefFromModule "main" defs
-  
+
   -- TODO: check that the main has no arguments
-  
+
   let definitionsMap = createMapFromModules ((Module programName e i otherDefs) : libs)
   let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
   -- substitute in the main tldef using the maps
-  completeProgramExpr <- 
+  completeProgramExpr <-
     -- trace ( ""
       -- ++"---- main:\n"++(show (TopLevelDefinition mainId mainArgs mainSign sartDef))
       -- ++"-- main:\n"++(prettyTopLevelDefinition (TopLevelDefinition mainId mainArgs signature sartDef))
@@ -99,10 +97,10 @@ mergeModLibs (Module programName e i defs) libs = do
       -- ++"\n"++(pretty definitionsMap)
     -- ) $ 
       applyModulesMap definitionsMap programName mainId sartDef
-  
+
   let initialCircuit = mkIdCircuit [] -- starting label context is always empty
   Right (completeProgramExpr, initialCircuit)
-  
+
 
 topLevelDefNames :: ModulesMap -> Set.Set VariableId
 topLevelDefNames = Set.fromList . concatMap Map.keys . Map.elems
@@ -121,7 +119,7 @@ applyModulesMap maps currMod currDef expr
     EVar x -> do
       -- search the definition
       searchResult <- searchDefinition maps currMod currDef x
-      case searchResult of 
+      case searchResult of
         Just (foundDefMod, foundTldef) -> do
           -- check if something needs to be subbed inside it. We remove the current module to avoid loops
           let (TopLevelDefinition foundName foundArgs foundSign foundExpr) = foundTldef
@@ -131,7 +129,7 @@ applyModulesMap maps currMod currDef expr
 
           -- finally, return the lifted function
           Right $ ELift newExpr'
-        
+
         Nothing -> Right expr
 
     ELab _ -> Right expr
@@ -140,11 +138,12 @@ applyModulesMap maps currMod currDef expr
       es' <- mapM (applyModulesMap maps currMod currDef) es
       Right $ ETuple es'
 
-    EAbs ptrn typ e -> do -- TODO remove in the maps the definitions that have the same name as the pattern
-      e' <- applyModulesMap maps currMod currDef e
+    EAbs ptrn typ e -> do
+      let maps' = maps `Map.withoutKeys` varsInPattern ptrn
+      e' <- applyModulesMap maps' currMod currDef e
       Right $ EAbs ptrn typ e'
 
-    ECirc _ _ _ -> Right expr
+    ECirc {} -> Right expr
 
     ELift e -> do
       e' <- applyModulesMap maps currMod currDef e
@@ -182,20 +181,10 @@ applyModulesMap maps currMod currDef expr
       Right $ EForce e'
 
     ELet ptrn e1 e2 -> do
-      -- TODO remove in the maps the definitions that have the same name as the pattern
-      -- TODO AND remove renaming
-      -- create a renaming for the pattern such to have a different than the tldefs
-      let avoid = topLevelDefNames maps
-      let renaming = createRenaming avoid ptrn
-      -- rename the pattern
-      let ptrn' = renamePattern renaming ptrn
-      -- safely apply modules in the first term
+      let maps' = maps `Map.withoutKeys` varsInPattern ptrn
       e1' <- applyModulesMap maps currMod currDef e1
-      -- rename in the second term
-      let e2' = renameExpr renaming e2
-      -- apply the definitions in the second term after renaming
-      e2'' <- applyModulesMap maps currMod currDef e2'
-      Right $ ELet ptrn' e1' e2''
+      e2' <- applyModulesMap maps' currMod currDef e2
+      Right $ ELet ptrn e1' e2'
 
     EAnno e typ -> do
       e' <- applyModulesMap maps currMod currDef e
@@ -261,7 +250,7 @@ wrapExpr e (p:ps) (Just typ) = case typ of
   TTensor _ -> EAbs p typ e
   TCirc _ typ1 _ -> wrapExpr e (p:ps) (Just typ1) -- TODO: maybe it's simply `e`
   TArrow typ1 typ2 _ _ -> EAbs p typ1 $ wrapExpr e ps (Just typ2)
-  TBang _ typ -> wrapExpr e (p:ps) (Just typ) 
+  TBang _ typ -> wrapExpr e (p:ps) (Just typ)
   TList _ _ _ -> EAbs p typ e
   TVar _ -> undefined
   TIForall ivarid typ' _ _ -> EIAbs ivarid (wrapExpr e ps (Just typ'))

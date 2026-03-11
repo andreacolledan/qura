@@ -10,7 +10,8 @@ module PQ.Expr
     renamePattern,
     renameExpr,
     createRenaming,
-    psub
+    psub,
+    varsInPattern
   )
 where
 
@@ -37,7 +38,6 @@ import Interpreter.RuntimeError
 
 import qualified Data.Set as Set
 import qualified Data.Map.Strict as Map
-import Debug.Trace (trace)
 
 
 type VariableId = String
