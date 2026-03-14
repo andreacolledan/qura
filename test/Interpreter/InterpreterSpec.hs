@@ -30,7 +30,8 @@ mkArgs fp =
       noprelude = False,
       grs = Nothing,
       lrs = Nothing,
-      qubitRecycling = True
+      qubitRecycling = True,
+      outputFilepath = Nothing
     }
 
 spec :: Spec

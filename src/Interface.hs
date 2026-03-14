@@ -3,43 +3,43 @@ module Interface (
     cliInterface
 ) where
 
-import Metric
-    ( GlobalMetricModule,
-      LocalMetricModule,
-      qasmGateCountMetric,
-      bitsMetric,
-      qasmWidthMetric,
-      qubitsMetric,
-      tCountMetric,
-      gateCountMetric,
-      widthMetric,
-      depthMetric,
-      tDepthMetric,
-      qasmDepthMetric )
-import Options.Applicative
-    ( (<**>),
-      ParserInfo,
-      Parser,
-      helper,
-      optional,
-      fullDesc,
-      header,
-      help,
-      info,
-      long,
-      metavar,
-      option,
-      progDesc,
-      short,
-      str,
-      strArgument,
-      strOption,
-      switch,
-      simpleVersioner,
-      readerError,
-      ReadM )
-import Paths_qura ( version )
 import Data.Version (showVersion)
+import Metric.Global (GlobalMetricModule)
+import Metric.Global.Bits (bitsMetric)
+import Metric.Global.GateCount (gateCountMetric)
+import Metric.Global.QasmGateCount (qasmGateCountMetric)
+import Metric.Global.QasmWidth (qasmWidthMetric)
+import Metric.Global.Qubits (qubitsMetric)
+import Metric.Global.TCount (tCountMetric)
+import Metric.Global.Width (widthMetric)
+import Metric.Local (LocalMetricModule)
+import Metric.Local.Depth (depthMetric)
+import Metric.Local.QasmDepth (qasmDepthMetric)
+import Metric.Local.TDepth (tDepthMetric)
+import Options.Applicative
+  ( Parser,
+    ParserInfo,
+    ReadM,
+    fullDesc,
+    header,
+    help,
+    helper,
+    info,
+    long,
+    metavar,
+    option,
+    optional,
+    progDesc,
+    readerError,
+    short,
+    simpleVersioner,
+    str,
+    strArgument,
+    strOption,
+    switch,
+    (<**>),
+  )
+import Paths_qura (version)
 
 data CLArguments = CommandLineArguments
   { filepath :: String,

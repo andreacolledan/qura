@@ -37,10 +37,10 @@
 - [ ] check `isub :: IndexSubstitution -> Expr -> Expr`
 - [ ] maybe a prettier way for the rotations angle instead of writing a huge fraction
 - [X] qasm getsimple does not account for using the leats deep wires for recycling... check getsimple todo
-- [ ] fix applymdoules to the abs
+- [X] fix applymdoules to the abs
 - [X] remove test/pos/12.pq as MakeMCNot no longer exists
 - [X] add interpreter tests to `stack test`
-- [ ] remove uses of `trace`
+- [X] remove uses of `trace`
 
 ## Other
 

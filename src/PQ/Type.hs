@@ -17,11 +17,7 @@ where
 import PQ.Index
 import PrettyPrinter
 import Data.List (intercalate)
--- import Circuit
 import Circuit.Type
--- import Circuit.Bundle
-
-import Debug.Trace (trace)
 
 
 

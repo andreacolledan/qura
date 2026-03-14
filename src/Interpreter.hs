@@ -38,12 +38,12 @@ data InterpreterResult = InterpResult {
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
 -- Returns either a runtime error, or a configuration of a circuit object and a value.
 runInterpreter :: Module -> [Module] -> CLArguments -> Either RuntimeError InterpreterResult
-runInterpreter mod libs CommandLineArguments {filepath = fp, qubitRecycling = r} = do
+runInterpreter mod libs cmdArgs@CommandLineArguments{filepath = fp, qubitRecycling = r} = do
   let mod' = mod {name = fp}
   (term, circ) <- mergeModLibs mod' libs
   config <- startConfigEvaluation (Config circ term)
   let metrics = getCircuitMetrics r $ circuit config
-  let qasmProg = circuitToQasm (circuit config) (CommandLineArguments {filepath = fp, qubitRecycling = r}) -- once we have the string we could save it to file
+  let qasmProg = circuitToQasm (circuit config) cmdArgs
   -- saveProgram qasmProg -- maybe
   Right $ InterpResult config metrics qasmProg
 
@@ -86,7 +86,7 @@ mergeModLibs (Module programName e i defs) libs = do
 
   -- TODO: check that the main has no arguments
 
-  let definitionsMap = createMapFromModules ((Module programName e i otherDefs) : libs)
+  let definitionsMap = createMapFromModules (Module programName e i otherDefs : libs)
   let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
   -- substitute in the main tldef using the maps
   completeProgramExpr <-

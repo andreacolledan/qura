@@ -32,7 +32,6 @@ import qualified Data.Map.Strict as Map
   )
 import qualified Data.HashSet as HSet (HashSet)
 import Data.Map.Strict (Map)
-import Debug.Trace (trace)
 import PrettyPrinter ( Pretty(pretty) )
 import Data.List (intercalate)
 
@@ -72,11 +71,11 @@ typeToBundleType TUnit = BUnit
 typeToBundleType (TWire wt i) = BWire wt
 typeToBundleType (TTensor typs) = BTensor $ map typeToBundleType typs
 typeToBundleType (TCirc i typ1 typ2) = typeToBundleType typ1
-typeToBundleType (TArrow typ1 typ2 i j) = trace("[TArrow] "++show typ1++", "++show typ2++", "++show i++", "++show j)$undefined
+typeToBundleType (TArrow typ1 typ2 i j) = undefined
 typeToBundleType (TBang i typ) = typeToBundleType typ
 typeToBundleType (TList ivar i typ) = BList ivar i $ typeToBundleType typ
-typeToBundleType (TVar tvar) = trace("")$undefined
-typeToBundleType (TIForall ivar typ i j) = trace("")$undefined
+typeToBundleType (TVar tvar) = undefined
+typeToBundleType (TIForall ivar typ i j) = undefined
 
 maybeBundleTypeToType :: Maybe BundleType -> Maybe Type
 maybeBundleTypeToType Nothing = Nothing
