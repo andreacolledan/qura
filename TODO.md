@@ -41,6 +41,7 @@
 - [X] remove test/pos/12.pq as MakeMCNot no longer exists
 - [X] add interpreter tests to `stack test`
 - [X] remove uses of `trace`
+- [ ] more homogenous handling of runtime errors
 
 ## Other
 
