@@ -42,6 +42,7 @@
 - [X] add interpreter tests to `stack test`
 - [X] remove uses of `trace`
 - [ ] more homogenous handling of runtime errors
+- [ ] clean up createRenamingWithLC (consider a type class for label-bearing types)
 
 ## Other
 

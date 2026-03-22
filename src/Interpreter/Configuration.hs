@@ -13,7 +13,7 @@ import Circuit.Bundle
     freshlabels,
     maybeTypeToBundleType,
     mergeContexts,
-    outTypeQuantOP,
+    outputType,
   )
 import Circuit.Type (QuantumOperation (..))
 import Eval.Index (evalIndexNoHandle)
@@ -150,7 +150,8 @@ evalConfiguration config@(Config circ expr) =
     EIApp funTerm indexTerm -> do
       (Config circ' fun) <- evalConfiguration (Config circ funTerm)
       -- eval index indexTerm and obtain number n
-      case evalIndexNoHandle indexTerm of
+      let indexNormalForm = evalIndexNoHandle indexTerm
+      case indexNormalForm of
         Number n -> case fun of
 
           EIAbs ivar funBody -> do
@@ -163,7 +164,7 @@ evalConfiguration config@(Config circ expr) =
           -- _ -> trace(pretty config)$Left $ RuntimeError "The first argument of EIApp did not reduce to an EIAbs."
           _ -> panic $ "Something that is not an index function is being applied to an index: " ++ show fun
 
-        otherwise -> panic $ "Argument of an index function did not reduce to a number. Got\n\t" ++ show otherwise
+        _ -> panic $ "Argument of an index function did not reduce to a number. Got\n\t" ++ show indexNormalForm
 
     -- Type annotations are ignored at runtime
 
@@ -191,37 +192,41 @@ evalConfiguration config@(Config circ expr) =
 
     ETuple [] -> return config
 
+-- | append circ targetLabels inputLabels appCirc outputLabels appends circuit appCirc, with input labels
+-- inputLabels and output labels outputLabels, to circuit circ, on the wires identified by the labels
+-- in targetLabels.
+-- It handles the renaming of the labels in appCirc, so as to avoid label capture.
 append :: Circuit -> WireBundle -> WireBundle -> Circuit -> WireBundle -> Configuration
-append c k l d l' =
+append circ targetLabels inputLabels appCirc outputLabels =
   let
-  -- 1) collect all the names appearing in l d l'
-    circCtx = getContext c
-    boxCtx = getContext d
+  -- 1) collect all the names appearing in appCirc
+    circCtx = getContext circ
+    appCircCtx = getContext appCirc
   -- 2) create a renaming from l to t such that:
     -- the inputs of the box become the labels applied to the box (and rename the whole box accordingly)
     -- the other labels in the box do not match any label in the circuit
-    renaming = --trace("\n[append] circ: "++pretty c++"\nboxed: "++pretty d++"\ncircCtx: "++show circCtx++"\nk: "++pretty k++"\nl:"++pretty l)$
-      createRenamingWithLC boxCtx circCtx (k,l)
-  -- 3) use the renaming to obtain l d l'-> t d' t'
-    (t, d', t') = --trace("renaming: "++show renaming)$
-      updateBoxNames renaming (l, d, l')
-  -- 4) concat c::d' and obtain c'
-    c' = circConcat c d'
+    renaming = createRenamingWithLC appCircCtx circCtx (targetLabels, inputLabels)
+  -- 3) use the renaming to obtain (inputLabels, appCirc, outputLabels) -> (targetLabels, appCirc', outputLabels')
+    (_, appCirc', outputLabels') = updateBoxNames renaming (inputLabels, appCirc, outputLabels)
+  -- 4) concatenate the two circuits
+    finalCirc = circConcat circ appCirc'
   -- 5) update label context
-    boxCtx' = getContext d'
-    newCtx = mergeContexts circCtx boxCtx'
-    c'' = updateCircContext c' newCtx
+    appCircCtx' = getContext appCirc'
+    newCtx = mergeContexts circCtx appCircCtx'
+    finalCirc' = updateCircContext finalCirc newCtx
   in
   -- 6) return (c'', t')
-  Config c'' (wirebundleToExpr t')
+  Config finalCirc' (wirebundleToExpr outputLabels')
 
+-- | appendQuantOp circ targetLabels op appends quantum operation op to circuit circ on the wires
+-- identified by the labels in targetLabels
 appendQuantOP :: Circuit -> WireBundle -> QuantumOperation -> Configuration
-appendQuantOP circ k op =
+appendQuantOP circ targetLabels op =
   let
-    t = outTypeQuantOP op
+    t = outputType op
     q = getContext circ
     (q', l) = freshlabels t q
-    circ' = CCons circ op k l
+    circ' = CCons circ op targetLabels l
     circ'' = updateCircContext circ' q'
     lExpr = wirebundleToExpr l
   in Config circ'' lExpr
@@ -236,11 +241,8 @@ evalConstantFunctionApplication c n = case c of
   MakeRinvGate -> EConst $ Boxed $ Rinv n
   MakeCRGate -> EConst $ Boxed $ CR n
   MakeCRinvGate -> EConst $ Boxed $ CRinv n
-  MakeUnitList -> l
-    where
-      niltyp = Just TUnit
-      l = foldr (\_ acc -> ECons acc EUnit) (ENil niltyp) [1..n]
-  _ -> error $ "[handleEConst] Constant " ++ show c ++ " is not supported."
+  MakeUnitList -> foldr (\_ acc -> ECons acc EUnit) (ENil (Just TUnit)) [1..n]
+  _ -> panic $ "Constant not recognized: " ++ show c
 
 -- | exprToWirebundle expr casts expr to a WireBundle, if possible
 -- (wire bundles are effectively a subset of Expr).
