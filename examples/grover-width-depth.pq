@@ -100,3 +100,7 @@ nconj :: ![0](forall[0, 0] n. forall[0, 0] d. Circ[2*(n+2)]((List[_<n+2] Qubit{d
 nconj = forall n. forall d.
   box $ lift \(reg, a) :: (List[_<n+2] Qubit{d}, Qubit{d}).
     (force mcnot @ n @ d @ d) reg a
+
+--- MAIN ---
+-- grover:r, m-2, 2*m, d+2*m; nconj: m-2
+main = ((force grover) @1 @3-2 @3*2 @0+3*2) (force nconj @3-2)

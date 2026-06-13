@@ -8,7 +8,7 @@ import Analyzer.Unify (HasIndex (isub), isubSingleton)
 import Circuit (Circuit (..), circConcat, getContext, updateBoxNames, updateCircContext)
 import Circuit.Bundle
   ( WireBundle (..),
-    createRenamingWithLC,
+    makeRenamingforAppend,
     freshBoxLabels,
     freshlabels,
     maybeTypeToBundleType,
@@ -23,9 +23,9 @@ import PQ.Expr (Expr (..), psub, wirebundleToExpr)
 import PQ.Index (Index (..))
 import PQ.Type (Type (..))
 import PrettyPrinter (Pretty (..))
-import Debug.Trace
 import Control.Monad.Error.Class (throwError)
 import Panic (panic)
+import qualified Data.Map.Strict as Map
 
 -- A configuration is a pair of a Circuit and a term
 -- Corresponds to (C,M) in the original paper
@@ -197,25 +197,24 @@ evalConfiguration config@(Config circ expr) =
 -- in targetLabels.
 -- It handles the renaming of the labels in appCirc, so as to avoid label capture.
 append :: Circuit -> WireBundle -> WireBundle -> Circuit -> WireBundle -> Configuration
-append circ targetLabels inputLabels appCirc outputLabels =
+append underlyingCirc targetLabels inputLabels appCirc outputLabels =
   let
   -- 1) collect all the names appearing in appCirc
-    circCtx = getContext circ
-    appCircCtx = getContext appCirc
-  -- 2) create a renaming from l to t such that:
-    -- the inputs of the box become the labels applied to the box (and rename the whole box accordingly)
-    -- the other labels in the box do not match any label in the circuit
-    renaming = createRenamingWithLC appCircCtx circCtx (targetLabels, inputLabels)
-  -- 3) use the renaming to obtain (inputLabels, appCirc, outputLabels) -> (targetLabels, appCirc', outputLabels')
+    underlyingCircLabels = Map.keys $ getContext underlyingCirc
+    appCircLabels = Map.keys $ getContext appCirc
+  -- 2) create a renaming (inputLabels, appCirc, outputLabels) -> (targetLabels, appCirc', outputLabels')
+  -- such that the labels in appCirc' and outputLabels' do not occur in underlyingCirc
+    renaming = makeRenamingforAppend appCircLabels underlyingCircLabels targetLabels inputLabels
     (_, appCirc', outputLabels') = updateBoxNames renaming (inputLabels, appCirc, outputLabels)
-  -- 4) concatenate the two circuits
-    finalCirc = circConcat circ appCirc'
-  -- 5) update label context
+  -- 3) concatenate the two circuits
+    finalCirc = circConcat underlyingCirc appCirc'
+  -- 4) compute the label context of the resulting circuit
+    underlyingCircCtx = getContext underlyingCirc
     appCircCtx' = getContext appCirc'
-    newCtx = mergeContexts circCtx appCircCtx'
+    newCtx = mergeContexts underlyingCircCtx appCircCtx'
     finalCirc' = updateCircContext finalCirc newCtx
   in
-  -- 6) return (c'', t')
+  -- 5) return resulting circuit and the renamed outputs of appCirc'
   Config finalCirc' (wirebundleToExpr outputLabels')
 
 -- | appendQuantOp circ targetLabels op appends quantum operation op to circuit circ on the wires
