@@ -217,18 +217,18 @@ append underlyingCirc targetLabels inputLabels appCirc outputLabels =
   -- 5) return resulting circuit and the renamed outputs of appCirc'
   Config finalCirc' (wirebundleToExpr outputLabels')
 
--- | appendQuantOp circ targetLabels op appends quantum operation op to circuit circ on the wires
--- identified by the labels in targetLabels
+-- | @appendQuantOp circ targetLabels op@ appends quantum operation @op@ to circuit @circ@ on the wires
+-- identified by the labels in @targetLabels@
 appendQuantOP :: Circuit -> WireBundle -> QuantumOperation -> Configuration
 appendQuantOP circ targetLabels op =
   let
-    t = outputType op
-    q = getContext circ
-    (q', l) = freshlabels t q
-    circ' = CCons circ op targetLabels l
-    circ'' = updateCircContext circ' q'
-    lExpr = wirebundleToExpr l
-  in Config circ'' lExpr
+    opOutType = outputType op
+    circCtx = getContext circ
+    (newCircCtx, opOutputWireBundle) = freshlabels opOutType circCtx
+    newCirc = CCons circ op targetLabels opOutputWireBundle
+    newCirc' = updateCircContext newCirc newCircCtx
+    opOutputExpr = wirebundleToExpr opOutputWireBundle
+  in Config newCirc' opOutputExpr
 
 -- | evalConstantFunctionApplication fun n evaluates a primitive
 -- index function const applied to an input value of n.

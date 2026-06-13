@@ -187,9 +187,9 @@ mergeContexts = Map.union
 updateContext :: LabelContext -> Label -> WireType -> LabelContext
 updateContext ctx label wtype = Map.insert label wtype ctx
 
--- | freshlabels t q returns (q', w), where w is a wire bundle whose labels
--- are all fresh in q, and q' is q extended with the appropriate label-type
--- associations such that w has type t under q'.
+-- | @freshlabels t q@ returns @(q', w)@, where @w@ is a wire bundle whose labels
+-- are all fresh in @q@, and @q'@ is @q@ extended with the appropriate label-type
+-- associations such that @w@ has type @t@ under @q'@.
 freshlabels :: BundleType -> LabelContext -> (LabelContext, WireBundle)
 freshlabels t q = case t of
   
@@ -264,7 +264,8 @@ makeRenamingforAppend labelsToRename labelsToAvoid inputLabels targetLabels =
     Map.union freeLabelsRenaming inputLabelsRenaming
   where
     freshLabelIn :: [Label] -> Label -> Label
-    freshLabelIn = undefined
+    freshLabelIn toAvoid label | label `notElem` toAvoid = label
+    freshLabelIn toAvoid label = head [label ++ show i | i <- [(0 :: Int)..], (label ++ show i) `notElem` toAvoid]
 
 -- | @makeDirectRenaming wb1 wb2@ returns the smallest renaming that turns wire bundle @wb1@ into wire bundle @wb2@.
 --
