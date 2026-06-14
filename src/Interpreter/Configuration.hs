@@ -1,5 +1,5 @@
 module Interpreter.Configuration
-  ( startConfigEvaluation,
+  ( evalConfiguration,
     Configuration (..),
   )
 where
@@ -34,15 +34,13 @@ data Configuration = Config {
     term :: Expr
 } deriving Show
 
-startConfigEvaluation :: Configuration -> Either RuntimeError Configuration
-startConfigEvaluation = evalConfiguration
-
 instance Pretty Configuration where
   pretty (Config circ expr) = "Circuit:\n" ++ pretty circ ++ "\nExpression:\n" ++ pretty expr
 
--- | evalConfiguration config evaluates config according to the big-step semantics of PQ.
+-- | @evalConfiguration config@ evaluates @config@ according to the big-step semantics of PQ.
 -- If successful, it returns a configuration of a circuit and a value,
--- otherwise it returns a RuntimeError object.
+-- otherwise it returns a @RuntimeError@, in case of user errors, or throws an @error@
+-- in case of internal errors.
 evalConfiguration :: Configuration -> Either RuntimeError Configuration
 evalConfiguration config@(Config circ expr) =
 

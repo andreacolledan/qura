@@ -13,7 +13,7 @@ import Data.List (intercalate)
 import qualified Data.Map as Map (Map, elems, fromList, keys, lookup, null, toList, withoutKeys)
 import qualified Data.Set as Set (Set, fromList)
 import Interface (CLArguments (..))
-import Interpreter.Configuration (Configuration (..), startConfigEvaluation)
+import Interpreter.Configuration (Configuration (..), evalConfiguration)
 import Interpreter.Metric (ProgramMetrics)
 import Interpreter.Qasm (QasmProgram (..), circuitToQasm)
 import Interpreter.RuntimeError (RuntimeError (..))
@@ -32,7 +32,6 @@ data InterpreterResult = InterpResult {
   cfg :: Configuration,
   circMetrics :: ProgramMetrics,
   qasm :: QasmProgram
-  -- maybe other languages
 } deriving Show
 
 -- | @runInterpreter mod libs@ interprets module @mod@, with libraries @libs@.
@@ -41,27 +40,27 @@ runInterpreter :: Module -> [Module] -> CLArguments -> Either RuntimeError Inter
 runInterpreter mod libs cmdArgs@CommandLineArguments{filepath = fp, qubitRecycling = r} = do
   let mod' = mod {name = fp}
   (term, circ) <- mergeModLibs mod' libs
-  config <- startConfigEvaluation (Config circ term)
+  config <- evalConfiguration (Config circ term)
   let metrics = getCircuitMetrics r $ circuit config
   let qasmProg = circuitToQasm (circuit config) cmdArgs
-  -- saveProgram qasmProg -- maybe
   Right $ InterpResult config metrics qasmProg
 
--- this is a double map for future reasons, maybe two libs use the same names
--- for the modules, and we can distinct them with module.function (?).
--- For now I search the term in all the modules, if it appears in more than
--- one, I throw an error
-type ModulesMap = Map.Map String (Map.Map VariableId TopLevelDefinition)
+-- The semantics of a module is a map from variable names to definitions
+type Namespace = Map.Map VariableId TopLevelDefinition
 
-instance Pretty ModulesMap where
-  pretty modulesMap =
-    unlines $ map prettyModule $ Map.toList modulesMap
+-- The semantics of all the modules that make up a program is a namespace environment,
+-- i.e. a mapping from module names to namespaces
+type NamespaceEnvironment = Map.Map String Namespace
+
+instance Pretty NamespaceEnvironment where
+  pretty env =
+    unlines $ map prettyNamespace $ Map.toList env
     where
-      prettyModule (moduleName, defs) =
-        "-- Module: " ++ moduleName ++ "\n"
+      prettyNamespace (moduleName, defs) =
+        "-- Namespace: " ++ moduleName ++ "\n"
         ++ unlines (map (\(_,a)-> prettyTopLevelDefinition a) (Map.toList defs))
 
-createMapFromModules :: [Module] -> ModulesMap
+createMapFromModules :: [Module] -> NamespaceEnvironment
 createMapFromModules modules =
   Map.fromList [(name m, buildDefMap (tldefs m)) | m <- modules]
   where
@@ -89,24 +88,17 @@ mergeModLibs (Module programName e i defs) libs = do
   let definitionsMap = createMapFromModules (Module programName e i otherDefs : libs)
   let (TopLevelDefinition mainId mainArgs mainSign sartDef) = main
   -- substitute in the main tldef using the maps
-  completeProgramExpr <-
-    -- trace ( ""
-      -- ++"---- main:\n"++(show (TopLevelDefinition mainId mainArgs mainSign sartDef))
-      -- ++"-- main:\n"++(prettyTopLevelDefinition (TopLevelDefinition mainId mainArgs signature sartDef))
-      -- ++"\n---- def map:\n"++(show definitionsMap)
-      -- ++"\n"++(pretty definitionsMap)
-    -- ) $ 
-      applyModulesMap definitionsMap programName mainId sartDef
+  completeProgramExpr <- applyModulesMap definitionsMap programName mainId sartDef
 
   let initialCircuit = mkIdCircuit [] -- starting label context is always empty
   Right (completeProgramExpr, initialCircuit)
 
 
-topLevelDefNames :: ModulesMap -> Set.Set VariableId
+topLevelDefNames :: NamespaceEnvironment -> Set.Set VariableId
 topLevelDefNames = Set.fromList . concatMap Map.keys . Map.elems
 
 --
-applyModulesMap :: ModulesMap -- maps
+applyModulesMap :: NamespaceEnvironment -- maps
                 -> String     -- current module
                 -> VariableId -- current definition
                 -> Expr       -- definition body
@@ -205,39 +197,39 @@ applyModulesMap maps currMod currDef expr
       Right $ EAssume e' typ
 
 -- Look up a variable’s definition, preferring the source module but avoiding self-recursion
-searchDefinition :: ModulesMap
+searchDefinition :: NamespaceEnvironment
                  -> String -- source module
                  -> String -- source definition
                  -> VariableId -- target definition
                  -> Either RuntimeError (Maybe (String, TopLevelDefinition))
 searchDefinition maps sourceMod sourceDef trgtDef =
-  --trace ("[SearchDef.] Searching " ++ trgtDef ++ " definition, requested in " ++ sourceMod ++ "." ++ sourceDef) $
   if sourceDef /= trgtDef
-    then
-      case Map.lookup sourceMod maps >>= Map.lookup trgtDef of
-        Just tldef -> --trace(" > Using "++trgtDef++" from "++sourceMod)$
-          Right $ Just (sourceMod, tldef)  -- found in source module
-        Nothing -> searchInOtherModules  -- not found in source module, continue
+    then case Map.lookup sourceMod maps >>= Map.lookup trgtDef of
+      Just tldef -> Right $ Just (sourceMod, tldef) -- found in source module
+      Nothing -> searchInOtherModules -- not found in source module, continue
     else
-      searchInOtherModules  -- same name as sourceDef, skip source module
-
+      searchInOtherModules -- same name as sourceDef, skip source module
   where
     searchInOtherModules :: Either RuntimeError (Maybe (String, TopLevelDefinition))
     searchInOtherModules =
       case [ (modName, tldef)
-           | (modName, defsMap) <- Map.toList maps
-           , modName /= sourceMod
-           , Just tldef <- [Map.lookup trgtDef defsMap]
+             | (modName, defsMap) <- Map.toList maps,
+               modName /= sourceMod,
+               Just tldef <- [Map.lookup trgtDef defsMap]
            ] of
-        [] -> --trace(" > "++trgtDef++" not found")$
-          Right Nothing  -- not found anywhere
-        [(modName, tldef)] -> --trace(" > Using "++id tldef++" from "++modName)$
-          Right $ Just (modName, tldef)  -- found in exactly one library
-        defs -> Left $ RuntimeError err  -- multiple definitions
+        [] ->
+          -- trace(" > "++trgtDef++" not found")$
+          Right Nothing -- not found anywhere
+        [(modName, tldef)] ->
+          -- trace(" > Using "++id tldef++" from "++modName)$
+          Right $ Just (modName, tldef) -- found in exactly one library
+        defs -> Left $ RuntimeError err -- multiple definitions
           where
-            err = "Multiple definitions found for " ++ trgtDef
-                  ++ ".\nIt is defined in the following modules:\n"
-                  ++ intercalate ",\n" (map fst defs)
+            err =
+              "Multiple definitions found for "
+                ++ trgtDef
+                ++ ".\nIt is defined in the following modules:\n"
+                ++ intercalate ",\n" (map fst defs)
 
 
 -- wraps an expression with abstraction on his args in order to be able to lift it
