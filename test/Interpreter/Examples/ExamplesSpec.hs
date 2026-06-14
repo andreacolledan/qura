@@ -1,4 +1,4 @@
-module Interpreter.InterpreterSpec (spec) where
+module Interpreter.Examples.ExamplesSpec (spec) where
 
 import Control.Monad (forM_)
 import Data.List (sort)
@@ -15,7 +15,7 @@ import TestUtil (withSolver)
 import Interface (CLArguments (..))
 
 programDir :: FilePath
-programDir = "test" </> "Interpreter"
+programDir = "test" </> "Interpreter" </> "Examples"
 
 positiveDir :: FilePath
 positiveDir = programDir </> "pos"

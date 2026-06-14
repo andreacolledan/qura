@@ -136,7 +136,8 @@ test-suite qura-test
       Analyzer.Examples.ExamplesSpec
       Analyzer.Linearity.LinearitySpec
       Analyzer.Subtype.SubtypeSpec
-      Interpreter.InterpreterSpec
+      Interpreter.Basic.BasicSpec
+      Interpreter.Examples.ExamplesSpec
       Parser.IndexSpec
       Paths_qura
   hs-source-dirs:
