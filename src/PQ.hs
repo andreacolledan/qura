@@ -2,9 +2,10 @@ module PQ (
   VariableId,
   --re-exports
   Module,
-  prelude
+  prelude,
+  toTypeBindings
 ) where
 
-import PQ.Expr
-import PQ.Module
-import PQ.Prelude
+import PQ.Expr (VariableId)
+import PQ.Module (Module, toTypeBindings)
+import PQ.Prelude (prelude)

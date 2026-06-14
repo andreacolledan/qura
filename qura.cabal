@@ -34,18 +34,29 @@ library
       Analyzer.TypeError
       Analyzer.Unify
       Circuit
+      Circuit.Bundle
+      Circuit.Type
       Eval.Index
       Eval.Type
       Interface
+      Interpreter
+      Interpreter.Configuration
+      Interpreter.Metric
+      Interpreter.Qasm
+      Interpreter.RuntimeError
+      Interpreter.Simple
       Metric
       Metric.Global
       Metric.Global.Bits
       Metric.Global.GateCount
+      Metric.Global.QasmGateCount
+      Metric.Global.QasmWidth
       Metric.Global.Qubits
       Metric.Global.TCount
       Metric.Global.Width
       Metric.Local
       Metric.Local.Depth
+      Metric.Local.QasmDepth
       Metric.Local.TDepth
       Panic
       Parser
@@ -76,6 +87,7 @@ library
   build-depends:
       ansi-terminal
     , base >=4.7 && <5
+    , containers
     , directory
     , extra
     , filepath
@@ -100,6 +112,7 @@ executable qura
   build-depends:
       ansi-terminal
     , base >=4.7 && <5
+    , containers
     , directory
     , extra
     , filepath
@@ -123,6 +136,8 @@ test-suite qura-test
       Analyzer.Examples.ExamplesSpec
       Analyzer.Linearity.LinearitySpec
       Analyzer.Subtype.SubtypeSpec
+      Interpreter.Basic.BasicSpec
+      Interpreter.Examples.ExamplesSpec
       Parser.IndexSpec
       Paths_qura
   hs-source-dirs:
@@ -131,6 +146,7 @@ test-suite qura-test
   build-depends:
       ansi-terminal
     , base >=4.7 && <5
+    , containers
     , directory
     , extra
     , filepath

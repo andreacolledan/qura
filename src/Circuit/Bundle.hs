@@ -1,0 +1,303 @@
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
+
+module Circuit.Bundle
+  ( Label,
+    LabelContext,
+    Renaming,
+    WireBundle (..),
+    emptyContext,
+    namesInBundle,
+    renameBundle,
+    renameLabelContext,
+    updateContext,
+    makeRenamingforAppend,
+    freshBoxLabels,
+    freshlabels,
+    maybeTypeToBundleType,
+    mergeContexts,
+    maybeBundleTypeToType,
+    outputType,
+  )
+where
+
+import Analyzer.Unify
+  ( HasIndex (..),
+    IndexSubstitution,
+    fresh,
+    isubCodomain,
+    isubDomain,
+    isubSingleton,
+  )
+import Circuit.Type (QuantumOperation (..), WireType (..), basename)
+import qualified Data.HashSet as HSet (HashSet)
+import Data.List (intercalate, (\\))
+import Data.Map.Strict (Map)
+import qualified Data.Map.Strict as Map
+  ( empty,
+    findWithDefault,
+    fromList,
+    insert,
+    notMember,
+    null,
+    singleton,
+    toList,
+    union,
+    unionWith,
+    unionsWith,
+  )
+import Data.Set (Set, empty, singleton, union, unions)
+import Eval.Index (evalIndexNoHandle)
+import PQ.Index (IVarId, Index (..))
+import PQ.Type (Type (..))
+import Panic (panic)
+import PrettyPrinter (Pretty (pretty))
+
+-- Bundles Datatype
+
+type Label = String
+
+data BundleType =
+    BUnit
+  | BWire WireType
+  | BTensor [BundleType]
+  | BList IVarId Index BundleType
+  deriving (Eq, Show)
+
+data WireBundle =
+    WUnit
+  | WLab Label
+  | WTuple [WireBundle]
+  | WNil (Maybe BundleType)
+  | WCons WireBundle WireBundle
+  deriving (Eq, Show)
+
+instance Pretty WireBundle where
+  pretty bundle = case bundle of
+    WUnit -> "*"
+    WLab l -> l
+    WTuple t -> "(" ++ intercalate ", " (map pretty t) ++ ")"
+    WNil _ -> "()" -- ?
+    WCons e1 e2 -> "(" ++ pretty e1 ++ ":" ++ pretty e2 ++ ")"
+
+maybeTypeToBundleType :: Maybe Type -> Maybe BundleType
+maybeTypeToBundleType Nothing  = Nothing
+maybeTypeToBundleType (Just typ) = Just $ typeToBundleType typ
+
+typeToBundleType :: Type -> BundleType
+typeToBundleType TUnit = BUnit
+typeToBundleType (TWire wt i) = BWire wt
+typeToBundleType (TTensor typs) = BTensor $ map typeToBundleType typs
+typeToBundleType (TCirc i typ1 typ2) = typeToBundleType typ1
+typeToBundleType (TArrow typ1 typ2 i j) = undefined
+typeToBundleType (TBang i typ) = typeToBundleType typ
+typeToBundleType (TList ivar i typ) = BList ivar i $ typeToBundleType typ
+typeToBundleType (TVar tvar) = undefined
+typeToBundleType (TIForall ivar typ i j) = undefined
+
+maybeBundleTypeToType :: Maybe BundleType -> Maybe Type
+maybeBundleTypeToType Nothing = Nothing
+maybeBundleTypeToType (Just btyp) = Just $ bundleTypeToType btyp
+
+bundleTypeToType :: BundleType -> Type
+bundleTypeToType BUnit = TUnit
+bundleTypeToType (BWire wt) = TWire wt Nothing
+bundleTypeToType (BTensor btyps) = TTensor $ map bundleTypeToType btyps
+bundleTypeToType (BList ivar i btyp) = TList ivar i $ bundleTypeToType btyp
+
+namesInBundle :: WireBundle -> Set String
+namesInBundle WUnit = empty
+namesInBundle (WLab label) = singleton label
+namesInBundle (WTuple ws) = unions (map namesInBundle ws)
+namesInBundle (WNil _) = empty
+namesInBundle (WCons w ws) = namesInBundle w `union` namesInBundle ws
+
+orderedNamesInBundle :: WireBundle -> [String]
+orderedNamesInBundle WUnit = []
+orderedNamesInBundle (WLab label) = [label]
+orderedNamesInBundle (WTuple ws) = concatMap orderedNamesInBundle ws
+orderedNamesInBundle (WNil _) = []
+orderedNamesInBundle (WCons w ws) = orderedNamesInBundle w ++ orderedNamesInBundle ws
+
+suffixWBNames :: String -> WireBundle -> WireBundle
+suffixWBNames _ WUnit = WUnit
+suffixWBNames s (WLab label) = WLab $ label ++ s
+suffixWBNames s (WTuple ws) = WTuple $ map (suffixWBNames s) ws
+suffixWBNames _ (WNil btyp) = WNil btyp
+suffixWBNames s (WCons w ws) = WCons (suffixWBNames s w) (suffixWBNames s ws)
+
+outputType :: QuantumOperation -> BundleType
+outputType (QInit _) = BWire Qubit
+outputType QDiscard = BUnit
+outputType Meas = BWire Bit
+outputType (CInit _) = BWire Bit
+outputType CDiscard = BUnit
+outputType Hadamard = BWire Qubit
+outputType PauliX = BWire Qubit
+outputType PauliY = BWire Qubit
+outputType PauliZ = BWire Qubit
+outputType T = BWire Qubit
+outputType (R _) = BWire Qubit
+outputType (Rinv _) = BWire Qubit
+outputType CNot = BTensor [BWire Qubit, BWire Qubit]
+outputType CZ = BTensor [BWire Qubit, BWire Qubit]
+outputType (CR _) = BTensor [BWire Qubit, BWire Qubit]
+outputType (CRinv _) = BTensor [BWire Qubit, BWire Qubit]
+outputType CCNot = BTensor [BWire Bit, BWire Qubit]
+outputType CCZ = BTensor [BWire Bit, BWire Qubit]
+outputType Toffoli = BTensor [BWire Qubit, BWire Qubit, BWire Qubit]
+outputType (MCNot n) = -- placeholder
+  BTensor [BList "i" (Number n) (BWire Qubit), BWire Qubit]
+
+instance HasIndex BundleType where
+  iv :: BundleType -> HSet.HashSet IVarId
+  iv _ = undefined
+  ifv :: BundleType -> HSet.HashSet IVarId
+  ifv _ = undefined
+  isub :: IndexSubstitution -> BundleType -> BundleType
+  isub _ BUnit = BUnit
+  isub _ (BWire wt) = BWire wt
+  isub sub (BTensor btyps) = BTensor (map (isub sub) btyps)
+  isub sub (BList id j typ) =
+    let id' = fresh (fresh id ((IVar <$> isubDomain sub) ++ isubCodomain sub)) [typ]
+        renaming = isubSingleton id (IVar id')
+        in BList id' (isub sub . isub renaming $ j) (isub sub . isub renaming $ typ)
+
+-- Label Context 
+
+type LabelContext = Map Label WireType -- Q
+
+instance Pretty LabelContext where
+  pretty ctx
+    | Map.null ctx = "[empty]"
+    | otherwise    =
+        let pairs = Map.toList ctx
+            prettyPair (l, t) = l ++ ":" ++ pretty t
+        in intercalate ", " (map prettyPair pairs)
+
+emptyContext :: LabelContext
+emptyContext = Map.empty
+
+mkContext :: [(Label, WireType)] -> LabelContext
+mkContext = Map.fromList
+
+mergeContexts :: LabelContext -> LabelContext -> LabelContext
+mergeContexts = Map.union
+
+updateContext :: LabelContext -> Label -> WireType -> LabelContext
+updateContext ctx label wtype = Map.insert label wtype ctx
+
+-- | @freshlabels t q@ returns @(q', w)@, where @w@ is a wire bundle whose labels
+-- are all fresh in @q@, and @q'@ is @q@ extended with the appropriate label-type
+-- associations such that @w@ has type @t@ under @q'@.
+freshlabels :: BundleType -> LabelContext -> (LabelContext, WireBundle)
+freshlabels t q = case t of
+  
+  BUnit -> (q, WUnit)
+
+  BWire wt ->
+    let
+      base = basename wt
+      names = [base : show n | n <- [(0::Int)..]]
+      name = head $ filter (`Map.notMember` q) names
+      q' = Map.insert name wt q
+    in (q', WLab name)
+
+  BTensor ts ->
+    let
+      go :: LabelContext -> [BundleType] -> (LabelContext, [WireBundle])
+      go ctx [] = (ctx, [])
+      go ctx (b:bs) =
+        let
+          (ctx', wb) = freshlabels b ctx
+          (ctx'', wbs) = go ctx' bs
+        in (ctx'', wb : wbs)
+      (q', wbs) = go q ts
+    in (q', WTuple wbs)
+
+  BList i length btyp -> case evalIndexNoHandle length of
+    Number n
+      | n==0 -> (emptyContext, WNil (Just btyp))
+      | otherwise ->
+        let
+          (q', wb1) = freshlabels (BList i (Number $ n-1) btyp) q
+          (q'', wb2) = freshlabels (isub (isubSingleton i (Number $ n-1)) btyp) $ mergeContexts q q'
+        in -- trace("[freshlabels]\nt: "++show t++"\nq: "++show q++"\nq': "++show q'++"\nq'': "++show q'')$
+          (q'', WCons wb1 wb2)
+
+        -- WCons (freshlabels (BList i (Number $ n-1) btyp)) (freshlabels $ isub (isubSingleton i (Number $ n-1)) btyp)
+        -- freshlabels (BList i length bt) = WCons (freshlabels (BList i length-1 bt)) (freshlabels (bt{length-1/i})) 
+    err -> error $ "[freshLabels] BList index did not evaluate to a number, got: " ++ show err
+
+freshBoxLabels :: BundleType -> (LabelContext, WireBundle)
+freshBoxLabels t = freshlabels t emptyContext
+
+mkConsTyped :: Maybe BundleType -> [WireBundle] -> WireBundle
+mkConsTyped Nothing = foldl WCons (WNil Nothing)
+mkConsTyped (Just btyp) = foldl WCons (WNil $ Just btyp)
+
+-- renaming
+
+type Renaming = Map String String
+
+-- | @makeCaptureFreeRenaming labelsToRename labelsToAvoid inputLabels targetLabels@ returns a renaming
+-- of all the labels in @labelsToRename@ such that:
+--  - The labels that occur also in @inputLabels@ get renamed to the corresponding labels in @targetLabels@
+--  - The remaining labels in @labelsToRename@ get renamed to fresh labels that do not occur in @labelsToAvoid@
+--
+-- This function is used in circuit appending, to rename the labels of a boxed circuit so as to
+-- allow its concatenation with the underlying circuit without label name conflicts.
+-- 
+-- Note: This function assumes that @targetLabels@ is a subset of @labelsToAvoid@ and that
+-- @inputLabels@ is a subset of @labelsToRename@.
+makeRenamingforAppend :: [Label] -> [Label] -> WireBundle -> WireBundle -> Renaming
+makeRenamingforAppend labelsToRename labelsToAvoid inputLabels targetLabels = 
+  let
+    -- free labels in labelsToRename (i.e. not in inputLabels)
+    freeLabelsToRename = labelsToRename \\ orderedNamesInBundle inputLabels
+    labelsToAvoidInFreeLabels = labelsToAvoid ++ orderedNamesInBundle inputLabels
+    newNamesForFreeLabels = map (freshLabelIn labelsToAvoidInFreeLabels) freeLabelsToRename
+    freeLabelsRenaming = Map.fromList $ zip freeLabelsToRename newNamesForFreeLabels
+    -- input labels
+    inputLabelsRenaming = makeDirectRenaming inputLabels targetLabels
+  in
+    Map.union freeLabelsRenaming inputLabelsRenaming
+  where
+    freshLabelIn :: [Label] -> Label -> Label
+    freshLabelIn toAvoid label | label `notElem` toAvoid = label
+    freshLabelIn toAvoid label = head [label ++ show i | i <- [(0 :: Int)..], (label ++ show i) `notElem` toAvoid]
+
+-- | @makeDirectRenaming wb1 wb2@ returns the smallest renaming that turns wire bundle @wb1@ into wire bundle @wb2@.
+--
+-- Raises an error if the wire bundles are of incompatible shape or if no such renaming exists.
+makeDirectRenaming :: WireBundle -> WireBundle -> Renaming
+makeDirectRenaming WUnit WUnit = Map.empty
+makeDirectRenaming (WLab before) (WLab after) = Map.singleton before after
+makeDirectRenaming wb@(WTuple before) wa@(WTuple after) =
+  Map.unionsWith (
+    \target1 target2 -> if target1 == target2
+      then target1
+      else panic $ "tried to rename same label to " ++ target1 ++ " and " ++ target2 ++ " at the same time, while renaming " ++ pretty wb ++ " to " ++ pretty wa
+    ) $ zipWith makeDirectRenaming before after
+makeDirectRenaming wb@(WCons restBefore tailBefore) wa@(WCons restAfter tailAfter) =
+  Map.unionWith (
+    \target1 target2 -> if target1 == target2
+      then target1
+      else panic $ "tried to rename same label to " ++ target1 ++ " and " ++ target2 ++ " at the same time, while renaming " ++ pretty wb ++ " to " ++ pretty wa
+    ) (makeDirectRenaming restBefore restAfter) (makeDirectRenaming tailBefore tailAfter)
+makeDirectRenaming wb wa = panic $ "tried to rename wire bundle " ++ pretty wb ++ " to mismatched wire bundle " ++ pretty wa
+
+renameBundle :: Renaming -> WireBundle -> WireBundle
+renameBundle _ WUnit = WUnit
+-- the default is not needed in the use case, but the general function might need it
+renameBundle rn (WLab label) = WLab (Map.findWithDefault label label rn)
+renameBundle rn (WTuple ws) = WTuple (map (renameBundle rn) ws)
+renameBundle _ (WNil t) = WNil t
+renameBundle rn (WCons w ws) = WCons (renameBundle rn w) (renameBundle rn ws)
+
+renameLabelContext :: Renaming -> LabelContext -> LabelContext
+renameLabelContext rn ctx =
+  Map.fromList
+    [ (Map.findWithDefault label label rn, wt)
+    | (label, wt) <- Map.toList ctx
+    ]

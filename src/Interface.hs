@@ -3,16 +3,54 @@ module Interface (
     cliInterface
 ) where
 
-import Metric
+import Data.Version (showVersion)
+import Metric.Global (GlobalMetricModule)
+import Metric.Global.Bits (bitsMetric)
+import Metric.Global.GateCount (gateCountMetric)
+import Metric.Global.QasmGateCount (qasmGateCountMetric)
+import Metric.Global.QasmWidth (qasmWidthMetric)
+import Metric.Global.Qubits (qubitsMetric)
+import Metric.Global.TCount (tCountMetric)
+import Metric.Global.Width (widthMetric)
+import Metric.Local (LocalMetricModule)
+import Metric.Local.Depth (depthMetric)
+import Metric.Local.QasmDepth (qasmDepthMetric)
+import Metric.Local.TDepth (tDepthMetric)
 import Options.Applicative
+  ( Parser,
+    ParserInfo,
+    ReadM,
+    fullDesc,
+    header,
+    help,
+    helper,
+    info,
+    long,
+    metavar,
+    option,
+    optional,
+    progDesc,
+    readerError,
+    short,
+    simpleVersioner,
+    str,
+    strArgument,
+    strOption,
+    switch,
+    (<**>),
+  )
+import Paths_qura (version)
 
 data CLArguments = CommandLineArguments
   { filepath :: String,
+    outputFilepath :: Maybe String,
     verbose :: Bool,
+    norun :: Bool,
     debug :: Maybe String,
     noprelude :: Bool,
     grs :: Maybe GlobalMetricModule,
-    lrs :: Maybe LocalMetricModule
+    lrs :: Maybe LocalMetricModule,
+    qubitRecycling :: Bool
   }
 
 globalMetricArgParser :: ReadM GlobalMetricModule
@@ -24,7 +62,10 @@ globalMetricArgParser = do
     "bits" -> return bitsMetric
     "gatecount" -> return gateCountMetric
     "tcount" -> return tCountMetric
-    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount'."
+    -- qasm
+    "qasmwidth" -> return qasmWidthMetric
+    "qasmgatecount" -> return qasmGateCountMetric
+    _ -> readerError "Supported global resources are 'width', 'gatecount', 'qubits', 'bits', 'tcount','qasmwidth', 'qasmgatecount'."
 
 localMetricArgParser :: ReadM LocalMetricModule
 localMetricArgParser = do
@@ -32,15 +73,17 @@ localMetricArgParser = do
   case s of
     "depth" -> return depthMetric
     "tdepth" -> return tDepthMetric
-    _ -> readerError "Supported local resources are 'depth', `tdepth`."
+    -- qasm
+    "qasmdepth" -> return qasmDepthMetric
+    _ -> readerError "Supported local resources are 'depth', 'tdepth', 'qasmdepth'."
 
 cliInterface :: ParserInfo CLArguments
 cliInterface =
   info
-    (arguments <**> helper)
+    (arguments <**> helper <**> simpleVersioner ("QuRA version " ++ showVersion Paths_qura.version))
     ( fullDesc
-        <> progDesc "Verify the resource consumption of the program in FILE according to the chosen METRIC."
-        <> header "QuRA: a static analysis tool for the resource verification of quantum circuit description programs"
+        <> progDesc "Verify the resource consumption of the program FILE according to the chosen METRIC and run it to produce a circuit"
+        <> header "QuRA: a tool for resource-aware quantum programming"
     )
   where
     arguments :: Parser CLArguments
@@ -48,12 +91,23 @@ cliInterface =
       CommandLineArguments
         <$> strArgument
           ( metavar "FILE"
-              <> help "The file to type-check and analyze"
+              <> help "The file to type-check and run"
           )
+        <*> optional ( strOption
+          ( long "output"
+            <> short 'o'
+            <> metavar "FILE"
+            <> help "Place the output circuit into FILE"
+          )
+        )
         <*> switch
           ( long "verbose"
               <> short 'v'
               <> help "Print verbose output"
+          )
+        <*> switch
+          ( long "no-run"
+              <> help "Type-check only, without running the program"
           )
         <*> optional (strOption
           ( long "debug"
@@ -77,3 +131,7 @@ cliInterface =
               <> metavar "METRIC"
               <> help "Analyse local METRIC"
               ))
+        <*> switch
+          ( long "no-recycling"
+              <> help "Do not recycle discarded qubits during initializations"
+          )

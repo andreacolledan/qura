@@ -8,7 +8,7 @@ dumbNot d q =
   let _ = (force qdiscard @(d+1)) a in
   q
 
--- negate twice a qubit q at depth d, using dumbNot
+-- negate twice a qubit y at depth x, using dumbNot
 -- this is useless, but highlights qubit reuse
 doubleNegation :: ![0](forall[0] d. Qubit{d} -o[2] Qubit{d+2})
 doubleNegation d q =

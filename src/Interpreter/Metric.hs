@@ -1,0 +1,20 @@
+module Interpreter.Metric
+  ( ProgramMetrics (..),
+  )
+where
+
+import PrettyPrinter (Pretty (..))
+
+-- | This class is used to represent the static metrics of a curcuit object.
+data ProgramMetrics = ProgMetrics {
+  width :: Int,
+  depth :: Int,
+  gatecount :: Int
+} deriving Show
+
+instance Pretty ProgramMetrics where
+  pretty ProgMetrics {width = w, depth = d, gatecount = gc} =
+    "circuit dimensions:\n" ++
+    " - Width: " ++ show w ++ "\n" ++
+    " - Depth: " ++ show d ++ "\n" ++
+    " - Gatecount: " ++ show gc ++ "\n" 

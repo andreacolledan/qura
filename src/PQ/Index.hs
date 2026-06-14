@@ -9,7 +9,7 @@ module PQ.Index
   )
 where
 
-import Circuit
+import Circuit.Type
 import qualified Data.HashSet as Set
 import PrettyPrinter
 import Panic (undesugaredPanic)

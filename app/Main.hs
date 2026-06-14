@@ -1,12 +1,13 @@
 module Main (main) where
 
 import Analyzer (runAnalysis)
-import Control.Monad (when)
+import Control.Monad (when, unless)
 import Data.List (intercalate)
-import Data.Maybe (catMaybes, isJust)
+import Data.Maybe (catMaybes, isJust, fromMaybe)
 import Interface (CLArguments (..), cliInterface)
+import Interpreter (Configuration (..), InterpreterResult (..), runInterpreter)
 import Options.Applicative (execParser)
-import PQ (Module, prelude)
+import PQ (Module, prelude, toTypeBindings)
 import Parser (errorBundlePretty, parseModule, runParser)
 import PrettyPrinter (Pretty (pretty))
 import Solver (withSolver)
@@ -18,9 +19,9 @@ import System.Console.ANSI
     hSetSGR,
   )
 import System.Directory (findExecutable)
-import System.IO.Extra (stderr, hPutStrLn)
-import Text.Pretty.Simple (pPrint)
 import System.Directory.Internal.Prelude (exitFailure)
+import System.IO.Extra (hPutStrLn, stderr)
+import Text.Pretty.Simple (pPrint)
 
 main :: IO ()
 main = do
@@ -28,8 +29,8 @@ main = do
   opts <- parseCLArguments
   mod <- parseSource opts
   libs <- getLibs opts
-  analyzeModule mod libs opts
-  
+  analyzedModule <- analyzeModule mod libs opts
+  interpretModule analyzedModule libs opts
 
 ensureCVC5 :: IO ()
 ensureCVC5 = do
@@ -54,27 +55,48 @@ parseSource CommandLineArguments {verbose = verb, filepath = file, grs = mgrs, l
     Left err -> error $ errorBundlePretty err
     Right mod -> do
       when verb $ do
-        putStrLn "Abstract Syntax Tree: \n\t"
+        putStrLn "Parsed the following AST: \n\t"
         pPrint mod
+        putStrLn ""
       return mod
 
 getLibs :: CLArguments -> IO [Module]
 getLibs CommandLineArguments {noprelude = nopre} = return ([prelude | not nopre]) -- for now, we only allow the prelude as a library
 
-analyzeModule :: Module -> [Module] -> CLArguments -> IO ()
+analyzeModule :: Module -> [Module] -> CLArguments -> IO Module
 analyzeModule mod libs CommandLineArguments {filepath = fp, verbose = verb, debug = deb, grs = mgrs, lrs = mlrs} = do
-    when verb $ do
-      putStrLn "Inferring type..."
-    outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
-    case outcome of
-      Left err -> abortWithMessage $ show err
-      Right bindings -> do
-        putStrLn $ "Analyzed file '" ++ fp ++ "'."
+  when verb $ putStrLn $ "Type-checking '" ++ fp ++ "'..."
+  outcome <- withSolver deb $ \qfh -> runAnalysis mod libs qfh mgrs mlrs
+  case outcome of
+    Left err -> abortWithMessage $ show err
+    Right analyzedModule -> do
+      when verb $ do
         let metrics = catMaybes [pretty <$> mgrs, pretty <$> mlrs]
-        putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ".\n"
-        putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n\n") bindings
+        putStrLn $ "Checked " ++ intercalate ", " ("type" : metrics) ++ ". Top level bindings:\n"
+        putStrLn $ concatMap (\(id, typ) -> id ++ " :: " ++ pretty typ ++ "\n") $ toTypeBindings analyzedModule
+      return analyzedModule
 
-abortWithMessage :: String -> IO ()
+
+interpretModule :: Module -> [Module] -> CLArguments -> IO ()
+interpretModule mod libs opts@CommandLineArguments {verbose = verb, norun = nr, filepath = fp, outputFilepath = ofp} = do
+  unless nr $ do
+    when verb $ putStrLn $ "Running " ++ fp ++ "..."
+    case runInterpreter mod libs opts of
+      Left err -> abortWithMessage $ show err
+      Right intResult -> do
+        when verb $ do
+          let config = cfg intResult
+          putStrLn $ "File '" ++ fp ++ "' produced the following circuit IR:\n"
+          putStrLn (pretty (circuit config))
+          putStrLn "\nWhile evaluating to:\n"
+          putStrLn $ pretty (term config) ++ "\n"
+          putStrLn $ "Writing circuit to " ++ fromMaybe "stdout" ofp ++ "...\n"
+        let outputString = pretty (qasm intResult)
+        case ofp of
+          Just jofp -> writeFile jofp outputString
+          Nothing -> putStr outputString
+
+abortWithMessage :: String -> IO a
 abortWithMessage e = do
   hSetSGR stderr [SetColor Foreground Vivid Red]
   hPutStrLn stderr e

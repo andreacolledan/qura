@@ -9,18 +9,21 @@ module PQ.Type
     WireType(..),
     HasSize(..),
     stripGlobalAnnotations,
-    stripLocalAnnotations
+    stripLocalAnnotations,
+    -- maybeTypeToBundleType
   )
 where
 
 import PQ.Index
 import PrettyPrinter
 import Data.List (intercalate)
-import Circuit
+import Circuit.Type
+
+
 
 type TVarId = String
 
--- | The datatype of PQR types
+-- | The datatype of PQ types
 data Type
   = TUnit                                             -- Unit type        : ()
   | TWire WireType (Maybe Index)                      -- Wire type        : Bit{i} | Qubit{i}
@@ -143,3 +146,4 @@ instance (Traversable t, HasSize a) => HasSize (t a) where
 instance HasSize a => HasSize (Maybe a) where
   typeSize Nothing = Nothing
   typeSize (Just x) = typeSize x
+

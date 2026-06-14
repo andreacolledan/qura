@@ -6,6 +6,7 @@ module Analyzer.Unify
     isubDomain,
     isubCodomain,
     isubSingleton,
+    IndexSubstitution,
     HasIndex (..),
     fresh,
     mgiu,

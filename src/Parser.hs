@@ -7,10 +7,14 @@ module Parser
   )
 where
 
-import Text.Megaparsec
+import Control.Monad.State.Strict (evalStateT)
 import Parser.Core
-import Parser.Module
-import Control.Monad.State.Strict
+  ( Parser,
+    ParserError,
+    ParserState (ParserState, baseIndent, parseGMA, parseLMA),
+  )
+import Parser.Module (parseModule)
+import Text.Megaparsec (errorBundlePretty, parse, pos1)
 
 
 -- | @runParser p parseGMA parseLMA filename content@ runs parser @p@ on @content@.

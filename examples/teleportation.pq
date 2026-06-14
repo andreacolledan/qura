@@ -1,6 +1,4 @@
---- Quantum Teleportation with width and depth analysis
-
--- teleportation-depth-generic.pq
+-- teleportation.pq
 
 -- put q and p into the entangled |+> state
 bell :: ![0](forall[0] dq. forall[0] dp.

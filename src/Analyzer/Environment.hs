@@ -1,12 +1,25 @@
-module Analyzer.Environment where
+module Analyzer.Environment
+  ( TypingEnvironment (..),
+    TypingContext,
+    BindingInfo (..),
+    canBeUsed,
+    mustBeUsed,
+    envIsLinear,
+    makeEnvForall,
+    makeEnv,
+    emptyEnv,
+  )
+where
+
 import qualified Data.HashMap.Lazy as Map
 import qualified Data.HashSet as Set
-import Metric
-import PQ.Expr
-import PQ.Index
-import PQ.Type
-import PrettyPrinter
-import Solver
+import Metric.Global (GlobalMetricModule)
+import Metric.Local (LocalMetricModule)
+import PQ.Expr (Expr, VariableId)
+import PQ.Index (IVarId, Index (Identity), IndexContext)
+import PQ.Type (HasSize (..), Type, isLinear)
+import PrettyPrinter (Pretty (pretty))
+import Solver.SMT (SolverHandle)
 
 --- BINDINGS ------------------------------------------------------------------
 

@@ -2,7 +2,7 @@
 
 module Metric.Global.Qubits (qubitsMetric) where
 
-import Circuit
+import Circuit.Type
 import Metric.Global
 import PQ.Index
 
