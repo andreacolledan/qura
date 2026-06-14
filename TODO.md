@@ -43,11 +43,11 @@
 - [X] remove uses of `trace`
 - [ ] more homogenous handling of runtime errors
 - [ ] more homogenous treatment of labels, free labels and renamings, in the style of indices
-- [ ] clean up createRenamingWithLC (consider a type class for label-bearing types)
+- [X] clean up createRenamingWithLC
 
 ## Other
 
 - [ ] Proper documentation for the PQ language
-- [ ] Support for multi-module projects and linking
+- [ ] Support for multi-module projects
 
 
